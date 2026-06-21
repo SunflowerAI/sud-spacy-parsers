@@ -1,0 +1,17 @@
+{
+  "n": 400,
+  "results": {
+    "fewshot12_def": {
+      "acc": 0.9275,
+      "per_class": {
+        "complement": 0.89,
+        "modifier": 0.965
+      },
+      "pred_counts": {
+        "modifier": 215,
+        "complement": 185
+      },
+      "sec_per_item": 0.3667290598154068
+    }
+  }
+}

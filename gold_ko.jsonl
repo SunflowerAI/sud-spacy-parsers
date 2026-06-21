@@ -1,0 +1,193 @@
+{"verb": "재임중이다", "adp": "이후", "prep_phrase": "2005년 3월 이후", "verb_phrase": "2005년 3월 이후 건설건재공업상으로 재임중이다", "gold": "modifier"}
+{"verb": "이루고", "adp": "때문+에", "prep_phrase": "걱정 때문에", "verb_phrase": "드라마나 영화에서 주인공이 걱정 때문에 잠을 못 이루고 밤새 몸을 뒤척이는", "gold": "modifier"}
+{"verb": "하나이다", "adp": "중", "prep_phrase": "흔한 장면 중", "verb_phrase": "드라마나 영화에서 주인공이 걱정 때문에 잠을 못 이루고 밤새 몸을 뒤척이는 것은 흔한 장면 중 하나이다", "gold": "modifier"}
+{"verb": "낮아져", "adp": "때문+에", "prep_phrase": "전력을 최저한도까지 떨어뜨렸기 때문에", "verb_phrase": "또 전력을 최저한도까지 떨어뜨렸기 때문에 선내의 온도는 극단적으로 낮아져 버렸다", "gold": "modifier"}
+{"verb": "도망쳐나온", "adp": "때문+에", "prep_phrase": "부모가 폭력적이었기 때문에", "verb_phrase": "부모가 폭력적이었기 때문에 오리히메가 어렸을 적에 오빠인 소라가 오리히메를 데리고 도망쳐나온", "gold": "modifier"}
+{"verb": "왔는데", "adp": "만+에", "prep_phrase": "몇 년 만에", "verb_phrase": "몇 년 만에 왔는데", "gold": "modifier"}
+{"verb": "잡았다", "adp": "만+에", "prep_phrase": "6개월 만에", "verb_phrase": "또한 지난해 11월에는 한국의 올 경제성장률을 4.4%로 예상했지만, 6개월 만에 1.4% 포인트나 올려 잡았다", "gold": "modifier"}
+{"verb": "푼", "adp": "때", "prep_phrase": "방북 때", "verb_phrase": "오는 26일 방북 예정인 지미 카터 전 미국 대통령이 지난해 방북 때 자국민의 억류 문제를 푼", "gold": "modifier"}
+{"verb": "이적해", "adp": "이후", "prep_phrase": "그 이후", "verb_phrase": "그 이후 샘 앨러다이스 감독에 의해 뉴캐슬 유나이티드로 600만 파운드에 이적해", "gold": "modifier"}
+{"verb": "내놓았다", "adp": "동안", "prep_phrase": "이 기간 동안", "verb_phrase": "이 기간 동안 그는 , 많은 생태학적인, 철학적인 아이디어를 내놓았다", "gold": "modifier"}
+{"verb": "개척한", "adp": "때", "prep_phrase": "세종 때", "verb_phrase": "세종 때 북방에서 6진을 개척한", "gold": "modifier"}
+{"verb": "뒤집는", "adp": "만+에", "prep_phrase": "두어 달 만에", "verb_phrase": "이미 지난 3월 말 버락 오바마 대통령이 수십 년간 원유와 천연가스 유전 개발이 금지됐던 대서양 연안과 멕시코만 동부, 알래스카 북부 해안 등에 대해 유전 탐사와 시추를 허용했던 조치를 두어 달 만에 뒤집는", "gold": "modifier"}
+{"verb": "보러", "adp": "후", "prep_phrase": "경주 여행 후", "verb_phrase": "경주 여행 후 바다 보러", "gold": "modifier"}
+{"verb": "받았다", "adp": "전", "prep_phrase": "1년 전", "verb_phrase": "경찰을 꿈꾸는 최은영(서울 예일여고 3년)양은 1년 전 고2 때 충격을 받았다", "gold": "modifier"}
+{"verb": "폭격하였는데", "adp": "동안", "prep_phrase": "5시간 동안", "verb_phrase": "1941년 6월 5일, 일본군은 항공기 24대를 3조로 편성하여 5시간 동안 폭격하였는데", "gold": "modifier"}
+{"verb": "기록했다", "adp": "중", "prep_phrase": "아시아지역 국가 중", "verb_phrase": "또한 아시아지역 국가 중 '접속 및 기술인프라 ', '정부정책과 비전 ', '사회문화적 환경'등 세 가지 영역에서 선두를 기록했다", "gold": "modifier"}
+{"verb": "떨어져", "adp": "때", "prep_phrase": "새끼 때", "verb_phrase": "새끼 때 떨어져 지내다", "gold": "modifier"}
+{"verb": "지켰다는", "adp": "동안", "prep_phrase": "일생 동안", "verb_phrase": "때로는 이를 부인하도록 유혹하거나 총구로 협박하는 생명의 위협을 받는 와중에서도 모두가 일생 동안 그 증언을 굳건하게 지켰다는", "gold": "modifier"}
+{"verb": "진행됐다", "adp": "동안", "prep_phrase": "3시간 동안", "verb_phrase": "한편 이날 시상식은 지성과 최강희의 사회로 1, 2부에 걸쳐 3시간 동안 생방송으로 진행됐다", "gold": "modifier"}
+{"verb": "이끌었는데", "adp": "동안", "prep_phrase": "총 9시즌 동안", "verb_phrase": "파이즐리 감독은 1973 - 74시즌부터 1982 - 83시즌까지 총 9시즌 동안 리버풀을 이끌었는데", "gold": "modifier"}
+{"verb": "가세하는", "adp": "후", "prep_phrase": "준공 후", "verb_phrase": "수도권 곳곳에서 준공 후 미분양 상가의 공급도 가세하는", "gold": "modifier"}
+{"verb": "듭니다", "adp": "중", "prep_phrase": "안경점 중", "verb_phrase": "안경점 중 제일 마음에 듭니다 ㅎ", "gold": "modifier"}
+{"verb": "하는", "adp": "후", "prep_phrase": "그의 부모님의 별거 후", "verb_phrase": "그의 부모님의 별거 후, 그의 어머니가 일자리를 찾는 여행을 하는", "gold": "modifier"}
+{"verb": "일하면서", "adp": "후", "prep_phrase": "졸업 후", "verb_phrase": "졸업 후 국제 사면 위원회에서 임시 직원으로 일하면서", "gold": "modifier"}
+{"verb": "주지", "adp": "때문+에", "prep_phrase": "소비자들이 가격에 이미 적응을 하기 때문에", "verb_phrase": "금값이 서서히 오르거나 내리면 소비자들이 가격에 이미 적응을 하기 때문에 거래에 큰 영향을 주지 않지만", "gold": "modifier"}
+{"verb": "부활하여", "adp": "후", "prep_phrase": "3년 후", "verb_phrase": "두려랑(杜麗娘)이라는 미소녀가 꿈에 이상적인 남편 유몽매(柳夢梅)와 정을 맺어, 꿈에서 깬 뒤부터는 밤낮을 두고 연모한 끝에 죽어버리나, 3년 후 신의 힘으로 부활하여", "gold": "modifier"}
+{"verb": "맞이하게", "adp": "후", "prep_phrase": "이 후", "verb_phrase": "이 후 재규어는 1980년대 중반 영국의 명문 자동차 경주자팀인 TWR(Tom Walkinshaw Racing)의 톰 월킨쇼우(Tom Walkinshaw)를 만나면서 두 번째 전성기를 맞이하게 된다", "gold": "modifier"}
+{"verb": "진행돼", "adp": "이후", "prep_phrase": "개혁개방 이후", "verb_phrase": "지난 30년간 개혁개방 이후 사실상 무차별적으로 진행돼 온", "gold": "modifier"}
+{"verb": "한다고", "adp": "동안", "prep_phrase": "하루 동안", "verb_phrase": "다음달 2일 동두천초등학교 42회 졸업생인 유현상씨가 고향인 동두천을 찾아 하루 동안 명예시장 체험을 한다고", "gold": "modifier"}
+{"verb": "구현해", "adp": "후", "prep_phrase": "그 후", "verb_phrase": "그 후 대부분의 다른 블로깅 도구들도 이를 구현해 왔다", "gold": "modifier"}
+{"verb": "할", "adp": "동안", "prep_phrase": "이 기간 동안", "verb_phrase": "이 기간 동안 아무런 금융활동을 할", "gold": "modifier"}
+{"verb": "만난", "adp": "만+에", "prep_phrase": "3년 만에", "verb_phrase": "3년 만에 다시 만난", "gold": "modifier"}
+{"verb": "이룬", "adp": "만+에", "prep_phrase": "해군 창설 65년 만에", "verb_phrase": "해군 창설 65년 만에 꿈을 이룬 겁니다", "gold": "modifier"}
+{"verb": "진행된다", "adp": "사이", "prep_phrase": "1~3주 사이", "verb_phrase": "매년 기간은 조금씩 다르지만, 1~3주 사이 약 10일에 걸쳐 진행된다", "gold": "modifier"}
+{"verb": "되었고", "adp": "후", "prep_phrase": "제1차 세계 대전 후", "verb_phrase": "제1차 세계 대전 후 뉴욕은 세계의 콘서트 도시가 되었고, 또한 작곡가조합 등이 결성되어 그 결과로 현대음악의 육성을 목표로 하는 다른 많은 단체와 그룹의 설립이 왕성해졌다", "gold": "modifier"}
+{"verb": "선발한다", "adp": "중", "prep_phrase": "1, 2학년 학생 중", "verb_phrase": "1, 2학년 학생 중 전국영어듣기평가 및 English oral test를 통해 10명 내외로 선발한다", "gold": "modifier"}
+{"verb": "진행했다", "adp": "후", "prep_phrase": "면담 후", "verb_phrase": "면담 후 소위 조사단은 풍림콘도 지하로 자리를 옮겨 반대측 대표인 고명진 강정마을 부회장과 윤호경 강정마을회 사무국장과 역시 배공개 면담을 진행했다", "gold": "modifier"}
+{"verb": "맡은", "adp": "후", "prep_phrase": "데뷔 후", "verb_phrase": "데뷔 후 처음 맡은", "gold": "modifier"}
+{"verb": "갈", "adp": "만+에", "prep_phrase": "몇 분 만에", "verb_phrase": "제일 가까운 병원까지 몇 분 만에 갈", "gold": "modifier"}
+{"verb": "얻으려는", "adp": "전", "prep_phrase": "고리롱이 세상을 떠나기 전", "verb_phrase": "고리롱이 세상을 떠나기 전 그의 아이를 얻으려는", "gold": "modifier"}
+{"verb": "의해", "adp": "에", "prep_phrase": "모레인(빙하 말단의 퇴석)에", "verb_phrase": "모레인(빙하 말단의 퇴석)에 의해", "gold": "complement"}
+{"verb": "되면서", "adp": "후", "prep_phrase": "춘장문과 급제 후", "verb_phrase": "춘장문과 급제 후 딸이 중종의 계비가 되면서", "gold": "modifier"}
+{"verb": "가는", "adp": "때", "prep_phrase": "러시아워 때", "verb_phrase": "러시아워 때 제일 가까운 병원에 가는", "gold": "modifier"}
+{"verb": "옮겨", "adp": "후", "prep_phrase": "1974년 데뷔 후", "verb_phrase": "1974년 데뷔 후 1987년 일본으로 활동 무대를 옮겨", "gold": "modifier"}
+{"verb": "선언했지만", "adp": "후", "prep_phrase": "시즌 종료 후", "verb_phrase": "시즌 종료 후 FA를 선언했지만", "gold": "modifier"}
+{"verb": "그만두고", "adp": "후", "prep_phrase": "그 후", "verb_phrase": "그 후 FBI 요원을 그만두고 제이라 사의 직원으로서 일하게 된다", "gold": "modifier"}
+{"verb": "가까워지며", "adp": "중", "prep_phrase": "제1차 세계대전 기간 중", "verb_phrase": "제1차 세계대전 기간 중 노동당과 가까워지며", "gold": "modifier"}
+{"verb": "나서고", "adp": "만+에", "prep_phrase": "지구 지정 8년여 만에", "verb_phrase": "시범뉴타운 가운데 하나인 왕십리뉴타운이 지구 지정 8년여 만에 처음 분양에 나서고, 강남권에서는 다음 달 초 나올 역삼동 래미안그레이튼(진달래2차 재건축)을 시작으로 2000여 가구가 릴레이로 분양된다", "gold": "modifier"}
+{"verb": "나오는", "adp": "때", "prep_phrase": "점심 때", "verb_phrase": "점심 때 나오는", "gold": "modifier"}
+{"verb": "발생했다고", "adp": "후", "prep_phrase": "선체 인양 후", "verb_phrase": "선체 인양 후 국가안보에 중대사건이 발생했다고", "gold": "modifier"}
+{"verb": "복귀했다가", "adp": "후", "prep_phrase": "계약 만료 후", "verb_phrase": "계약 만료 후 다시 에버튼으로 복귀했다가", "gold": "modifier"}
+{"verb": "복귀한", "adp": "만+에", "prep_phrase": "8개월 만에", "verb_phrase": "박찬구 금호석유 (31,400원 1000 3.3%)화학 회장이 8개월 만에 경영일선에 복귀한 뒤", "gold": "modifier"}
+{"verb": "깨쳤다", "adp": "때", "prep_phrase": "다섯 살 때", "verb_phrase": "그의 가족 소유의 타이멕스 싱클레어 컴퓨터를 가지고 놀면서, 다섯 살 때 베이직을 깨쳤다", "gold": "modifier"}
+{"verb": "오르지", "adp": "이후", "prep_phrase": "1999년 이후", "verb_phrase": "1999년 이후 종별선수권 결승조차 오르지 못했던", "gold": "modifier"}
+{"verb": "급제하여", "adp": "중", "prep_phrase": "재직 중", "verb_phrase": "1442년(세종 24) 한학훈도(漢學訓導)로 재직 중 친시문과(親試文科)에 급제하여", "gold": "modifier"}
+{"verb": "지냈고", "adp": "이후", "prep_phrase": "육군강무학교 졸업 이후", "verb_phrase": "육군강무학교 졸업 이후 이범석은 중국군 견습사관을 지냈고, 건해자(乾海子) 기병연대에 배속되었다", "gold": "modifier"}
+{"verb": "경험하는", "adp": "후", "prep_phrase": "그 후", "verb_phrase": "그 후 대학당국의 경직된 대응이나 정부와 기동대의 개입을 경험하는 가운데", "gold": "modifier"}
+{"verb": "달하는", "adp": "에", "prep_phrase": "1분기 연결 영업이익의 30%에", "verb_phrase": "이는 1분기 연결 영업이익의 30%에 달하는", "gold": "complement"}
+{"verb": "옮긴", "adp": "때", "prep_phrase": "문주왕 때", "verb_phrase": "문주왕 때 백제가 수도를 웅진성(공주)으로 옮긴 후", "gold": "modifier"}
+{"verb": "지낸", "adp": "동안", "prep_phrase": "3년 동안", "verb_phrase": "1896년부터 3년 동안 법부 주사를 지낸", "gold": "modifier"}
+{"verb": "있었고", "adp": "전", "prep_phrase": "보조금이 지급되기 전", "verb_phrase": "보조금이 지급되기 전 실제로 법화사에 조경사업이 있었고 이를 전보받기 위해 범죄를 저지른 점 등을 참작한다\"며", "gold": "modifier"}
+{"verb": "상태이며", "adp": "때문+에", "prep_phrase": "부채 때문에", "verb_phrase": "부채 때문에 경제적으로 궁박한 상태이며 자살까지 생각한다는", "gold": "modifier"}
+{"verb": "추진하고", "adp": "때문+에", "prep_phrase": "이 때문에", "verb_phrase": "이 때문에 각 시는 대중교통의 적자 폭을 줄이기 위한 고육책으로 시내버스 요금 인상을 추진하고 있는", "gold": "modifier"}
+{"verb": "있었다는", "adp": "때문+에", "prep_phrase": "에밀리가 이 책을 훌륭히 번역하였기 때문에", "verb_phrase": "에밀리가 이 책을 훌륭히 번역하였기 때문에 프랑스는 영국보다 100년 앞서 과학이 발달할 수 있었다는", "gold": "modifier"}
+{"verb": "팔렸고", "adp": "동안", "prep_phrase": "하루 동안", "verb_phrase": "출시된 직후 하루 동안 100만대 팔렸고 1주일 동안 400만대가 판매되면서", "gold": "modifier"}
+{"verb": "판매되면서", "adp": "동안", "prep_phrase": "1주일 동안", "verb_phrase": "1주일 동안 400만대가 판매되면서", "gold": "modifier"}
+{"verb": "부드러운", "adp": "중", "prep_phrase": "인근 커피 집 중", "verb_phrase": "인근 커피 집 중 강하게 볶지 않아 부드러운", "gold": "modifier"}
+{"verb": "보냈다고", "adp": "중", "prep_phrase": "이들 중", "verb_phrase": "이들 단체의 간부급 조합원 290여명이 민주노동당에 당원으로 가입하거나 매월 일정 금액을 정당 계좌로 납부해온 혐의를 잡고 이들 중 1차로 69명에게 출석요구서를 보냈다고", "gold": "modifier"}
+{"verb": "차지할", "adp": "중", "prep_phrase": "약 1,800컷의 분량 중", "verb_phrase": "약 1,800컷의 분량 중 CG가 1,748컷을 차지할", "gold": "modifier"}
+{"verb": "떨어져", "adp": "동안", "prep_phrase": "겨울 동안", "verb_phrase": "겨울 동안 때때로 기온이 떨어져", "gold": "modifier"}
+{"verb": "하였는데", "adp": "때", "prep_phrase": "절충 2집 발매 기념 파티 때", "verb_phrase": "절충 2집 발매 기념 파티 때 DJ Juice가 DJ Son과 같이 공연을 하였는데", "gold": "modifier"}
+{"verb": "있다는", "adp": "만+에", "prep_phrase": "몇 년 만에", "verb_phrase": "섀플리는 세페이드 변광성의 주기가 20일이나 되는데 주기가 긴 세페이드 변광성을 이용해 계산한 거리는 신빙성이 없다며 반박을 시도했지만 몇 년 만에 다른 은하들의 거리가 안드로메다보다 훨씬 멀리 있다는", "gold": "modifier"}
+{"verb": "굴려야", "adp": "때문+에", "prep_phrase": "바퀴가 작기 때문에", "verb_phrase": "바퀴가 작기 때문에 일정 이상의 속도를 내려면 쉴 새 없이 페달을 굴려야 하므로", "gold": "modifier"}
+{"verb": "갈", "adp": "만+에", "prep_phrase": "몇 분 만에", "verb_phrase": "제일 가까운 병원까지 몇 분 만에 갈", "gold": "modifier"}
+{"verb": "벌어진", "adp": "때문+에", "prep_phrase": "수급 불균형 때문에", "verb_phrase": "수급 불균형 때문에 벌어진", "gold": "modifier"}
+{"verb": "보여줬다", "adp": "후", "prep_phrase": "수술 후", "verb_phrase": "수술 후, 박지성은 우려와 달리 예전보다 더 나은 모습을 보여줬다", "gold": "modifier"}
+{"verb": "잊혔다가", "adp": "후", "prep_phrase": "그 후", "verb_phrase": "그 후 차분기관은 한 동안 잊혔다가", "gold": "modifier"}
+{"verb": "불허된", "adp": "중", "prep_phrase": "귀화 신청자 중", "verb_phrase": "귀화 신청자 중 '위장결혼 ', '배우자와 미동거'등 이유로 불허된", "gold": "modifier"}
+{"verb": "협력한", "adp": "때", "prep_phrase": "정유재란 때", "verb_phrase": "정유재란 때 조선인으로서 일본에 협력한", "gold": "modifier"}
+{"verb": "1천145일만이다", "adp": "이후", "prep_phrase": "2008년 4월20일 이후", "verb_phrase": "두산이 7위로 떨어진 것은 2008년 4월20일 이후 1천145일만이다", "gold": "modifier"}
+{"verb": "촉진한다", "adp": "때문+에", "prep_phrase": "턱관절에 부담을 덜기 때문에", "verb_phrase": "이는 턱관절장애 치료에 가장 많이 사용되고 있는 치료법으로 턱관절에 부담을 덜기 때문에 손상받은 부위가 치유되는 것을 촉진한다", "gold": "modifier"}
+{"verb": "빗발쳤다", "adp": "이후", "prep_phrase": "장 마감 이후", "verb_phrase": "장 마감 이후 두 회사에는 투자자들의 항의 전화가 빗발쳤다", "gold": "modifier"}
+{"verb": "하나다", "adp": "중", "prep_phrase": "시범마을 중", "verb_phrase": "현재 푸른농촌 희망찾기 운동의 시범마을은 전국에 모두 337개소로, 간촌샘마을도 시범마을 중 하나다", "gold": "modifier"}
+{"verb": "설립하고", "adp": "이후", "prep_phrase": "독일 통일 이후", "verb_phrase": "독일 통일 이후 1991년에 에어 베를린 킨바코 루프트 베케리어()를 설립하고 독일로 본사를 이동했다", "gold": "modifier"}
+{"verb": "닫은", "adp": "때문+에", "prep_phrase": "도쿄 대공습 때문에", "verb_phrase": "도모에 학원이 도쿄 대공습 때문에 어쩔 수 없이 문을 닫은", "gold": "modifier"}
+{"verb": "필요해", "adp": "때문+에", "prep_phrase": "통상 저점부근에서는 변동성이 심화되기 때문에", "verb_phrase": "통상 저점부근에서는 변동성이 심화되기 때문에 오후엔 필요해 보인다", "gold": "modifier"}
+{"verb": "판매돼", "adp": "중", "prep_phrase": "이 중", "verb_phrase": "이 중 M37은 298대가 판매돼", "gold": "modifier"}
+{"verb": "받는", "adp": "때문+에", "prep_phrase": "모든 재료는 항상 신선한 것만을 쓰기 때문에", "verb_phrase": "모든 재료는 항상 신선한 것만을 쓰기 때문에 오랜 단골들에게 사랑 받는", "gold": "modifier"}
+{"verb": "손대지", "adp": "때문+에", "prep_phrase": "여론이 이렇기 때문에", "verb_phrase": "여론이 이렇기 때문에 자민당조차 이번에 제출하는 개정안에서 9조는 손대지 않았다", "gold": "modifier"}
+{"verb": "결성하고", "adp": "후", "prep_phrase": "고등학교 진학 후", "verb_phrase": "고등학교 진학 후 이웃들과 '알이티파크'라는 팀을 결성하고 유명한 대회에 참가하려 했으나", "gold": "modifier"}
+{"verb": "거절당했다", "adp": "때문+에", "prep_phrase": "어린 나이 때문에", "verb_phrase": "고등학교 진학 후 이웃들과 '알이티파크'라는 팀을 결성하고 유명한 대회에 참가하려 했으나 어린 나이 때문에 거절당했다", "gold": "modifier"}
+{"verb": "가르쳤다", "adp": "후", "prep_phrase": "그 후", "verb_phrase": "그 후 그는 그곳에서 탈무드를 가르쳤다", "gold": "modifier"}
+{"verb": "분류될", "adp": "때", "prep_phrase": "중국과의 FTA협상 때", "verb_phrase": "중국과의 FTA협상 때 감귤이 민감품목으로 분류될", "gold": "modifier"}
+{"verb": "발견된", "adp": "후", "prep_phrase": "이중 검진 후", "verb_phrase": "이중 검진 후 이상이 발견된", "gold": "modifier"}
+{"verb": "달했다", "adp": "에", "prep_phrase": "6.64%에", "verb_phrase": "7일 통계청이 내놓은 소비자물가지수를 구성하는 489개 품목 중 가장 물가에 많은 영향을 미치는 것은 전셋값으로 6.64%에 달했다", "gold": "complement"}
+{"verb": "입성했다", "adp": "후", "prep_phrase": "결혼 후", "verb_phrase": "두 사람은 결혼 후 바로 아키텐 공작령의 중심인 푸아티에에 입성했다", "gold": "modifier"}
+{"verb": "철거하였다", "adp": "후", "prep_phrase": "그 후", "verb_phrase": "그 후 잘푸와인들은 도시의 시우스 우상을 철거하였다", "gold": "modifier"}
+{"verb": "욕먹는", "adp": "때문+에", "prep_phrase": "한 사람 때문에", "verb_phrase": "한 사람 때문에 다 욕먹는", "gold": "modifier"}
+{"verb": "발전하여", "adp": "중+에", "prep_phrase": "중국 근대화 중에", "verb_phrase": "중국 근대화 중에 공업이 활발하게 발전하여", "gold": "modifier"}
+{"verb": "최고치다", "adp": "이후", "prep_phrase": "지난해 7월17일 178bp 이후", "verb_phrase": "이는 지난해 7월17일 178bp 이후 최고치다", "gold": "modifier"}
+{"verb": "갔는데", "adp": "때문+에", "prep_phrase": "치료 때문에", "verb_phrase": "아이가 치료 때문에 갔는데", "gold": "modifier"}
+{"verb": "시작했고", "adp": "후", "prep_phrase": "귀국 후", "verb_phrase": "귀국 후 1637년(인조 14) 조천일기(朝天日記)를 저술하기 시작했고, 1638년초 승문원부제조를 거쳐 그해 6월 충청도관찰사로 부임하여 도내의 토지대장과 세금 징수상황을 점검하였다", "gold": "modifier"}
+{"verb": "적은", "adp": "중", "prep_phrase": "물냉면 중", "verb_phrase": "물냉면 중 나트륨 함량이 가장 적은", "gold": "modifier"}
+{"verb": "활용되었다", "adp": "때", "prep_phrase": "임진왜란 때", "verb_phrase": "태종대에 처음으로 나타났던 화차는 실전(實戰)에서 사용된 것 같지 않으나, 문종의 화차는 임진왜란 때 변이중(邊以中)에 의하여 실전에서 크게 활용되었다", "gold": "modifier"}
+{"verb": "의하여", "adp": "에", "prep_phrase": "변이중(邊以中)에", "verb_phrase": "변이중(邊以中)에 의하여", "gold": "complement"}
+{"verb": "파병된", "adp": "때", "prep_phrase": "한국전쟁 때", "verb_phrase": "한국전쟁 때 파병된", "gold": "modifier"}
+{"verb": "향한", "adp": "전", "prep_phrase": "47년 전", "verb_phrase": "47년 전 제1진 247명의 한국 광부들이 김포공항에서 비행기를 _ 타고 서독으로 향한", "gold": "modifier"}
+{"verb": "교체하여", "adp": "중", "prep_phrase": "개강 중", "verb_phrase": "개강 중 수시로 교체하여", "gold": "modifier"}
+{"verb": "변경하면서", "adp": "후", "prep_phrase": "은퇴 후", "verb_phrase": "은퇴 후 2002년부터는 등번호를 86번으로 변경하면서", "gold": "modifier"}
+{"verb": "의해서", "adp": "에", "prep_phrase": "입양(入養)에", "verb_phrase": "입양(入養)에 의해서", "gold": "complement"}
+{"verb": "하나인", "adp": "중", "prep_phrase": "세계 최고의 공격수 중", "verb_phrase": "세계 최고의 공격수 중 하나인", "gold": "modifier"}
+{"verb": "파견돼", "adp": "동안", "prep_phrase": "17년 동안", "verb_phrase": "17년 동안 임시이사가 파견돼 있는", "gold": "modifier"}
+{"verb": "재개관된", "adp": "후", "prep_phrase": "대대적인 개보수 후", "verb_phrase": "대대적인 개보수 후 1992년에 재개관된", "gold": "modifier"}
+{"verb": "칠까봐", "adp": "중+에", "prep_phrase": "훈련 중에", "verb_phrase": "그런데 또 훈련한다고 하니까 훈련 중에 혹시 칠까봐", "gold": "modifier"}
+{"verb": "이혼한", "adp": "후", "prep_phrase": "결혼 후", "verb_phrase": "박정희가 자신과 만나기 전에 이미 결혼 후 이혼한", "gold": "modifier"}
+{"verb": "수행했다", "adp": "후", "prep_phrase": "그 후", "verb_phrase": "그 후 라슨 호는 타이완의 카오슝과 지룽 항에서 태풍이 다가오면서 항구를 떠나 다시 양키 스테이션으로 떠나는 9월 15일까지 머무르며 순항 임무를 수행했다", "gold": "modifier"}
+{"verb": "열린", "adp": "전", "prep_phrase": "8년 전", "verb_phrase": "8년 전 같은 코스에서 열린", "gold": "modifier"}
+{"verb": "없다고", "adp": "때문+에", "prep_phrase": "그 때문에", "verb_phrase": "그 때문에 아이누족은 누구에게나 통용되는 평범한 이름이라는 것(철수, 영희, 홍길동같은)이 없다고", "gold": "modifier"}
+{"verb": "일하고", "adp": "후", "prep_phrase": "그 후", "verb_phrase": "그는 그 후 모스크바 대학교 연구원으로 일하고 있다", "gold": "modifier"}
+{"verb": "친해지지", "adp": "때문+에", "prep_phrase": "친어머니와의 기억 때문에", "verb_phrase": "잉리드는 친어머니와의 기억 때문에 새어머니와 많이 친해지지 못했다고", "gold": "modifier"}
+{"verb": "드러났다", "adp": "때문+에", "prep_phrase": "위키리크스 때문에", "verb_phrase": "미국의 빨대'노릇을 자처한 언론인도 위키리크스 때문에 곳곳에서 정체가 드러났다", "gold": "modifier"}
+{"verb": "훈련한", "adp": "전", "prep_phrase": "경기 전", "verb_phrase": "경기 전 정상적으로 훈련한", "gold": "modifier"}
+{"verb": "떨어졌다", "adp": "때", "prep_phrase": "경기 때", "verb_phrase": "경기 때 떨어졌다", "gold": "modifier"}
+{"verb": "시무했다", "adp": "동안", "prep_phrase": "2년 동안", "verb_phrase": "1937년 창영교회 초대 담임목사로 부임하여 2년 동안 시무했다", "gold": "modifier"}
+{"verb": "열린", "adp": "이후", "prep_phrase": "구제역 사태 이후", "verb_phrase": "구제역 사태 이후 처음으로 시장이 열린", "gold": "modifier"}
+{"verb": "해당하는", "adp": "에", "prep_phrase": "지난해 중국 외환 보유액 증가분의 7.6%에", "verb_phrase": "지난해 중국 외환 보유액 증가분의 7.6%에 해당하는", "gold": "complement"}
+{"verb": "하다가", "adp": "후", "prep_phrase": "연세대학교 입학 후", "verb_phrase": "김주영은 연세대학교 입학 후 1학기 동안 그곳에서 축구를 하다가", "gold": "modifier"}
+{"verb": "하다가", "adp": "동안", "prep_phrase": "1학기 동안", "verb_phrase": "김주영은 연세대학교 입학 후 1학기 동안 그곳에서 축구를 하다가", "gold": "modifier"}
+{"verb": "붙여졌다", "adp": "때문+에", "prep_phrase": "이 지역이 당시 후진 지역으로 인식되었기 때문에", "verb_phrase": "저지라고 불리지만 이 지역은 실제로 산이 많은데, 저지라는 이름은 이 지역이 당시 후진 지역으로 인식되었기 때문에 붙여졌다", "gold": "modifier"}
+{"verb": "별로였던", "adp": "중", "prep_phrase": "원할머니 체인 중", "verb_phrase": "원할머니 체인 중 서비스가 가장 별로였던", "gold": "modifier"}
+{"verb": "밝혔다", "adp": "후", "prep_phrase": "계약 후", "verb_phrase": "계약 후 정근우는 \"빨리 계약을 마쳐서 내년시즌 준비를 더욱 알차게 준비할 수 있게 됐다\"면서 \"발전된 모습으로 팬들과 구단의 성원에 보답하겠다\"고 소감을 밝혔다", "gold": "modifier"}
+{"verb": "되었다", "adp": "후", "prep_phrase": "중국 국민당군의 반격 후", "verb_phrase": "중국 국민당군의 반격 후 다시 번시후 시가 되었다", "gold": "modifier"}
+{"verb": "장악했다", "adp": "이후", "prep_phrase": "광복 이후", "verb_phrase": "이들은 김일성을 중심으로 한 항일무장투쟁 세력으로서 광복 이후 조선민주주의인민공화국의 정권을 장악했다", "gold": "modifier"}
+{"verb": "발표하는", "adp": "후", "prep_phrase": "입지 선정 후", "verb_phrase": "입지 선정 후 김황식 국무총리가 대국민 담화문을 발표하는", "gold": "modifier"}
+{"verb": "물어본", "adp": "전", "prep_phrase": "검사 전", "verb_phrase": "검사 전 특이 사항 물어본", "gold": "modifier"}
+{"verb": "흡수되었다", "adp": "후", "prep_phrase": "중일 전쟁 발발 후", "verb_phrase": "중일 전쟁 발발 후 전시체제 하에서 국민총력조선연맹으로 흡수되었다", "gold": "modifier"}
+{"verb": "발표된", "adp": "동안", "prep_phrase": "한 해 동안", "verb_phrase": "한 해 동안 발표된", "gold": "modifier"}
+{"verb": "오르며", "adp": "만+에", "prep_phrase": "출간 2주 만에", "verb_phrase": "한 해 동안 발표된 작품들 중 최고의 작품으로 평가되는 중단편소설만을 선정하는 이상문학상의 2010년 작품집 '아침의 문'이 출간 2주 만에 9위에 오르며", "gold": "modifier"}
+{"verb": "기울고", "adp": "이후", "prep_phrase": "작년 지방선거 이후", "verb_phrase": "하지만 작년 지방선거 이후 이념 면에서 급격히 왼쪽으로 기울고 있다", "gold": "modifier"}
+{"verb": "보고", "adp": "때문+에", "prep_phrase": "그가 창설 멤버는 아니기 때문에", "verb_phrase": "리더가 최연장자인 스기조라 하는 사람들도 있지만, 그가 창설 멤버는 아니기 때문에 아니라 보고 있다", "gold": "modifier"}
+{"verb": "적었다", "adp": "이후", "prep_phrase": "작년 1분기의 2천290만4천명 이후", "verb_phrase": "1분기 취업자 수도 2천303만7천명으로, 작년 1분기의 2천290만4천명 이후 가장 적었다", "gold": "modifier"}
+{"verb": "중단했던", "adp": "이후", "prep_phrase": "뭄바이 테러 이후", "verb_phrase": "뭄바이 테러 이후 일체의 접촉을 중단했던", "gold": "modifier"}
+{"verb": "재개한다", "adp": "만+에", "prep_phrase": "1년여 만에", "verb_phrase": "뭄바이 테러 이후 일체의 접촉을 중단했던 인도와 파키스탄이 1년여 만에 다시 회담을 재개한다", "gold": "modifier"}
+{"verb": "서식한", "adp": "때", "prep_phrase": "올리고세 때", "verb_phrase": "올리고세 때 유럽에 서식한", "gold": "modifier"}
+{"verb": "나온다", "adp": "때문+에", "prep_phrase": "이 때문에", "verb_phrase": "이 때문에 오 시장이 주민투표 문제를 매듭짓고 대선에 출마하는 시나리오를 염두에 두고 있다는 분석이 여권에서 나온다", "gold": "modifier"}
+{"verb": "대해", "adp": "에", "prep_phrase": "중도금(60%)에", "verb_phrase": "중도금(60%)에 대해", "gold": "complement"}
+{"verb": "해주셔서", "adp": "후", "prep_phrase": "진료 후", "verb_phrase": "진료 후 설명도 충분히 해주셔서", "gold": "modifier"}
+{"verb": "가야합니다", "adp": "때문+에", "prep_phrase": "오후 10시까지만 영업을 하기 때문에", "verb_phrase": "오후 10시까지만 영업을 하기 때문에 일찍 가야합니다", "gold": "modifier"}
+{"verb": "할", "adp": "전", "prep_phrase": "18년 전", "verb_phrase": "18년 전 창동 조그만한 건물 2층에 할", "gold": "modifier"}
+{"verb": "갑니다", "adp": "때문+에", "prep_phrase": "맛 때문에", "verb_phrase": "맛 때문에 불친절해도 가끔 갑니다", "gold": "modifier"}
+{"verb": "진행하고", "adp": "이후", "prep_phrase": "18일 파업 개시 이후", "verb_phrase": "18일 파업 개시 이후 본교섭과 실무교섭을 진행하고 있지만 비방전을 계속 하며 합의에 이르지 못하고 있는", "gold": "modifier"}
+{"verb": "꺼졌지만", "adp": "만+에", "prep_phrase": "10여 분 만에", "verb_phrase": "불은 이웃 주민의 신고로 출동한 소방차가 도착하기 전 10여 분 만에 이미 꺼졌지만", "gold": "modifier"}
+{"verb": "돌아갔다", "adp": "후", "prep_phrase": "메이지 유신 후", "verb_phrase": "메이지 유신 후, 오코치 계 나가사와 마쓰다이라 가는 모든 가문이 오코치 성(姓)으로 돌아갔다", "gold": "modifier"}
+{"verb": "2년만이다", "adp": "이후", "prep_phrase": "2008년 이후", "verb_phrase": "월마트가 1위를 되찾기는 2008년 이후 2년만이다", "gold": "modifier"}
+{"verb": "하는", "adp": "때문+에", "prep_phrase": "각 종 피부트러블이 생기기 때문에", "verb_phrase": "각 종 피부트러블이 생기기 때문에 조기에 모공 관리를 하는", "gold": "modifier"}
+{"verb": "되었다가", "adp": "후", "prep_phrase": "1910년 일제강점 후", "verb_phrase": "대한의원은 1910년 일제강점 후 총독부의원으로 되었다가", "gold": "modifier"}
+{"verb": "유명한", "adp": "중", "prep_phrase": "이 중", "verb_phrase": "이 중 유명한", "gold": "modifier"}
+{"verb": "갈", "adp": "때", "prep_phrase": "점심 때", "verb_phrase": "점심 때 갈", "gold": "modifier"}
+{"verb": "쏟고", "adp": "때문+에", "prep_phrase": "이 때문에", "verb_phrase": "이 때문에 서울시는 시내버스의 재생타이어 관리에 온 힘을 쏟고 있지만", "gold": "modifier"}
+{"verb": "하나인", "adp": "중", "prep_phrase": "SK그룹 핵심 계열사 중", "verb_phrase": "SK그룹 핵심 계열사 중 하나인", "gold": "modifier"}
+{"verb": "인상했다", "adp": "만+에", "prep_phrase": "6개월 만에", "verb_phrase": "지난달 2일 RBA는 금리를 동결할 것이란 시장 예상과 달리 6개월 만에 기준금리를 4.75%로 0.25%p 인상했다", "gold": "modifier"}
+{"verb": "참가하는", "adp": "이후", "prep_phrase": "1992년 하계 올림픽 이후", "verb_phrase": "1992년 하계 올림픽 이후 16년 만에 올림픽에 참가하는", "gold": "modifier"}
+{"verb": "참가하는", "adp": "만+에", "prep_phrase": "16년 만에", "verb_phrase": "1992년 하계 올림픽 이후 16년 만에 올림픽에 참가하는", "gold": "modifier"}
+{"verb": "개산하였다", "adp": "때", "prep_phrase": "신라 효공(孝恭)왕 때", "verb_phrase": "신라 효공(孝恭)왕 때 개산하였다", "gold": "modifier"}
+{"verb": "발생한", "adp": "만+에", "prep_phrase": "20여 년 만에", "verb_phrase": "20여 년 만에 발생한", "gold": "modifier"}
+{"verb": "된", "adp": "사이", "prep_phrase": "그 사이", "verb_phrase": "그 사이 한 층 더 업그레이드 된", "gold": "modifier"}
+{"verb": "했습니다", "adp": "때", "prep_phrase": "광안리 불꽃축제 때", "verb_phrase": "광안리 불꽃축제 때 이 곳에서 관람을 했습니다", "gold": "modifier"}
+{"verb": "대응할", "adp": "때문+에", "prep_phrase": "바다에서의 각종 사고는 예고가 없기 때문에", "verb_phrase": "바다에서의 각종 사고는 예고가 없기 때문에 사고발생시 즉시 대응할", "gold": "modifier"}
+{"verb": "발생하며", "adp": "이후", "prep_phrase": "2008년 세계 금융위기 이후", "verb_phrase": "2008년 세계 금융위기 이후 대구 상동, 용인 신봉 사업장 등에서 미분양이 대거 발생하며", "gold": "modifier"}
+{"verb": "떠나보낸다", "adp": "후", "prep_phrase": "출산 후", "verb_phrase": "그러나 생전 그와의 사이에서 새 생명을 잉태한 여인은 출산 후 아이를 고아원으로 떠나보낸다", "gold": "modifier"}
+{"verb": "쉬워질", "adp": "때문+에", "prep_phrase": "워낙 우리나라의 품질경쟁력이 뛰어나기 때문에", "verb_phrase": "워낙 우리나라의 품질경쟁력이 뛰어나기 때문에 관세 철폐 시 중국시장 공략은 더 쉬워질", "gold": "modifier"}
+{"verb": "처형되는", "adp": "때", "prep_phrase": "인조 2년 이괄의 난 때", "verb_phrase": "인조 2년 이괄의 난 때 장남 흥안군이 역모 죄로 처형되는", "gold": "modifier"}
+{"verb": "해주었다", "adp": "중+에", "prep_phrase": "병자호란 중에", "verb_phrase": "그녀 나이 28살에 선조가 승하하자 사가로 물러나 지내고 인조 2년 이괄의 난 때 장남 흥안군이 역모 죄로 처형되는 아픔을 겪었으나 병자호란 중에 인조은 그녀에게 각별한 대우를 해주었다", "gold": "modifier"}
+{"verb": "하여", "adp": "동안", "prep_phrase": "시즌 동안", "verb_phrase": "시즌 동안 각 클럽은 홈 앤 어웨이 방식으로 경기를 하여", "gold": "modifier"}
+{"verb": "사망하면", "adp": "중+에", "prep_phrase": "그 기간 중에", "verb_phrase": "연금을 받다가 그 기간 중에 사망하면", "gold": "modifier"}
+{"verb": "올려놓는", "adp": "이후", "prep_phrase": "창단 이후", "verb_phrase": "창단 이후 16년 연속 챔피언 결정전에 올려놓는", "gold": "modifier"}
+{"verb": "휩쓸렸고", "adp": "이후", "prep_phrase": "1941년 유고슬라비아 왕국의 붕괴 이후", "verb_phrase": "1941년 유고슬라비아 왕국의 붕괴 이후, 파르티잔은 공산주의자가 이끄는 인민 해방 전쟁에 휩쓸렸고, 피비린내 나는 내전 끝에 추축국 세력을 물리쳤다", "gold": "modifier"}
+{"verb": "중단", "adp": "후", "prep_phrase": "음주운전 사건 후", "verb_phrase": "지난 2005년 음주운전 사건 후 활동을 전면 중단", "gold": "modifier"}
+{"verb": "독립한", "adp": "때", "prep_phrase": "고2 때", "verb_phrase": "고2 때 집으로부터 독립한 후", "gold": "modifier"}
+{"verb": "입은", "adp": "중+에", "prep_phrase": "작전 과정 중에", "verb_phrase": "작전 과정 중에 해적이 발사한 총탄에 부상을 입은", "gold": "modifier"}
+{"verb": "받았다", "adp": "후", "prep_phrase": "응급 처치 후", "verb_phrase": "작전 과정 중에 해적이 발사한 총탄에 부상을 입은 삼호 주얼리호의 석해균 선장은 응급 처치 후 오만의 제2도시 살랄라에 위치한 술탄카부스 병원에서 수술을 받았다", "gold": "modifier"}
+{"verb": "출전하지", "adp": "이후", "prep_phrase": "아스널 입단 이후", "verb_phrase": "아스널 입단 이후 한 번의 프리미어 리그 경기에도 출전하지 못한", "gold": "modifier"}
+{"verb": "멸망시키고", "adp": "때", "prep_phrase": "민왕 때", "verb_phrase": "민왕 때 송(宋)을 멸망시키고, 연(燕)의 종묘사직을 쑥대밭으로 만들었는데", "gold": "modifier"}
+{"verb": "것이다", "adp": "중", "prep_phrase": "현대 88 별자리의 가장 밝은 별들 중", "verb_phrase": "이 별자리에서 가장 밝은 별의 겉보기 등급이 4.25등성인데, 이는 현대 88 별자리의 가장 밝은 별들 중 가장 어두운 것이다", "gold": "modifier"}
+{"verb": "최고수준이다", "adp": "후", "prep_phrase": "취임 후", "verb_phrase": "아랍에미리트연합(UAE)에 가서 원전수주에 성공한 직후인 올초 지지율(51.9%)에 육박하는 취임 후 최고수준이다", "gold": "modifier"}
+{"verb": "나오는", "adp": "때", "prep_phrase": "숲 가꾸기 때", "verb_phrase": "숲 가꾸기 때 나오는", "gold": "modifier"}
+{"verb": "숭배받았다", "adp": "때문+에", "prep_phrase": "이집트에서 태양의 이글거림은 전쟁을 의미하였기 때문에", "verb_phrase": "이집트에서 태양의 이글거림은 전쟁을 의미하였기 때문에, 전쟁의 신으로 숭배받았다", "gold": "modifier"}
+{"verb": "나온다", "adp": "때문+에", "prep_phrase": "이 때문에", "verb_phrase": "이 때문에 오 시장이 주민투표 문제를 매듭짓고 대선에 출마하는 시나리오를 염두에 두고 있다는 분석이 여권에서 나온다", "gold": "modifier"}
+{"verb": "왔었던", "adp": "때", "prep_phrase": "저와 남편의 학창시절 때", "verb_phrase": "저와 남편의 학창시절 때 수학여행을 왔었던", "gold": "modifier"}
+{"verb": "내원했는데", "adp": "때문+에", "prep_phrase": "목감기 때문에", "verb_phrase": "목감기 때문에 내원했는데", "gold": "modifier"}
+{"verb": "가야합니다", "adp": "때문+에", "prep_phrase": "오후 10시까지만 영업을 하기 때문에", "verb_phrase": "오후 10시까지만 영업을 하기 때문에 일찍 가야합니다", "gold": "modifier"}
+{"verb": "없어", "adp": "후", "prep_phrase": "주문 후", "verb_phrase": "주문 후 1시간이 다 되도록 소식이 없어", "gold": "modifier"}
+{"verb": "사랑받는", "adp": "때문+에", "prep_phrase": "모든 재료는 항상 신선한 것만을 쓰기 때문에", "verb_phrase": "모든 재료는 항상 신선한 것만을 쓰기 때문에 오랜 단골들에게 사랑받는", "gold": "modifier"}

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SUD parser tester</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --ink: #1c1b19;
+    --muted: #6b6862;
+    --line: #d8d4cc;
+    --accent: #b4532a;       /* comp:obl  — complement */
+    --accent2: #2f6f6a;      /* mod       — modifier */
+    --udep: #9a7b18;         /* udep      — undisambiguated */
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 15px/1.5 -apple-system, "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+  }
+  header {
+    padding: 22px 28px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -0.01em; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  main { padding: 22px 28px; max-width: 1180px; margin: 0 auto; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 20px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  select, textarea, button {
+    font: inherit;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    padding: 8px 10px;
+  }
+  select { min-width: 150px; }
+  textarea {
+    width: 100%;
+    min-height: 70px;
+    resize: vertical;
+    line-height: 1.45;
+  }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .seg button {
+    border: none;
+    border-radius: 0;
+    background: var(--card);
+    padding: 8px 14px;
+    cursor: pointer;
+    color: var(--muted);
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--ink); color: #fff; }
+  .parse-btn {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    cursor: pointer;
+    font-weight: 600;
+    padding: 9px 20px;
+  }
+  .parse-btn:disabled { opacity: .55; cursor: default; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 18px; font-size: 12.5px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 22px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  #out { display: flex; flex-direction: column; gap: 18px; }
+  .sent-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 8px 6px 4px;
+    overflow-x: auto;
+  }
+  .hint { color: var(--muted); font-size: 13px; }
+  .err { color: var(--accent); font-size: 14px; }
+
+  svg text { font-family: inherit; }
+  .tok-word { font-size: 15px; fill: var(--ink); }
+  .tok-pos  { font-size: 11px; fill: var(--muted); letter-spacing: .02em; }
+  .arc-label { font-size: 11px; font-weight: 600; }
+  .arc-path { fill: none; stroke-width: 1.6; }
+  .arc-path.hl { stroke-width: 2.4; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SUD dependency parser tester</h1>
+  <p>spaCy parsers trained on Surface-Syntactic Universal Dependencies. The <em>relabeled</em>
+     model disambiguates each <code>udep</code> adposition into <code>comp:obl</code> or <code>mod</code>.</p>
+</header>
+
+<main>
+  <div class="controls">
+    <div class="field">
+      <label for="lang">Language</label>
+      <select id="lang"></select>
+    </div>
+    <div class="field">
+      <label>Model</label>
+      <div class="seg" id="model"></div>
+    </div>
+    <div class="field" style="flex:1; min-width:320px;">
+      <label for="text">Text</label>
+      <textarea id="text" placeholder="Type a sentence…"></textarea>
+    </div>
+    <button class="parse-btn" id="go">Parse</button>
+  </div>
+
+  <div class="legend">
+    <span><i class="swatch" style="background:var(--udep)"></i> udep (undisambiguated)</span>
+    <span><i class="swatch" style="background:var(--accent)"></i> comp:obl (complement)</span>
+    <span><i class="swatch" style="background:var(--accent2)"></i> mod (modifier)</span>
+    <span><i class="swatch" style="background:#9a958c"></i> other relation</span>
+  </div>
+
+  <div id="out"><p class="hint">Pick a language and press Parse.</p></div>
+</main>
+
+<script>
+const COLORS = {
+  "udep": getCSS("--udep"),
+  "comp:obl": getCSS("--accent"),
+  "mod": getCSS("--accent2"),
+};
+const HILITE = new Set(["udep", "comp:obl", "mod"]);
+function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function depColor(dep){ return COLORS[dep] || "#9a958c"; }
+
+const $lang = document.getElementById("lang");
+const $model = document.getElementById("model");
+const $text = document.getElementById("text");
+const $go = document.getElementById("go");
+const $out = document.getElementById("out");
+
+let MODELS = {};
+
+init();
+
+async function init(){
+  try {
+    MODELS = await (await fetch("/api/models")).json();
+  } catch(e){
+    $out.innerHTML = `<p class="err">Could not reach the server. Is server.py running?</p>`;
+    return;
+  }
+  const langs = Object.keys(MODELS);
+  if(!langs.length){ $out.innerHTML = `<p class="err">No model wheels installed. See the README.</p>`; return; }
+  $lang.innerHTML = langs.map(l => `<option value="${l}">${MODELS[l].name}</option>`).join("");
+  $lang.onchange = onLang;
+  $go.onclick = parse;
+  $text.addEventListener("keydown", e => {
+    if((e.metaKey||e.ctrlKey) && e.key === "Enter") parse();
+  });
+  onLang();
+}
+
+function onLang(){
+  const m = MODELS[$lang.value];
+  $model.textContent = m.package;     // one shipped model per language
+  $text.value = m.example || "";
+  parse();
+}
+
+async function parse(){
+  const text = $text.value.trim();
+  if(!text){ $out.innerHTML = `<p class="hint">Enter some text.</p>`; return; }
+  $go.disabled = true; $go.textContent = "Parsing…";
+  try {
+    const res = await fetch("/api/parse", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({lang: $lang.value, text}),
+    });
+    const data = await res.json();
+    if(!res.ok){ throw new Error(data.error || res.statusText); }
+    render(data.sentences);
+  } catch(e){
+    $out.innerHTML = `<p class="err">Error: ${e.message}</p>`;
+  } finally {
+    $go.disabled = false; $go.textContent = "Parse";
+  }
+}
+
+function render(sentences){
+  $out.innerHTML = "";
+  if(!sentences.length){ $out.innerHTML = `<p class="hint">No sentences.</p>`; return; }
+  sentences.forEach(toks => {
+    const card = document.createElement("div");
+    card.className = "sent-card";
+    card.appendChild(renderSentence(toks));
+    $out.appendChild(card);
+  });
+}
+
+// ---- displaCy-style arc rendering in D3 -------------------------------------
+function renderSentence(toks){
+  const PAD_X = 28, GAP = 46;          // gap between adjacent token boxes
+  const ROW = 38;                       // vertical room per arc level
+  const WORD_Y_OFFSET = 26;             // word baseline below the arc zone
+  const measure = makeMeasurer();
+
+  // token x-centres, sized to content
+  let x = PAD_X, centres = [], widths = [];
+  toks.forEach(t => {
+    const w = Math.max(measure(t.text), measure(t.pos)) + 14;
+    widths.push(w);
+    centres.push(x + w/2);
+    x += w + GAP;
+  });
+  const totalW = x - GAP + PAD_X;
+
+  // arcs (skip the root self-loop); assign non-overlapping levels (interval colouring)
+  const arcs = toks
+    .filter(t => t.head !== t.id)
+    .map(t => ({
+      from: t.head, to: t.id, dep: t.dep,
+      lo: Math.min(t.head, t.id), hi: Math.max(t.head, t.id),
+      dir: t.id > t.head ? 1 : -1,        // arrow points at the dependent
+    }))
+    .sort((a,b) => (a.hi-a.lo) - (b.hi-b.lo));   // shortest first -> nested inside
+
+  const levelEnds = [];   // levelEnds[k] = rightmost hi occupied at level k
+  arcs.forEach(a => {
+    let k = 0;
+    while(k < levelEnds.length && levelEnds[k] >= a.lo) k++;
+    a.level = k;
+    levelEnds[k] = a.hi;
+  });
+  const maxLevel = Math.max(0, ...arcs.map(a => a.level)) + 1;
+
+  const arcZone = maxLevel * ROW + 10;
+  const wordY = arcZone + WORD_Y_OFFSET;
+  const height = wordY + 26;
+
+  const svg = d3.create("svg")
+    .attr("width", totalW)
+    .attr("height", height)
+    .attr("viewBox", `0 0 ${totalW} ${height}`);
+
+  // arrowhead markers, one per colour
+  const defs = svg.append("defs");
+  const colours = new Set(arcs.map(a => depColor(a.dep)));
+  colours.forEach(c => {
+    defs.append("marker")
+      .attr("id", "ah-" + c.replace(/[^a-z0-9]/gi,""))
+      .attr("viewBox","0 0 8 8").attr("refX",4).attr("refY",4)
+      .attr("markerWidth",5).attr("markerHeight",5).attr("orient","auto-start-reverse")
+      .append("path").attr("d","M0,0 L8,4 L0,8 Z").attr("fill",c);
+  });
+
+  // arcs
+  arcs.forEach(a => {
+    const x1 = centres[a.from], x2 = centres[a.to];
+    const top = arcZone - (a.level + 1) * ROW + ROW - 6;   // higher level -> higher up
+    const startX = a.dir === 1 ? x1 : x2;   // head side
+    const endX   = a.dir === 1 ? x2 : x1;   // dependent side (arrow)
+    const c = depColor(a.dep);
+    const sweepIn = 6 * Math.sign(endX - startX || 1);
+    const path = [
+      `M ${startX} ${arcZone}`,
+      `C ${startX} ${top}, ${endX} ${top}, ${endX} ${arcZone}`,
+    ].join(" ");
+    svg.append("path")
+      .attr("d", path)
+      .attr("class", "arc-path" + (HILITE.has(a.dep) ? " hl" : ""))
+      .attr("stroke", c)
+      .attr("marker-end", `url(#ah-${c.replace(/[^a-z0-9]/gi,"")})`);
+
+    // label at apex
+    const midX = (x1 + x2) / 2;
+    const labelY = top + (arcZone - top) * 0.18 - 2;
+    const label = svg.append("text")
+      .attr("class","arc-label")
+      .attr("x", midX).attr("y", labelY)
+      .attr("text-anchor","middle")
+      .attr("fill", c)
+      .text(a.dep);
+    // white halo so the label sits cleanly on the arc
+    const bb = label.node().getBBox();
+    svg.insert("rect", () => label.node())
+      .attr("x", bb.x-2).attr("y", bb.y).attr("width", bb.width+4).attr("height", bb.height)
+      .attr("fill", "var(--card)");
+  });
+
+  // words + POS + root marker
+  toks.forEach((t, i) => {
+    const cx = centres[i];
+    svg.append("text").attr("class","tok-word")
+      .attr("x", cx).attr("y", wordY).attr("text-anchor","middle").text(t.text);
+    svg.append("text").attr("class","tok-pos")
+      .attr("x", cx).attr("y", wordY+16).attr("text-anchor","middle").text(t.pos);
+    if(t.head === t.id){
+      svg.append("text").attr("class","arc-label")
+        .attr("x", cx).attr("y", arcZone-4).attr("text-anchor","middle")
+        .attr("fill","var(--muted)").text("root");
+    }
+  });
+
+  return svg.node();
+}
+
+// text width helper via an offscreen canvas
+function makeMeasurer(){
+  const c = document.createElement("canvas").getContext("2d");
+  c.font = "15px -apple-system, Helvetica Neue, Arial, sans-serif";
+  return s => c.measureText(s || "").width;
+}
+</script>
+</body>
+</html>
