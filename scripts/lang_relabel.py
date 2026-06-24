@@ -23,8 +23,12 @@ zb = importlib.util.module_from_spec(_sz); _sz.loader.exec_module(zb)
 _si = importlib.util.spec_from_file_location("idb", "scripts/id_bench.py")
 idb = importlib.util.module_from_spec(_si); _si.loader.exec_module(idb)
 
-# winning instruction per language (see lang_bench / zh_bench / id_bench results)
-CHOSEN = {"id": b.NATIVE_DEF["id"], "zh": b.NATIVE_DEF["zh"], "ko": b.SUD_DEF}
+# winning instruction per language (see lang_bench / zh_bench / id_bench results). The five
+# new languages default to the English SUD definition; set to b.NATIVE_DEF[lang] if Phase 3
+# shows native instructions win for fa/ar.
+CHOSEN = {"id": b.NATIVE_DEF["id"], "zh": b.NATIVE_DEF["zh"], "ko": b.SUD_DEF,
+          "fa": b.SUD_DEF, "ar": b.SUD_DEF, "la": b.SUD_DEF, "sa": b.SUD_DEF, "lzh": b.SUD_DEF,
+          "ja": b.NATIVE_DEF["ja"]}  # Japanese native instructions win (0.86 vs 0.73, Phase 3)
 # extra curated same-adposition contrastive shots that improved disambiguation
 EXTRA_SHOTS = {"zh": zb.CONTRAST, "id": idb.CONTRAST}
 
@@ -63,7 +67,7 @@ def parse_block(lines):
         if "-" in c[0] or "." in c[0]:
             continue
         toks.append({"id": int(c[0]), "form": c[1], "lemma": c[2], "upos": c[3],
-                     "head": int(c[6]), "deprel": c[7],
+                     "feats": c[5], "head": int(c[6]), "deprel": c[7],
                      "space_after": "SpaceAfter=No" not in c[9]})
         lineidx[int(c[0])] = li
     return toks, lineidx

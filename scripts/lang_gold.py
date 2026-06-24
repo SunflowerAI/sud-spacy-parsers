@@ -19,16 +19,50 @@ FILES = {
     "zh": ["assets_zh/SUD_Chinese-GSDSimp/zh_gsdsimp-sud-%s.conllu" % s for s in ("train", "dev", "test")],
     "ko": ["assets_ko/SUD_Korean-GSD/ko_gsd-sud-%s.conllu" % s for s in ("train", "dev", "test")],
     "id": ["assets_id/SUD_Indonesian-GSD/id_gsd-sud-%s.conllu" % s for s in ("train", "dev", "test")],
+    "fa": ["assets_fa/SUD_Persian-PerDT/fa_perdt-sud-%s.conllu" % s for s in ("train", "dev", "test")],
+    "ar": ["assets_ar/SUD_Arabic-PADT/ar_padt-sud-%s.conllu" % s for s in ("train", "dev", "test")],
+    "la": ["assets_la/la_ittbproiel-sud-%s.conllu" % s for s in ("train", "dev", "test")],
+    "sa": ["assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-%s.conllu" % s for s in ("train", "dev", "test")],
+    "lzh": ["assets_lzh/SUD_Classical_Chinese-Kyoto/lzh_kyoto-sud-%s.conllu" % s for s in ("train", "dev", "test")],
+    "ja": ["assets_ja/SUD_Japanese-GSD/ja_gsd-sud-%s.conllu" % s for s in ("train", "dev", "test")],
 }
 
-# adpositions that are inherently reason/temporal adjuncts -> MODIFIER
+# Languages whose `udep` sits on bare case-marked nominals (almost no adpositions): the gold
+# is built from the dependent's morphological Case, not an adposition lemma (cf. Korean).
+CASE_LANGS = {"sa"}
+# Classical Chinese: SUD leaves most coverbs as `udep` and commits very few, so both the
+# (verb, adp) frames and the mod-adposition heuristic are too sparse/noisy to trust. The
+# highest-precision signal available is SUD's own committed comp:obl/mod ADP<-VERB labels,
+# so for lzh the whole gold is built from those (relaxed scope: 於-complements take clausal
+# objects, so the no-nested-VERB filter is dropped here).
+COMMITTED_GOLD_LANGS = {"lzh"}
+# Sanskrit: confident MODIFIER cases (committed compShare <= ~.05 -> circumstantial place/
+# time/source/address/predication). Complements come from the derived (verb, Case) frames —
+# notably the recipient DATIVE of giving verbs (dā/prayam/pradā + Dat), per Pāṇinian
+# sampradāna; a blanket Dat -> comp is avoided because the dative-of-purpose is adjunctival.
+# (Vedic ritual "offer into the fire-LOC" loci are committed udep/mod, not comp, so Loc -> mod.)
+SA_MOD_CASES = {"Loc", "Abl", "Voc", "Nom"}
+
+# adpositions that are inherently reason/temporal adjuncts -> MODIFIER. fa is empty: PerDT
+# commits ~99% of verb-PPs as comp:obl, so Persian modifiers come only from temporal objects.
 MOD_ADP = {
     "zh": {"因", "由于", "为了", "根据", "按照", "经过", "自从"},
     "ko": {"때문+에", "후", "이후", "전", "동안", "때", "중", "중+에", "만+에", "무렵", "사이"},
     "id": {"selama", "sejak", "setelah", "sebelum", "hingga", "sampai", "karena", "menjelang"},
+    "fa": set(),
+    "ar": {"بَعدَ", "قَبلَ", "كَ", "خِلَالَ", "أَثنَاءَ", "مُنذُ", "عِندَ", "حَتَّى"},
+    "la": {"secundum", "propter", "pro", "per", "ob", "ante", "post", "sine", "circa", "ergo"},
+    "lzh": set(),  # lzh gold is committed-label only (see COMMITTED_GOLD_LANGS)
+    # Japanese: comparative より and terminative まで particles are circumstantial -> mod.
+    "ja": {"より", "まで"},
 }
 # adpositions that take a temporal/year object -> MODIFIER (if object is temporal)
-TEMP_OBJ_ADP = {"zh": {"于", "在", "自"}, "ko": set(), "id": {"pada", "di", "pada"}}
+TEMP_OBJ_ADP = {
+    "zh": {"于", "在", "自"}, "ko": set(), "id": {"pada", "di", "pada"},
+    "fa": {"در", "از", "تا", "به"}, "ar": {"فِي", "خِلَالَ", "عِندَ", "مُنذُ", "بَعدَ", "قَبلَ"},
+    "la": {"in", "ad", "ante", "post", "per"}, "lzh": {"於", "于"},
+    "ja": {"に", "で", "から", "まで"},
+}
 TEMP_NOUN = {
     "zh": {"年", "月", "日", "时", "时候", "期间", "初", "末", "世纪", "年代", "凌晨",
            "早上", "上午", "中午", "下午", "晚上", "当天", "当时", "前", "后"},
@@ -38,6 +72,22 @@ TEMP_NOUN = {
            "senin", "selasa", "rabu", "kamis", "jumat", "sabtu", "minggu",
            "januari", "februari", "maret", "april", "mei", "juni", "juli", "agustus",
            "september", "oktober", "november", "desember"},
+    "fa": {"سال", "ماه", "روز", "هفته", "ساعت", "دقیقه", "صبح", "ظهر", "عصر", "شب", "بامداد",
+           "قرن", "دهه", "زمان", "وقت", "هنگام", "موقع", "دوره", "دوران", "امروز", "دیروز",
+           "فردا", "اکنون", "آغاز", "پایان", "ابتدا", "انتها", "بار"},
+    "ar": {"يَوم", "شَهر", "عَام", "سَنَة", "سَاعَة", "دَقِيقَة", "أُسبُوع", "صَبَاح", "مَسَاء",
+           "لَيل", "لَيلَة", "ظُهر", "فَجر", "قَرن", "عَقد", "وَقت", "زَمَن", "زَمَان", "فَترَة",
+           "عَصر", "حِين", "لَحظَة", "بِدَايَة", "نِهَايَة", "مَوسِم"},
+    "la": {"annus", "dies", "mensis", "hora", "tempus", "nox", "aetas", "saeculum",
+           "hebdomada", "mane", "vesper", "aestas", "hiems", "uer", "autumnus", "momentum",
+           "initium", "finis", "principium", "hodie", "cras", "heri", "nunc"},
+    "lzh": {"年", "月", "日", "時", "歲", "春", "夏", "秋", "冬", "旦", "夕", "朝", "夜",
+            "世", "古", "今", "昔", "初", "末", "晨", "暮", "始", "終"},
+    "ja": {"年", "月", "日", "時", "分", "秒", "週", "時間", "時代", "時期", "時刻", "頃",
+           "朝", "昼", "夜", "夕方", "午前", "午後", "正午", "世紀", "年代", "期間", "当時",
+           "現在", "今日", "明日", "昨日", "今", "後", "前", "間", "際", "末", "初", "始め",
+           "初め", "中", "春", "夏", "秋", "冬", "月曜", "火曜", "水曜", "木曜", "金曜",
+           "土曜", "日曜"},
 }
 # (verb-root, adposition) frames where the verb lexically selects the adposition -> COMPLEMENT
 COMP_FRAMES = {
@@ -57,7 +107,78 @@ COMP_FRAMES = {
            ("kait", "dengan"), ("fokus", "pada"), ("dasar", "pada"), ("acu", "pada"),
            ("acu", "kepada"), ("bicara", "tentang"), ("cerita", "tentang"), ("tuju", "ke"),
            ("ubah", "menjadi"), ("jadi", "sebagai")},
+    # Japanese: GSD commits almost no comp:obl on verb particles (they stay udep), so frames
+    # are curated from the frequent (verb-lemma, particle) udep collocations + linguistic
+    # judgement: に/へ goal-result-recipient, と quotative/reciprocal/result, から source.
+    "ja": {("成る", "に"), ("為る", "に"), ("行く", "に"), ("来る", "に"), ("入る", "に"),
+           ("向かう", "に"), ("向ける", "に"), ("達する", "に"), ("至る", "に"), ("着く", "に"),
+           ("乗る", "に"), ("付く", "に"), ("置く", "に"), ("入れる", "に"), ("加える", "に"),
+           ("言う", "に"), ("伝える", "に"), ("教える", "に"), ("与える", "に"), ("渡す", "に"),
+           ("送る", "に"), ("関する", "に"), ("対する", "に"), ("基づく", "に"), ("因る", "に"),
+           ("応じる", "に"), ("属する", "に"), ("当たる", "に"), ("移す", "に"),
+           ("成る", "と"), ("為る", "と"), ("呼ぶ", "と"), ("言う", "と"), ("称する", "と"),
+           ("思う", "と"), ("考える", "と"), ("比べる", "と"), ("並ぶ", "と"), ("異なる", "と"),
+           ("会う", "と"), ("化する", "と"), ("述べる", "と"),
+           ("向かう", "へ"), ("行く", "へ"), ("赴く", "へ"), ("移す", "へ"), ("入る", "へ"),
+           ("受ける", "から"), ("離れる", "から"), ("成る", "から"), ("始まる", "から"),
+           ("来る", "から"), ("集める", "から"), ("出る", "から")},
 }
+
+
+def _feat(feats, key):
+    import re
+    m = re.search(rf"{key}=([^|]+)", feats or "")
+    return m.group(1) if m else "_"
+
+
+def _derive_comp_frames(lang, thresh=0.85, minc=8):
+    """Data-driven (verb-lemma, adposition) complement frames: pairs that are >= `thresh`
+    comp:obl among committed ADP<-VERB deps in the TRAIN split (>= `minc` comp instances).
+    fa/ar/la each have ~150-200 such frames; deriving them keeps the gold reproducible and
+    avoids hand-listing them. zh/ko/id keep their hand-curated literals above."""
+    fr = Counter()
+    seen = Counter()
+    for sid, toks in d.parse_conllu(FILES[lang][0]):
+        by = {t["id"]: t for t in toks}
+        for t in toks:
+            if t["upos"] != "ADP":
+                continue
+            h = by.get(t["head"])
+            if not h or h["upos"] != "VERB":
+                continue
+            key = (h["lemma"], t["lemma"])
+            if t["deprel"].startswith("comp:obl"):
+                fr[key] += 1; seen[key] += 1
+            elif t["deprel"].split(":")[0].split("@")[0] == "mod":
+                seen[key] += 1
+    return {k for k, c in fr.items() if c >= minc and c / seen[k] >= thresh}
+
+
+def derive_sa_comp_frames(thresh=0.85, minc=4):
+    """Sanskrit (verb-lemma, Case) complement frames from committed VERB<-nominal deps."""
+    fr, seen = Counter(), Counter()
+    for sid, toks in d.parse_conllu(FILES["sa"][0]):
+        by = {t["id"]: t for t in toks}
+        for t in toks:
+            h = by.get(t["head"])
+            if not h or h["upos"] != "VERB" or t["upos"] not in ("NOUN", "PRON", "ADJ", "NUM"):
+                continue
+            key = (h["lemma"], _feat(t.get("feats"), "Case"))
+            if t["deprel"].startswith("comp:obl"):
+                fr[key] += 1; seen[key] += 1
+            elif t["deprel"].split(":")[0].split("@")[0] == "mod":
+                seen[key] += 1
+    return {k for k, c in fr.items() if c >= minc and c / seen[k] >= thresh}
+
+
+for _l in ("fa", "ar", "la", "lzh"):
+    COMP_FRAMES[_l] = _derive_comp_frames(_l)
+
+# Sanskrit is case-based (handled via Case features, not adposition lemmas); give it empty
+# adposition tables so classify()/obj_is_temporal don't KeyError on its few stray ADP udep.
+MOD_ADP["sa"] = set()
+TEMP_NOUN["sa"] = set()
+COMP_FRAMES["sa"] = set()
 
 
 def root(lemma, lang):
@@ -87,8 +208,9 @@ def obj_is_temporal(toks, prep_id, lang):
 def classify(toks, prep, head, lang):
     vroot, adp = root(head["lemma"], lang), prep["lemma"]
     if (vroot, adp) in COMP_FRAMES[lang]:
-        # zh: 成立于1997 / 发生在2011年 are temporal-WHEN, not locative complements
-        if lang == "zh" and obj_is_temporal(toks, prep["id"], lang):
+        # temporal-object override: 成立于1997 / کرد در ۱۹۹۹ are temporal-WHEN adjuncts, not
+        # locative complements (zh first had this; same logic for the new prepositional langs)
+        if lang in ("zh", "fa", "ar", "la", "lzh", "ja") and obj_is_temporal(toks, prep["id"], lang):
             return "modifier"
         return "complement"
     if adp in MOD_ADP[lang]:
@@ -104,6 +226,41 @@ def main():
     args = ap.parse_args()
     lang = args.lang
     items, dropped = [], 0
+    if lang in COMMITTED_GOLD_LANGS:
+        _write_gold(lang, _harvest_committed(lang), 0)
+        return
+    if lang in CASE_LANGS:
+        sa_frames = derive_sa_comp_frames()
+        for f in FILES[lang]:
+            for sid, toks in d.parse_conllu(f):
+                by = {t["id"]: t for t in toks}
+                for t in toks:
+                    if t["deprel"] != "udep" or t["head"] == 0:
+                        continue
+                    if t["upos"] not in ("NOUN", "PRON", "ADJ", "NUM"):
+                        continue
+                    head = by.get(t["head"])
+                    if not head or head["upos"] != "VERB":
+                        continue
+                    sub = d.descendants(toks, t["id"])
+                    if any(by[i]["upos"] == "VERB" for i in sub if i != t["id"]):
+                        continue  # scope: drop clausal phrases
+                    if len(sub) > 8:
+                        continue
+                    case = _feat(t.get("feats"), "Case")
+                    if (head["lemma"], case) in sa_frames:
+                        label = "complement"
+                    elif case in SA_MOD_CASES:
+                        label = "modifier"
+                    else:
+                        dropped += 1
+                        continue
+                    items.append({"verb": head["form"], "adp": "Case=" + case,
+                                  "prep_phrase": d.render(toks, sub),
+                                  "verb_phrase": d.render(toks, d.descendants(toks, head["id"])),
+                                  "gold": label})
+        _write_gold(lang, items, dropped)
+        return
     for f in FILES[lang]:
         for sid, toks in d.parse_conllu(f):
             by = {t["id"]: t for t in toks}
@@ -126,6 +283,46 @@ def main():
                               "prep_phrase": d.render(toks, sub),
                               "verb_phrase": d.render(toks, d.descendants(toks, head["id"])),
                               "gold": label})
+    _write_gold(lang, items, dropped)
+
+
+def base_deprel(deprel):
+    return deprel.split(":")[0].split("@")[0]
+
+
+def _harvest_committed(lang):
+    """Build the gold from SUD's committed comp:obl/mod ADP<-VERB labels (the treebank's own
+    confident decisions). Scope: adposition subtree <= 10 tokens; the no-nested-VERB filter is
+    dropped (lzh complements take clausal objects). Temporal objects override comp:obl -> mod."""
+    out = []
+    for f in FILES[lang]:
+        for sid, toks in d.parse_conllu(f):
+            by = {t["id"]: t for t in toks}
+            for t in toks:
+                if t["upos"] != "ADP" or t["head"] == 0:
+                    continue
+                if t["deprel"].startswith("comp:obl"):
+                    label = "complement"
+                elif base_deprel(t["deprel"]) == "mod":
+                    label = "modifier"
+                else:
+                    continue
+                head = by.get(t["head"])
+                if not head or head["upos"] != "VERB":
+                    continue
+                sub = d.descendants(toks, t["id"])
+                if len(sub) > 10:
+                    continue
+                if label == "complement" and obj_is_temporal(toks, t["id"], lang):
+                    label = "modifier"  # temporal-WHEN phrase, not a locative complement
+                out.append({"verb": head["form"], "adp": t["lemma"],
+                            "prep_phrase": d.render(toks, sub),
+                            "verb_phrase": d.render(toks, d.descendants(toks, head["id"])),
+                            "gold": label})
+    return out
+
+
+def _write_gold(lang, items, dropped):
     print(f"=== {lang}: confident gold {dict(Counter(i['gold'] for i in items))} "
           f"(dropped {dropped} unclear nominal udep)")
     for cls in ("complement", "modifier"):

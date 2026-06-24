@@ -18,8 +18,17 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | `zh_sud_gsdsimp` | Chinese | 72.6 | 67.6 | 29.1 | 94.1 |
 | `ko_sud_gsd` | Korean | 79.7 | 75.6 | 24.7 | 100.0 |
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
+| `fa_sud_perdt` | Persian | 90.8 | 87.3 | 79.4 | 99.1 |
+| `sa_sud_vedic` | Sanskrit | 68.7 | 55.8 | 40.4 | 100.0† |
+| `xx_sud_kyoto` | Classical Chinese | 84.0 | 78.9 | 71.6 | 100.0† |
 
 Full per-relation breakdowns are in the `metrics_*.json` files.
+
+† Sanskrit and Classical Chinese tokenise deterministically (TOK 100), but the Vedic/Kyoto
+treebanks carry no in-text sentence boundaries, so the parser cannot re-segment raw text — feed
+these two models **pre-segmented sentences** (gold sentence splits). On raw, unsegmented text
+their LAS drops to ~41 / ~48; on gold sentences they reach the 55.8 / 78.9 above. Persian runs
+fine on raw text (raw LAS 79.2).
 
 ## Layout
 
@@ -37,17 +46,27 @@ deployable models and the canonical metrics are kept in-tree.
 
 ## Available models
 
-Four small CPU pipelines (`tok2vec` → `tagger` → `parser`), each matched to its treebank's
-tokenisation so they run on **raw text** and predict the disambiguated `comp:obl`/`mod` labels
-(not the noncommittal `udep`). They are distributed as installable wheels on the
+Small CPU pipelines (`tok2vec` → `tagger` → `parser`). The English/Chinese/Korean/Indonesian
+models are matched to their treebank's tokenisation so they run on **raw text** and predict the
+disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheels on the
 [Releases](https://github.com/SunflowerAI/sud-spacy-parsers/releases) page.
 
-| Package | Language | Treebank | Tokenisation | Licence |
-|---------|----------|----------|--------------|---------|
-| `en_sud_ewt`     | English    | SUD_English-EWT     | default rules | CC BY-SA 4.0 |
-| `zh_sud_gsdsimp` | Chinese    | SUD_Chinese-GSDSimp | pkuseg (needs `spacy-pkuseg`) | CC BY-SA 4.0 |
-| `ko_sud_gsd`     | Korean     | SUD_Korean-GSD      | mecab morphemes (needs `mecab-ko` + `MECAB_PATH`) | CC BY-SA 4.0 |
-| `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | rule tokeniser (enclitics merged) | CC BY-SA 4.0 |
+| Package | Language | Treebank | `udep` | Tokenisation | Licence |
+|---------|----------|----------|--------|--------------|---------|
+| `en_sud_ewt`     | English    | SUD_English-EWT     | disambiguated (ext) | default rules | CC BY-SA 4.0 |
+| `zh_sud_gsdsimp` | Chinese    | SUD_Chinese-GSDSimp | disambiguated | pkuseg (needs `spacy-pkuseg`) | CC BY-SA 4.0 |
+| `ko_sud_gsd`     | Korean     | SUD_Korean-GSD      | disambiguated | mecab morphemes (needs `mecab-ko` + `MECAB_PATH`) | CC BY-SA 4.0 |
+| `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated | rule tokeniser (enclitics merged) | CC BY-SA 4.0 |
+| `fa_sud_perdt`   | Persian    | SUD_Persian-PerDT   | disambiguated (ext) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
+| `sa_sud_vedic`   | Sanskrit   | SUD_Sanskrit-Vedic  | kept (baseline) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
+| `xx_sud_kyoto`   | Classical Chinese | SUD_Classical_Chinese-Kyoto | kept (baseline) | character tokeniser (bundled) | CC BY-SA 4.0 |
+
+The Persian model ships the **extended-scope disambiguated** parser; for Sanskrit and Classical
+Chinese the **baseline** (un-relabelled, predicts `udep`) is shipped, because `comp:obl`/`mod`
+relabelling did not improve `comp:obl` F for those languages (Sanskrit's signal is case-based and
+near-chance for the LLM; Classical Chinese's `udep` adpositions are predominantly modifiers — the
+same near-vacuous pattern as Korean's verb-ADP scope). `xx_sud_kyoto` is packaged on spaCy's
+multilingual base (`xx`) with a bundled character tokeniser, since spaCy has no native `lzh` module.
 
 ```bash
 # install a model from the latest release (example: Chinese)

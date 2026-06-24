@@ -41,8 +41,21 @@ EN_FILES = ["assets/en_sud-train.conllu", "assets/en_sud-dev.conllu", "assets/en
 FILES = {"en": EN_FILES, **g.FILES}
 # baseline caches to seed from (verb decisions already made), per language
 BASE_CACHE = {"en": "relabel_cache.jsonl", "zh": "relabel_cache_zh.jsonl",
-              "ko": "relabel_cache_ko.jsonl", "id": "relabel_cache_id.jsonl"}
+              "ko": "relabel_cache_ko.jsonl", "id": "relabel_cache_id.jsonl",
+              "fa": "relabel_cache_fa.jsonl", "ar": "relabel_cache_ar.jsonl",
+              "la": "relabel_cache_la.jsonl", "lzh": "relabel_cache_lzh.jsonl",
+              "ja": "relabel_cache_ja.jsonl"}
 ADP_HEADS = ("VERB", "NOUN", "PROPN", "ADJ")
+
+# Sanskrit case-based relabel (parallel to Korean): Sanskrit `udep` sits on bare case-marked
+# nominal dependents of verbs, not adpositions. Cases calibrated from committed VERB deps —
+# Loc/Abl/Voc/Nom are circumstantial (committed >= ~89% mod) -> mod. Complements come from the
+# derived (verb, Case) frames, which capture the recipient DATIVE of giving verbs (sampradāna).
+# A blanket Dat -> comp is deliberately avoided (the dative-of-purpose is adjunctival, so bare
+# Dat is only ~71% comp); Dat-not-in-frame, Ins, Acc, Gen are the ambiguous residue -> model.
+SA_MOD_CASES = g.SA_MOD_CASES
+SA_NOMINAL = ("NOUN", "PRON", "ADJ", "NUM")
+_SA_COMP_FRAMES = None  # lazily derived (verb, Case) complement frames
 
 # English participial/complex prepositions -> circumstantial modifier (match on form).
 EN_PARTICIPIAL_MOD = {"according", "based", "following", "regarding", "concerning",
@@ -85,6 +98,20 @@ def ko_case_label(toks, by, t, head):
     return None                                     # bare/topic/로·으로 NOUN -> model
 
 
+def sa_case_label(toks, by, t, head):
+    """Sanskrit: read the dependent's morphological Case (no adposition). Selecting (verb,Case)
+    frame or dative -> comp; locative/ablative/etc circumstantial -> mod; Ins/Acc -> model."""
+    global _SA_COMP_FRAMES
+    if _SA_COMP_FRAMES is None:
+        _SA_COMP_FRAMES = g.derive_sa_comp_frames()
+    case = g._feat(t.get("feats"), "Case")
+    if (head["lemma"], case) in _SA_COMP_FRAMES:    # selecting verb (incl. recipient datives)
+        return "complement"
+    if case in SA_MOD_CASES:                        # Loc/Abl/Voc/Nom circumstantial
+        return "modifier"
+    return None                                     # Dat-of-purpose / Ins / Acc / Gen -> model
+
+
 def has_verb_descendant(toks, by, t):
     sub = d.descendants(toks, t["id"])
     return any(by[i]["upos"] == "VERB" for i in sub if i != t["id"])
@@ -101,10 +128,21 @@ def targets(lang, toks, by):
         if lang == "zh" and t["upos"] == "PART" and t["lemma"] in ("的", "之") and head["upos"] == "NOUN":
             yield t, head, "zh_de"
             continue
+        if lang == "lzh" and t["lemma"] == "之" and head["upos"] in ("NOUN", "PROPN", "NUM"):
+            yield t, head, "lzh_zhi"        # associative 之 (X 之 Y = "Y of X") -> mod
+            continue
+        if lang == "ja" and t["lemma"] == "の" and head["upos"] in ("NOUN", "PROPN", "NUM", "ADJ"):
+            yield t, head, "ja_no"          # genitive/associative の (N の N) -> mod
+            continue
         if lang == "ko" and t["upos"] in ("ADV", "NOUN") and head["upos"] == "VERB":
             if has_verb_descendant(toks, by, t):       # nominal only (skip relative clauses)
                 continue
             yield t, head, "ko_case"
+            continue
+        if lang == "sa" and t["upos"] in SA_NOMINAL and head["upos"] == "VERB":
+            if has_verb_descendant(toks, by, t):       # nominal only (skip clausal arguments)
+                continue
+            yield t, head, "sa_case"
             continue
         if t["upos"] == "VERB" and head["upos"] == "VERB":   # participial complex preposition
             yield t, head, "participial"
@@ -120,8 +158,14 @@ def targets(lang, toks, by):
 def rule_label(lang, toks, by, t, head, bucket):
     if bucket == "zh_de":
         return "modifier"
+    if bucket == "lzh_zhi":
+        return "modifier"
+    if bucket == "ja_no":
+        return "modifier"
     if bucket == "ko_case":
         return ko_case_label(toks, by, t, head)
+    if bucket == "sa_case":
+        return sa_case_label(toks, by, t, head)
     if bucket == "participial":
         return "modifier" if t["form"].lower() in EN_PARTICIPIAL_MOD else None
     if bucket.startswith("adp_") and lang in g.FILES:   # zh/ko/id frame & temporal rules

@@ -44,6 +44,27 @@ NATIVE_DEF = {
            "- MODIFIER (modifier): keterangan opsional (waktu, tempat, cara, sebab, penyerta) "
            "yang bukan bagian dari struktur argumen verba dan dapat ditambahkan bebas.\n"
            "Jawab dengan tepat satu kata: complement atau modifier.\n\n"),
+    "fa": ("به شما یک فعل و یک گروه حرف‌اضافه‌ای که به آن وابسته است داده می‌شود. تعیین کنید که "
+           "آن گروه، متمم آن فعل است یا افزوده.\n"
+           "- متمم (complement): آرگومانی که فعل آن را می‌طلبد — مشارکی ضروری در معنای فعل؛ فعل "
+           "آن را لازم دارد و معمولاً حرف اضافه‌اش را تعیین می‌کند. تنها برخی افعال آن را می‌پذیرند.\n"
+           "- افزوده (modifier): قید اختیاری (زمان، مکان، شیوه، علت، همراهی) که جزو ساختار "
+           "آرگومان فعل نیست و آزادانه به افعال گوناگون افزوده می‌شود.\n"
+           "فقط با یک واژهٔ انگلیسی پاسخ دهید: complement یا modifier.\n\n"),
+    "ar": ("سَتُعطى فعلاً وشِبهَ جملةٍ (جارّ ومجرور) يعتمد عليه. حَدِّد ما إذا كانت شبه الجملة "
+           "مُكمِّلاً للفعل أم ظرفاً.\n"
+           "- المُكمِّل (complement): عنصر يطلبه الفعل — مشارك أساسي في معناه؛ الفعل يستلزمه "
+           "ويحدِّد حرف الجر عادةً. أفعال معيّنة فقط تقبله.\n"
+           "- الظرف (modifier): وصف اختياري (زمان، مكان، طريقة، سبب، مصاحبة) ليس جزءاً من بنية "
+           "الفعل ويمكن إضافته بحرية إلى أفعال كثيرة.\n"
+           "أجب بكلمة إنجليزية واحدة فقط: complement أو modifier.\n\n"),
+    "ja": ("動詞と、それに係る格助詞句（名詞＋助詞）が与えられます。その句がその動詞の"
+           "補語か修飾語かを判定してください。\n"
+           "- 補語（complement）：動詞が要求する項であり、動詞の意味に不可欠な参与者です。"
+           "動詞がそれを必要とし、助詞（に・へ・と・から等）を指定します。特定の動詞のみが取ります。\n"
+           "- 修飾語（modifier）：時・場所・手段・理由・付帯などの任意の状況語で、動詞の項構造に"
+           "属さず、多くの動詞に自由に付加できます。\n"
+           "英語一語のみで答えてください：complement または modifier。\n\n"),
 }
 
 
@@ -73,10 +94,11 @@ def main():
     print(f"=== {args.lang}: gold {len(comp)}c/{len(mod)}m | shots {ns}/class | "
           f"test {len(test)} ({n}/class) ===")
 
-    prefixes = {
-        "en_fewshot":     SUD_DEF + "Examples:\n\n" + shots_block(shots),
-        "native_fewshot": NATIVE_DEF[args.lang] + "Examples:\n\n" + shots_block(shots),
-    }
+    prefixes = {"en_fewshot": SUD_DEF + "Examples:\n\n" + shots_block(shots)}
+    # native instructions only where the model has a usable modern register for the metalanguage
+    # (zh/ko/id/fa/ar); Latin/Sanskrit/Classical-Chinese run English-only.
+    if args.lang in NATIVE_DEF:
+        prefixes["native_fewshot"] = NATIVE_DEF[args.lang] + "Examples:\n\n" + shots_block(shots)
     for name, prefix in prefixes.items():
         preds = [d.query(prefix + e.suffix(c)) for c in test]
         preds = [p if p in ("complement", "modifier") else "?" for p in preds]

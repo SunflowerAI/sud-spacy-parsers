@@ -32,3 +32,13 @@ models/
 # Build artifacts / logs
 corpus_*/
 *.log
+
+# New-language raw SUD treebanks — re-download from https://grew.fr/download/ (see README).
+assets_fa/SUD_Persian-PerDT/
+assets_ar/SUD_Arabic-PADT/
+assets_la/SUD_Latin-ITTB/
+assets_la2/SUD_Latin-PROIEL/
+assets_la/la_ittbproiel-sud-*.conllu
+assets_sa/SUD_Sanskrit-Vedic/
+assets_lzh/SUD_Classical_Chinese-Kyoto/
+assets_ja/SUD_Japanese-GSD/

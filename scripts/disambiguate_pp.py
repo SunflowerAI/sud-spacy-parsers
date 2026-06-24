@@ -6,10 +6,12 @@ Pulls candidates from a gold CoNLL-U file (reliable heads/subtrees): a prepositi
 label). For each, it reconstructs the phrase headed by the verb and the phrase headed by
 the preposition, builds the prompt, and asks qwen3:8b (no thinking) via Ollama.
 """
-import argparse, json, random, urllib.request
+import argparse, json, os, random, urllib.request
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "qwen3:8b"
+# Default kept at qwen3:8b so the existing en/zh/ko/id caches stay valid; override with
+# OLLAMA_MODEL (e.g. gemma4) for the new languages. Benchmarked per-language in Phase 3.
+MODEL = os.environ.get("OLLAMA_MODEL", "qwen3:8b")
 
 
 def parse_conllu(path):
@@ -33,7 +35,7 @@ def parse_conllu(path):
             misc = cols[9]
             toks.append({
                 "id": int(cols[0]), "form": cols[1], "lemma": cols[2], "upos": cols[3],
-                "xpos": cols[4], "head": int(cols[6]), "deprel": cols[7],
+                "xpos": cols[4], "feats": cols[5], "head": int(cols[6]), "deprel": cols[7],
                 "space_after": "SpaceAfter=No" not in misc,
             })
     if toks:
