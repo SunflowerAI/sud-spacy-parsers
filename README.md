@@ -1,4 +1,4 @@
-# SUD spaCy parsers (small/CPU, four languages)
+# SUD spaCy parsers (small/CPU, seven languages)
 
 Small, CPU-only spaCy pipelines (`tok2vec` → `tagger` → `parser`) for **English, Chinese, Korean,
 and Indonesian**, trained on **Surface-Syntactic Universal Dependencies (SUD)** treebanks. They
@@ -20,7 +20,7 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
 | `fa_sud_perdt` | Persian | 90.8 | 87.3 | 79.4 | 99.1 |
 | `sa_sud_vedic` | Sanskrit | 68.7 | 55.8 | 40.4 | 100.0† |
-| `xx_sud_kyoto` | Classical Chinese | 84.0 | 78.9 | 71.6 | 100.0† |
+| `lzh_sud_kyoto` | Classical Chinese | 84.0 | 78.9 | 71.6 | 100.0† |
 
 Full per-relation breakdowns are in the `metrics_*.json` files.
 
@@ -41,7 +41,7 @@ training_*/model-best/  shipped models (see "Available models"); other arms rege
 ```
 
 The binary corpora (`corpus_*/`) and the per-language model variants are build artifacts — the
-`scripts/` drivers regenerate any of them from the kept `*.conllu` + configs, so only the four
+`scripts/` drivers regenerate any of them from the kept `*.conllu` + configs, so only the
 deployable models and the canonical metrics are kept in-tree.
 
 ## Available models
@@ -59,14 +59,14 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated | rule tokeniser (enclitics merged) | CC BY-SA 4.0 |
 | `fa_sud_perdt`   | Persian    | SUD_Persian-PerDT   | disambiguated (ext) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
 | `sa_sud_vedic`   | Sanskrit   | SUD_Sanskrit-Vedic  | kept (baseline) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
-| `xx_sud_kyoto`   | Classical Chinese | SUD_Classical_Chinese-Kyoto | kept (baseline) | character tokeniser (bundled) | CC BY-SA 4.0 |
+| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto | kept (baseline) | character tokeniser (bundled) | CC BY-SA 4.0 |
 
 The Persian model ships the **extended-scope disambiguated** parser; for Sanskrit and Classical
 Chinese the **baseline** (un-relabelled, predicts `udep`) is shipped, because `comp:obl`/`mod`
 relabelling did not improve `comp:obl` F for those languages (Sanskrit's signal is case-based and
 near-chance for the LLM; Classical Chinese's `udep` adpositions are predominantly modifiers — the
-same near-vacuous pattern as Korean's verb-ADP scope). `xx_sud_kyoto` is packaged on spaCy's
-multilingual base (`xx`) with a bundled character tokeniser, since spaCy has no native `lzh` module.
+same near-vacuous pattern as Korean's verb-ADP scope). `lzh_sud_kyoto` registers a custom
+`lzh` language (spaCy ships no native Classical Chinese module) with a bundled character tokeniser.
 
 ```bash
 # install a model from the latest release (example: Chinese)

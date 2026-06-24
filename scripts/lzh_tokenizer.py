@@ -13,8 +13,22 @@ Reversibility: every emitted token is a single surface character; whitespace in 
 text becomes a token boundary with the preceding token carrying SpaceAfter implicitly via
 the spacing array, so concatenating token texts + spaces reproduces the input.
 """
+from spacy.language import Language
 from spacy.tokens import Doc
 from spacy.util import registry
+
+
+class ClassicalChineseDefaults(Language.Defaults):
+    """Minimal defaults; the character tokeniser is supplied via the config's
+    [nlp.tokenizer] @tokenizers = "lzh.CharTokenizer.v1"."""
+
+
+@registry.languages("lzh")
+class ClassicalChinese(Language):
+    """A real `lzh` language so the model packages as `lzh_sud_kyoto` (spaCy ships no native
+    Classical Chinese module). Registered when this file is loaded via `spacy ... --code`."""
+    lang = "lzh"
+    Defaults = ClassicalChineseDefaults
 
 
 @registry.tokenizers("lzh.CharTokenizer.v1")
