@@ -22,7 +22,7 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | `sa_sud_vedic` | Sanskrit | 68.7 | 55.8 | 40.4 | 100.0† |
 | `lzh_sud_kyoto` | Classical Chinese | 84.0 | 78.9 | 71.6 | 100.0† |
 | `ja_sud_gsd` | Japanese | 91.5 | 88.6 | 68.8 | 99.4 |
-| `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 82.8 |
+| `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
 | `la_sud_ittbproiel` | Latin | 82.7 | 77.2 | 68.4 | 100.0 |
 
 Full per-relation breakdowns are in the `metrics_*.json` files.
@@ -32,6 +32,8 @@ treebanks carry no in-text sentence boundaries, so the parser cannot re-segment 
 these two models **pre-segmented sentences** (gold sentence splits). On raw, unsegmented text
 their LAS drops to ~41 / ~48; on gold sentences they reach the 55.8 / 78.9 above. Persian runs
 fine on raw text (raw LAS 79.2).
+
+‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~69 vs 78 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
 
 ## Layout
 
@@ -64,7 +66,7 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | `sa_sud_vedic`   | Sanskrit   | SUD_Sanskrit-Vedic  | kept (baseline) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
 | `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto | kept (baseline) | character tokeniser (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
-| `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | rule tokeniser (gold tokens recommended — heavy clitics) | CC BY-SA 4.0 |
+| `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | CAMeL ATB tokeniser (needs `camel-tools` + data) | CC BY-SA 4.0 |
 | `la_sud_ittbproiel` | Latin   | SUD_Latin-ITTB+PROIEL | disambiguated (ext) | rule tokeniser | CC BY-SA 4.0 |
 
 The Persian model ships the **extended-scope disambiguated** parser; for Sanskrit and Classical
