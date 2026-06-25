@@ -1,4 +1,4 @@
-# SUD spaCy parsers (small/CPU, eight languages)
+# SUD spaCy parsers (small/CPU, ten languages)
 
 Small, CPU-only spaCy pipelines (`tok2vec` → `tagger` → `parser`) for **English, Chinese, Korean,
 and Indonesian**, trained on **Surface-Syntactic Universal Dependencies (SUD)** treebanks. They
@@ -22,6 +22,8 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | `sa_sud_vedic` | Sanskrit | 68.7 | 55.8 | 40.4 | 100.0† |
 | `lzh_sud_kyoto` | Classical Chinese | 84.0 | 78.9 | 71.6 | 100.0† |
 | `ja_sud_gsd` | Japanese | 91.5 | 88.6 | 68.8 | 99.4 |
+| `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 82.8 |
+| `la_sud_ittbproiel` | Latin | 82.7 | 77.2 | 68.4 | 100.0 |
 
 Full per-relation breakdowns are in the `metrics_*.json` files.
 
@@ -62,6 +64,8 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | `sa_sud_vedic`   | Sanskrit   | SUD_Sanskrit-Vedic  | kept (baseline) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
 | `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto | kept (baseline) | character tokeniser (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
+| `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | rule tokeniser (gold tokens recommended — heavy clitics) | CC BY-SA 4.0 |
+| `la_sud_ittbproiel` | Latin   | SUD_Latin-ITTB+PROIEL | disambiguated (ext) | rule tokeniser | CC BY-SA 4.0 |
 
 The Persian model ships the **extended-scope disambiguated** parser; for Sanskrit and Classical
 Chinese the **baseline** (un-relabelled, predicts `udep`) is shipped, because `comp:obl`/`mod`
