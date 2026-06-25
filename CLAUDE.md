@@ -219,5 +219,6 @@ gold-preproc and raw end-to-end evaluations.
     one token, deterministic), loaded via `spacy ... --code`; the shipped wheel bundles it. ja =
     SudachiPy + gold_preproc. fa/ja run on raw text (TOK 99.1/99.4); **sa & lzh need pre-segmented
     sentences** (Vedic/Kyoto carry no in-text sentence boundaries — raw LAS collapses to ~41/~48).
-  - **Released (v0.1.0):** `fa_sud_perdt` (ext), `ja_sud_gsd` (ext), `sa_sud_vedic` (base),
-    `lzh_sud_kyoto` (base). Wheels live on the GitHub Release, not committed (`dist/` gitignored).
+  - **Released (v0.1.0), all 6 + the original 4:** `fa_sud_perdt` (ext), `ja_sud_gsd` (ext),
+    `ar_sud_padt` (ext), `la_sud_ittbproiel` (ext), `sa_sud_vedic` (base), `lzh_sud_kyoto` (base).
+    Wheels live on the GitHub Release, not committed (`dist/` gitignored).
