@@ -192,3 +192,32 @@ gold-preproc and raw end-to-end evaluations.
   noun dependents is used (the verb-ADP-only view missed where its signal lives). Caveat: each
   relabel rewrites the *test* gold too, so `comp:obl` F has a moving denominator (same caveat as
   base-vs-rl). Partitives are left `udep` by design.
+- **Six more languages (fa/ar/la/sa/lzh/ja; `*_new.sh` drivers, configs `config_<lang>.cfg`).**
+  Treebanks: Persian-PerDT, Arabic-PADT, Latin-ITTB+PROIEL (merged), Sanskrit-Vedic,
+  Classical_Chinese-Kyoto, Japanese-GSD. Per-language relabel model (Phase-3 benchmark, English
+  prompt unless noted): fa/sa/lzh→qwen3:8b, ar/la→gemma4, **ja→qwen3 + native-Japanese prompt**
+  (`OLLAMA_MODEL` env selects it; `disambiguate_pp.MODEL` reads it). `comp:obl` F base→verb-rl→ext:
+  **fa 0.705→0.815→0.794, ja 0.000→0.720→0.688, ar 0.617→0.659→0.634, la 0.678→0.691→0.684,
+  lzh 0.716→0.659→0.664, sa 0.404→—→0.352** (LAS within ~1 throughout). The thesis holds across
+  language types: relabelling **helps genuinely-ambiguous prepositional systems** (fa/ja/ar/la) and
+  **hurts the near-vacuous/model-limited ones** (lzh: `udep` coverbs ~mostly modifiers, model 0.70;
+  sa: case-based, model ~chance on the Ins/Acc residue), and ext dilutes `comp:obl` F where the
+  verb set is already strong (fa/en/ja/ar/la — の/noun-heads). **Japanese GSD commits *no*
+  `comp:obl`** (all particle deps left `udep`), so the relabel synthesises the class from scratch
+  (F 0→0.72) — the cleanest demonstration of the LLM adding new annotation.
+  - **Two `udep` families.** Prepositional (fa/ar/la/lzh/ja — the adposition/particle is the ADP
+    head of the NP) use the verb-frame gold; case-based (sa) uses the dependent's morphological
+    **Case** (parallel to Korean). Associative genitive → mod, like zh 的: **lzh 之** and **ja の**
+    (relabel_ext buckets `lzh_zhi`/`ja_no`, deterministic).
+  - **Sanskrit case rule** (`SA_MOD_CASES` in lang_gold; `sa_case_label` in relabel_ext): recipients
+    are **dative** (confirmed in-treebank: dā/prayam+Dat), not locative — the locative-of-locus is
+    the Vedic ritual `hu` "offer into fire-LOC", which SUD leaves `udep`/mod. So Loc/Abl/Voc/Nom→mod,
+    recipient datives→comp via the (verb,Case) frames; **blanket Dat→comp is avoided** (the
+    dative-of-purpose is adjunctival); Ins/Acc/Gen/Dat-of-purpose → model.
+  - **Tokenisers.** fa/ar/la/sa = rule tokeniser + gold_preproc. **lzh has no spaCy module**:
+    `scripts/lzh_tokenizer.py` registers a custom `lzh` language + char tokeniser (one Han char =
+    one token, deterministic), loaded via `spacy ... --code`; the shipped wheel bundles it. ja =
+    SudachiPy + gold_preproc. fa/ja run on raw text (TOK 99.1/99.4); **sa & lzh need pre-segmented
+    sentences** (Vedic/Kyoto carry no in-text sentence boundaries — raw LAS collapses to ~41/~48).
+  - **Released (v0.1.0):** `fa_sud_perdt` (ext), `ja_sud_gsd` (ext), `sa_sud_vedic` (base),
+    `lzh_sud_kyoto` (base). Wheels live on the GitHub Release, not committed (`dist/` gitignored).
