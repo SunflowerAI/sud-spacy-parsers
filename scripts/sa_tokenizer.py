@@ -13,10 +13,16 @@ Input must be **word-segmented** (space-separated padas) — like the treebank; 
 saṃhitā/Devanagari needs sandhi splitting, which is out of scope. Runtime dependency:
 `pip install indic-transliteration` (only needed when Devanagari is fed; pure-Python, MIT).
 """
+import re
 import unicodedata
 
 from spacy.tokens import Doc
 from spacy.util import registry
+
+# Sanskrit clause-boundary punctuation: Devanagari daṇḍa ।॥ + period/?/!/pipe/slash (|| and //
+# fall out as two single tokens). Split off as tokens so clause_parser can segment on them.
+_PUNCT = "।॥.?!|/"
+_SPLIT = re.compile(r"[^" + re.escape(_PUNCT) + r"]+|[" + re.escape(_PUNCT) + r"]")
 
 # Vedic accent combining marks to drop (keep macron U+0304, dot-below U+0323, dot-above U+0307).
 _ACCENTS = {"́", "̀", "̂", "॑", "॒", "᳚", "̱", "́", "̀"}
@@ -53,10 +59,16 @@ class SanskritInputTokenizer:
 
     def __call__(self, text):
         norm = normalise(text)
-        words = norm.split()
+        words, spaces = [], []
+        for chunk in norm.split():
+            parts = _SPLIT.findall(chunk)          # split punctuation off each word
+            for j, part in enumerate(parts):
+                words.append(part)
+                spaces.append(j == len(parts) - 1)  # space only after a chunk's last token
+        if spaces:
+            spaces[-1] = False
         if not words:
-            words = [norm or text]
-        spaces = [True] * (len(words) - 1) + [False]
+            words, spaces = [norm or text], [False]
         return Doc(self.vocab, words=words, spaces=spaces)
 
     def to_bytes(self, **kwargs):
