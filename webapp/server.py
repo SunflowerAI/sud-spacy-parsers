@@ -12,13 +12,20 @@ Loads the released model wheels by package name (install them first, e.g.
 `pip install <release-url>/zh_sud_gsdsimp-0.1.0-py3-none-any.whl`), so the
 browser can send plain text — each model is matched to its treebank tokenisation:
 
-    en -> en_sud_ewt      (default rules, EWT)
-    zh -> zh_sud_gsdsimp  (pkuseg, GSDSimp)
-    ko -> ko_sud_gsd      (mecab morphemes; needs mecab-ko)
-    id -> id_sud_gsd      (rule tokeniser, enclitics merged)
+    en  -> en_sud_ewt         (default rules, EWT)
+    zh  -> zh_sud_gsdsimp     (pkuseg, GSDSimp)
+    ko  -> ko_sud_gsd         (mecab morphemes; needs mecab-ko)
+    id  -> id_sud_gsd         (rule tokeniser, enclitics merged)
+    fa  -> fa_sud_perdt       (rule tokeniser, PerDT)
+    ar  -> ar_sud_padt        (rule tokeniser, PADT)
+    la  -> la_sud_ittbproiel  (rule tokeniser, ITTB+PROIEL)
+    sa  -> sa_sud_vedic       (rule tokeniser, Vedic; case-based)
+    lzh -> lzh_sud_kyoto      (custom one-char tokeniser bundled in the wheel, Kyoto)
+    ja  -> ja_sud_gsd         (SudachiPy, GSD)
 
-These models predict SUD relations with `udep` adpositional/case dependents
-disambiguated into `comp:obl` (complement) vs `mod` (modifier).
+Only languages whose wheel is installed are advertised. These models predict SUD
+relations with `udep` adpositional/case dependents disambiguated into `comp:obl`
+(complement) vs `mod` (modifier).
 """
 
 import json
@@ -40,15 +47,34 @@ MODELS = {
     "zh": "zh_sud_gsdsimp",
     "ko": "ko_sud_gsd",
     "id": "id_sud_gsd",
+    "fa": "fa_sud_perdt",
+    "ar": "ar_sud_padt",
+    "la": "la_sud_ittbproiel",
+    "sa": "sa_sud_vedic",
+    "lzh": "lzh_sud_kyoto",
+    "ja": "ja_sud_gsd",
 }
 
-LANG_NAMES = {"en": "English", "zh": "Chinese", "ko": "Korean", "id": "Indonesian"}
+LANG_NAMES = {
+    "en": "English", "zh": "Chinese", "ko": "Korean", "id": "Indonesian",
+    "fa": "Persian", "ar": "Arabic", "la": "Latin", "sa": "Sanskrit",
+    "lzh": "Classical Chinese", "ja": "Japanese",
+}
+
+# right-to-left scripts — the viewer lays these out right-to-left
+RTL = {"fa", "ar"}
 
 EXAMPLES = {
     "en": "I gave the book to John in the morning.",
     "zh": "我在北京学习中文。",
     "ko": "나는 아침에 도서관에서 책을 읽었다.",
     "id": "Saya membaca buku itu di perpustakaan pada pagi hari.",
+    "fa": "وی در اواخر عمر به علت کار و مطالعهٔ زیاد نابینا شد.",
+    "ar": "وفيما يلي اسماء الوزراء الجدد",
+    "la": "perfectio autem operationis dependet ex quatuor.",
+    "sa": "śuka sāri kṛśānām jihvāḥ badhnāti",
+    "lzh": "學而時習之",
+    "ja": "また行きたい、そんな気持ちにさせてくれるお店です。",
 }
 
 _cache = {}  # (lang, variant) -> loaded nlp
@@ -64,6 +90,7 @@ def available_models():
                 "name": LANG_NAMES[lang],
                 "package": pkg,
                 "example": EXAMPLES.get(lang, ""),
+                "rtl": lang in RTL,
             }
     return out
 

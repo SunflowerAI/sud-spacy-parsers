@@ -11,9 +11,10 @@
     --ink: #1c1b19;
     --muted: #6b6862;
     --line: #d8d4cc;
-    --accent: #b4532a;       /* comp:obl  — complement */
-    --accent2: #2f6f6a;      /* mod       — modifier */
-    --udep: #9a7b18;         /* udep      — undisambiguated */
+    --accent: #b4532a;       /* comp  — complement (warm terracotta) */
+    --accent2: #2f6f6a;      /* mod   — modifier (cool teal) */
+    --subj: #9a7b18;         /* subj  — subject (warm gold, distinct from comp) */
+    --udep: #9a7b18;         /* udep  — undisambiguated */
     --card: #ffffff;
   }
   * { box-sizing: border-box; }
@@ -99,9 +100,7 @@
   svg text { font-family: inherit; }
   .tok-word { font-size: 15px; fill: var(--ink); }
   .tok-pos  { font-size: 11px; fill: var(--muted); letter-spacing: .02em; }
-  .arc-label { font-size: 11px; font-weight: 600; }
   .arc-path { fill: none; stroke-width: 1.6; }
-  .arc-path.hl { stroke-width: 2.4; }
 </style>
 </head>
 <body>
@@ -129,24 +128,30 @@
   </div>
 
   <div class="legend">
-    <span><i class="swatch" style="background:var(--udep)"></i> udep (undisambiguated)</span>
-    <span><i class="swatch" style="background:var(--accent)"></i> comp:obl (complement)</span>
+    <span><i class="swatch" style="background:var(--subj)"></i> subj (subject)</span>
+    <span><i class="swatch" style="background:var(--accent)"></i> comp (complement)</span>
     <span><i class="swatch" style="background:var(--accent2)"></i> mod (modifier)</span>
-    <span><i class="swatch" style="background:#9a958c"></i> other relation</span>
+    <span><i class="swatch" style="background:#9a958c"></i> other</span>
   </div>
 
   <div id="out"><p class="hint">Pick a language and press Parse.</p></div>
 </main>
 
 <script>
-const COLORS = {
-  "udep": getCSS("--udep"),
-  "comp:obl": getCSS("--accent"),
-  "mod": getCSS("--accent2"),
-};
-const HILITE = new Set(["udep", "comp:obl", "mod"]);
 function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
-function depColor(dep){ return COLORS[dep] || "#9a958c"; }
+// Arcs are colour-coded by relation category. subj and comp are both warm
+// (gold vs terracotta) but clearly distinct; mod is cool; everything else grey.
+const CAT_COLOR = {
+  subj:  getCSS("--subj"),     // warm gold
+  comp:  getCSS("--accent"),   // warm terracotta
+  mod:   getCSS("--accent2"),  // cool teal
+  other: "#9a958c",            // grey
+};
+function depCat(dep){
+  const base = (dep || "").split(/[:@]/)[0];   // strip :subtype and @subtype
+  return (base === "subj" || base === "comp" || base === "mod") ? base : "other";
+}
+function depColor(dep){ return CAT_COLOR[depCat(dep)]; }
 
 const $lang = document.getElementById("lang");
 const $model = document.getElementById("model");
@@ -180,6 +185,7 @@ function onLang(){
   const m = MODELS[$lang.value];
   $model.textContent = m.package;     // one shipped model per language
   $text.value = m.example || "";
+  $text.dir = m.rtl ? "rtl" : "ltr";
   parse();
 }
 
@@ -195,7 +201,7 @@ async function parse(){
     });
     const data = await res.json();
     if(!res.ok){ throw new Error(data.error || res.statusText); }
-    render(data.sentences);
+    render(data.sentences, MODELS[$lang.value] && MODELS[$lang.value].rtl);
   } catch(e){
     $out.innerHTML = `<p class="err">Error: ${e.message}</p>`;
   } finally {
@@ -203,48 +209,58 @@ async function parse(){
   }
 }
 
-function render(sentences){
+function render(sentences, rtl){
   $out.innerHTML = "";
   if(!sentences.length){ $out.innerHTML = `<p class="hint">No sentences.</p>`; return; }
   sentences.forEach(toks => {
     const card = document.createElement("div");
     card.className = "sent-card";
-    card.appendChild(renderSentence(toks));
+    card.appendChild(renderSentence(toks, rtl));
     $out.appendChild(card);
   });
 }
 
 // ---- displaCy-style arc rendering in D3 -------------------------------------
-function renderSentence(toks){
-  const PAD_X = 28, GAP = 46;          // gap between adjacent token boxes
+function renderSentence(toks, rtl){
+  const PAD_X = 28;                      // canvas side padding
   const ROW = 38;                       // vertical room per arc level
   const WORD_Y_OFFSET = 26;             // word baseline below the arc zone
-  const measure = makeMeasurer();
+  const measure    = makeMeasurer("15px -apple-system, Helvetica Neue, Arial, sans-serif");
+  const measurePos = makeMeasurer("11px -apple-system, Helvetica Neue, Arial, sans-serif");
+  const SPACE = measure(" ");            // a single word space
+  const isPunct = t => t.dep === "punct";
 
-  // token x-centres, sized to content
+  // token x-centres: each node sized to its content, nodes separated by a single
+  // word space so the row reads like the sentence rather than an even grid.
+  // Punctuation abuts the preceding token (no leading space).
   let x = PAD_X, centres = [], widths = [];
-  toks.forEach(t => {
-    const w = Math.max(measure(t.text), measure(t.pos)) + 14;
+  toks.forEach((t, i) => {
+    if (i > 0 && !isPunct(t)) x += SPACE;
+    const w = Math.max(measure(t.text), measurePos(t.pos));
     widths.push(w);
     centres.push(x + w/2);
-    x += w + GAP;
+    x += w;
   });
-  const totalW = x - GAP + PAD_X;
+  const totalW = x + PAD_X;
+  // RTL scripts (Persian, Arabic): mirror the layout so token 0 sits on the right
+  // (arc geometry is symmetric in x, so mirroring centres keeps every arc correct)
+  if (rtl) centres = centres.map(c => totalW - c);
 
   // arcs (skip the root self-loop); assign non-overlapping levels (interval colouring)
   const arcs = toks
-    .filter(t => t.head !== t.id)
+    .filter(t => t.head !== t.id && !isPunct(t))   // skip the root self-loop and punctuation arcs
     .map(t => ({
       from: t.head, to: t.id, dep: t.dep,
       lo: Math.min(t.head, t.id), hi: Math.max(t.head, t.id),
-      dir: t.id > t.head ? 1 : -1,        // arrow points at the dependent
     }))
     .sort((a,b) => (a.hi-a.lo) - (b.hi-b.lo));   // shortest first -> nested inside
 
   const levelEnds = [];   // levelEnds[k] = rightmost hi occupied at level k
   arcs.forEach(a => {
     let k = 0;
-    while(k < levelEnds.length && levelEnds[k] >= a.lo) k++;
+    // ">" not ">=": arcs that only touch at a shared endpoint token don't collide,
+    // so they may share a level (keeps adjacent span-1 arcs at the same height)
+    while(k < levelEnds.length && levelEnds[k] > a.lo) k++;
     a.level = k;
     levelEnds[k] = a.hi;
   });
@@ -266,42 +282,33 @@ function renderSentence(toks){
     defs.append("marker")
       .attr("id", "ah-" + c.replace(/[^a-z0-9]/gi,""))
       .attr("viewBox","0 0 8 8").attr("refX",4).attr("refY",4)
-      .attr("markerWidth",5).attr("markerHeight",5).attr("orient","auto-start-reverse")
+      // userSpaceOnUse: arrowhead size is fixed, independent of stroke width, so the
+      // bold (highlighted) arcs get the same-size head as the thin ones (8 = 5 * 1.6)
+      .attr("markerUnits","userSpaceOnUse")
+      .attr("markerWidth",8).attr("markerHeight",8).attr("orient","auto-start-reverse")
       .append("path").attr("d","M0,0 L8,4 L0,8 Z").attr("fill",c);
   });
 
   // arcs
   arcs.forEach(a => {
     const x1 = centres[a.from], x2 = centres[a.to];
-    const top = arcZone - (a.level + 1) * ROW + ROW - 6;   // higher level -> higher up
-    const startX = a.dir === 1 ? x1 : x2;   // head side
-    const endX   = a.dir === 1 ? x2 : x1;   // dependent side (arrow)
+    let top = arcZone - (a.level + 1) * ROW + ROW - 6;   // higher level -> higher up
+    // lift adjacent (span-1) arcs: a ~6px-tall level-0 bump hooks straight down
+    // into the arrowhead (hairpin); give the short curve room to round into it
+    if (a.hi - a.lo === 1) top = Math.min(top, arcZone - 20);
+    const startX = x1;   // head side (t.head)
+    const endX   = x2;   // dependent side (t.id) — arrowhead (marker-end) lands here
     const c = depColor(a.dep);
-    const sweepIn = 6 * Math.sign(endX - startX || 1);
     const path = [
       `M ${startX} ${arcZone}`,
       `C ${startX} ${top}, ${endX} ${top}, ${endX} ${arcZone}`,
     ].join(" ");
     svg.append("path")
       .attr("d", path)
-      .attr("class", "arc-path" + (HILITE.has(a.dep) ? " hl" : ""))
+      .attr("class", "arc-path")
       .attr("stroke", c)
       .attr("marker-end", `url(#ah-${c.replace(/[^a-z0-9]/gi,"")})`);
-
-    // label at apex
-    const midX = (x1 + x2) / 2;
-    const labelY = top + (arcZone - top) * 0.18 - 2;
-    const label = svg.append("text")
-      .attr("class","arc-label")
-      .attr("x", midX).attr("y", labelY)
-      .attr("text-anchor","middle")
-      .attr("fill", c)
-      .text(a.dep);
-    // white halo so the label sits cleanly on the arc
-    const bb = label.node().getBBox();
-    svg.insert("rect", () => label.node())
-      .attr("x", bb.x-2).attr("y", bb.y).attr("width", bb.width+4).attr("height", bb.height)
-      .attr("fill", "var(--card)");
+    // no text label — the relation category is conveyed by colour (see legend)
   });
 
   // words + POS + root marker
@@ -312,9 +319,9 @@ function renderSentence(toks){
     svg.append("text").attr("class","tok-pos")
       .attr("x", cx).attr("y", wordY+16).attr("text-anchor","middle").text(t.pos);
     if(t.head === t.id){
-      svg.append("text").attr("class","arc-label")
-        .attr("x", cx).attr("y", arcZone-4).attr("text-anchor","middle")
-        .attr("fill","var(--muted)").text("root");
+      svg.append("circle")            // root: a ball terminal where an incoming arc would land
+        .attr("cx", cx).attr("cy", arcZone)
+        .attr("r", 4).attr("fill","var(--muted)");
     }
   });
 
@@ -322,9 +329,9 @@ function renderSentence(toks){
 }
 
 // text width helper via an offscreen canvas
-function makeMeasurer(){
+function makeMeasurer(font){
   const c = document.createElement("canvas").getContext("2d");
-  c.font = "15px -apple-system, Helvetica Neue, Arial, sans-serif";
+  c.font = font;
   return s => c.measureText(s || "").width;
 }
 </script>
