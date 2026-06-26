@@ -40,10 +40,20 @@ def normalise(text):
         from indic_transliteration.sanscript import transliterate
         text = transliterate(text, sanscript.DEVANAGARI, sanscript.IAST)
         text = "".join(_FIX.get(c, c) for c in text)
-    # strip Vedic accents (NFD, drop accent marks, NFC)
-    text = unicodedata.normalize(
-        "NFC", "".join(c for c in unicodedata.normalize("NFD", text) if c not in _ACCENTS))
-    return text
+    # Strip Vedic pitch accents (NFD, drop the accent marks, recompose) — but KEEP the
+    # combining acute that is part of ś/Ś (s/S + U+0301): it is a phonemic consonant, not
+    # an accent. Vedic udātta/svarita only fall on vowels (and vocalic ṛ/ḷ), never on a true
+    # consonant like s, so an acute sitting directly on s/S can only be ś/Ś.
+    out, base = [], ""
+    for c in unicodedata.normalize("NFD", text):
+        if not unicodedata.combining(c):
+            base = c
+            out.append(c)
+        elif c in _ACCENTS and not (c == "́" and base in ("s", "S")):  # U+0301 = acute
+            continue                      # drop a genuine Vedic accent mark
+        else:
+            out.append(c)                 # keep macron / dot-below / the ś acute
+    return unicodedata.normalize("NFC", "".join(out))
 
 
 @registry.tokenizers("sa.SanskritInputTokenizer.v1")
