@@ -19,7 +19,7 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | `ko_sud_gsd` | Korean | 79.7 | 75.6 | 24.7 | 100.0 |
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
 | `fa_sud_perdt` | Persian | 90.8 | 87.3 | 79.4 | 99.1 |
-| `sa_sud_vedic` | Sanskrit | 68.7 | 55.8 | 40.4 | 100.0† |
+| `sa_sud_sandhi_csl` | Sanskrit | 67.7 | 54.3 | 44.5 | 100.0† |
 | `lzh_sud_kyoto` | Classical Chinese | 84.2 | 79.0 | 70.1 | 100.0† |
 | `ja_sud_gsd` | Japanese | 91.5 | 88.6 | 68.8 | 99.4 |
 | `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
@@ -30,10 +30,11 @@ Full per-relation breakdowns are in the `metrics_*.json` files.
 † Sanskrit and Classical Chinese tokenise deterministically (TOK 100), but the Vedic/Kyoto
 treebanks segment into punctuation-free **clause units** (句讀 / clause) with no in-text sentence
 boundaries. Both models bundle a `clause_parser` component that splits punctuated input at its
-boundary marks (。，；for Classical Chinese; daṇḍa ।॥ and . ? ! | || / // for Sanskrit), parses
+boundary marks (。，；for Classical Chinese; daṇḍa ।॥ and . ? ! `|` `||` / // for Sanskrit), parses
 each clause in isolation, and reattaches each mark as a `punct` dependent — recovering the
-per-clause accuracy (78.9 / 55.8) on punctuated running text. Only **unpunctuated** running text
-collapses (LAS ~48 / ~41). Persian runs fine on raw text (raw LAS 79.2).
+per-clause accuracy (78.9 / 54.3) on punctuated running text; only **unpunctuated** running text
+collapses (LAS ~48 / ~41). `sa_sud_sandhi_csl` additionally **accepts sandhied text in
+Clay-Sanskrit-Library (CSL) conventions** (see below). Persian runs fine on raw text (raw LAS 79.2).
 
 ‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~69 vs 78 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
 
@@ -65,7 +66,7 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | `ko_sud_gsd`     | Korean     | SUD_Korean-GSD      | disambiguated | mecab morphemes (needs `mecab-ko` + `MECAB_PATH`) | CC BY-SA 4.0 |
 | `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated | rule tokeniser (enclitics merged) | CC BY-SA 4.0 |
 | `fa_sud_perdt`   | Persian    | SUD_Persian-PerDT   | disambiguated (ext) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
-| `sa_sud_vedic`   | Sanskrit   | SUD_Sanskrit-Vedic  | kept (baseline) | IAST / Devanagari / accented (needs `indic-transliteration`) | CC BY-SA 4.0 |
+| `sa_sud_sandhi_csl` | Sanskrit | SUD_Sanskrit-Vedic + UFAL | kept (baseline) | **accepts sandhied CSL text**, de-sandhied to clean wordforms; IAST / Devanagari / accented (needs `indic-transliteration`); compound `\|`→`-`, guillemets `«»`, straightens curly quotes | CC BY-SA 4.0 |
 | `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
 | `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | CAMeL ATB tokeniser (needs `camel-tools` + data) | CC BY-SA 4.0 |
@@ -73,7 +74,17 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 
 Most models ship the **extended-scope disambiguated** parser; Sanskrit ships the **baseline**
 (un-relabelled, predicts `udep`), because its `comp:obl`/`mod` signal is case-based and near-chance
-for the LLM, so relabelling did not improve `comp:obl` F. Classical Chinese ships the
+for the LLM, so relabelling did not improve `comp:obl` F — confirmed on the classical UFAL test
+set too (LLM 0.43 vs a 0.82 majority baseline on the ambiguous Ins/Acc/Gen residue). The Sanskrit
+model **accepts sandhied text in Clay-Sanskrit-Library (CSL) conventions** but parses **clean,
+de-sandhied wordforms**: the bundled `sa_tokenizer.py` reverses the CSL notation-marked sandhi —
+vowel coalescence (the `'`/`"`/circumflex marks) and avagraha — while leaving the unmarked
+consonant/visarga sandhi (visarga → -o/-r, m → ṃ, t/n assimilation) on the surface, since CSL marks
+it ambiguously and it cannot be reversed without a lexicon. The parser is trained on those same
+CSL-reverted forms, which beats training on the sandhied surface (LAS 54.3 vs 53.5, ~1.5 under the
+pausa ceiling 55.8). The CSL representation is built by `scripts/external_sandhi.py` +
+`apply_vedic_sandhi.py` (Vedic) and `sa_csl_prep.py` (UFAL), then reverted by `revert_csl_sandhi.py`
+(sharing the tokeniser's `desandhi_csl`). Classical Chinese ships the
 **extended-scope** parser: its disambiguation signal does not live on the plain `udep` adpositions
 (those are mostly modifiers — the near-vacuous pattern seen at Korean's verb-ADP scope) but on the
 treebank's locative/temporal coverb subtypes (`udep@lmod`/`@tmod`), which the extended scope

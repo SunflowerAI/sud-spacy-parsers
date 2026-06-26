@@ -255,9 +255,76 @@ gold-preproc and raw end-to-end evaluations.
     not stamped with Japanese-tagset notation). gold-preproc eval bypasses clause_parser, so metrics
     are unaffected — this is purely a raw-inference fix. Repackage the lzh/sa wheels to ship it.
   - **Released (v0.1.0), all 6 + the original 4:** `fa_sud_perdt` (ext), `ja_sud_gsd` (ext),
-    `ar_sud_padt` (ext), `la_sud_ittbproiel` (ext), `sa_sud_vedic` (base), `lzh_sud_kyoto` (**ext** —
+    `ar_sud_padt` (ext), `la_sud_ittbproiel` (ext), `sa_sud_sandhi_csl` (base, **CSL-reverted** —
+    accepts sandhied CSL, de-sandhies to clean wordforms; see below; re-clobbered at 0.1.0),
+    `lzh_sud_kyoto` (**ext** —
     bundles `training_lzh_ext` + `clause_parser` with the punctuation-morphology fix; replaced the
     base wheel in-place at 0.1.0 via `gh release upload --clobber`). Wheels live on the GitHub
     Release, not committed (`dist/` gitignored). Rebuild a custom-code wheel with
     `spacy package <model> <out> --code scripts/lzh_tokenizer.py,scripts/clause_parser.py --build wheel`
     (add `clause_parser` to the model first; remember `pip install click` — spaCy imports it directly).
+
+## Sanskrit sandhied-CSL representation (`sa_sud_sandhi_csl`)
+
+The released Sanskrit model **replaces `sa_sud_vedic`**. It **accepts sandhied text in
+Clay-Sanskrit-Library (CSL) conventions** (the Vedic treebank is natively *pausa*/unsandhied; UFAL
+is classical Pañcatantra prose) but parses **CSL-reverted wordforms**: the tokeniser undoes the
+notation-marked sandhi (vowel coalescence + avagraha) and the parser is trained on those reverted
+forms — cleaner than the sandhied surface, so it parses better (LAS 54.3 vs 53.5). The pipeline is
+(1) build the sandhied CSL representation, then (2) revert the marked sandhi for both training and
+inference. Representation, built once and shared by both treebanks:
+
+- **`scripts/external_sandhi.py`** — forward classical external-sandhi engine (`join_pair`): vowel
+  coalescence (savarṇa/guṇa incl. `a+ṛ→` word2 `r`, vṛddhi, yaṇ, ayādi/avagraha), visarga (`-aḥ→
+  -o/-aś/-as`, `-iḥ→-ir`, `-āḥ→-ā`, final `-s`=visarga), `m→ṃ`, `-t→-d/-c/-j`, `-n→-ṃs/ñ/nn`,
+  `t+ś→cch`, stop voicing; `internal=True` suppresses external-only rules (the `-n→-nn`
+  gemination) for bound junctions. NB **no gold sandhied text exists**, so this is rule-based
+  *generation* validated by the round-trip + textbook unit tests, not against a reference.
+- **`scripts/apply_vedic_sandhi.py`** — applies it to the Vedic treebank within each sentence
+  (`assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{train,dev,test}.sandhi.conllu`): compounds AND
+  verb-**preverbs** (upasarga whose `head==` the following VERB; excludes tmesis) hyphen-joined
+  with internal sandhi; the privative **`a-/an-`** sandhi'd + hyphen-joined (no gemination);
+  pragṛhya duals, elided `_`, and sentence edges left in pausa. `generate()` chains sandhi
+  **sequentially left-to-right** (carrying each word's evolving surface into the next junction) —
+  needed for **single-character words**, notably the emphatic particle **`u`**: computing junctions
+  independently mishandled it (`atha u āhuḥ` → `ath' u āhuḥ`, the `u` left uncoalesced); sequencing
+  yields the correct `ath' ô āhuḥ` (= atho), which reverts cleanly to `atha u`. (Earlier versions
+  bailed on these via an overlap guard; the fix touched 92 dev/train/test tokens, 90 of them `u`,
+  with train/test reverted forms unchanged so the released model is unaffected.)
+- **`scripts/sa_csl_prep.py`** (UFAL) — alignment-based CSL: transliterate Devanagari→IAST,
+  re-segment MWTs (compounds hyphen-joined, external sandhi space-resegmented into surface forms,
+  vowel coalescence marked); hard cases hand-corrected via `sa_ufal_csl_overrides.tsv`; typographic
+  double quotes → **guillemets `«»`** (CSL direct-speech mark) before normalise.
+- **`scripts/sa_tokenizer.py`** — reproduces the tokenisation (hyphen-split keeping `-` on the left
+  member; daṇḍa/`||` run-grouping; `circumflix` U+0302 NOT stripped as it's a coalescence mark);
+  **accepts CSL compound `|`** (word-internal `|`→`-`; a sentence daṇḍa `|` is never letter-followed)
+  and **straightens curly apostrophes/double-quotes → `' "`**; then **reverses the CSL-marked
+  sandhi** via `desandhi_csl` (see below) before building the `Doc`.
+- **`desandhi_csl` (`scripts/sa_tokenizer.py`) + `scripts/revert_csl_sandhi.py`** — the inverse of
+  the coalescence marks. `desandhi_csl(tokens)` walks the ordered token list and undoes ONLY the
+  notation-marked sandhi: **vowel coalescence** (the left word's `'`/`"` + the right word's
+  circumflex/macron mark `â ê î ô û / ē ō / âi âu` together encode both original vowels — split them
+  back) and **avagraha** (leading `'`→`a`). The unmarked **consonant/visarga** sandhi (visarga →
+  -o/-r/-ā, m → ṃ, t/n assimilation) is **left on the surface** — CSL leaves it ambiguous (e.g. `-r`
+  + vowel vs a genuine `-r` stem) and it cannot be reversed without a lexicon, so full pausa is not
+  deterministically recoverable (the standard Sanskrit sandhi-splitting problem). Two fallbacks
+  clear the residue from `apply_vedic_sandhi`'s single-char-particle overlap guard: an unpaired
+  trailing `'`/`"` → restore the dominant a-stem vowel (`a`/`ā`), and a leading **circumflex** (only
+  ever a coalescence mark, never genuine) → restore unconditionally. Validated: **0 residual marks**
+  over 208 k tokens; 83.7 % of marked tokens reach pure pausa (== `Unsandhied=`), the rest keep
+  consonant surface by design. `revert_csl_sandhi.py` applies the *same* `desandhi_csl` to the
+  sandhied CoNLL-U (rewriting FORM + MWT-range surfaces, regenerating `# text`) → `*.csl_rev.conllu`,
+  so training data and the runtime tokeniser produce identical forms.
+- Trained on **CSL-reverted Vedic-train + UFAL** (`corpus_sa_csl_rev/`, `config_sa.cfg`, `--code
+  scripts/sa_tokenizer.py`) → `training_sa_csl_rev/`, `metrics_sa_csl_rev.json` (gold-preproc on
+  CSL-reverted Vedic test: **LAS 54.3 / UAS 67.7 / TAG 88.3 / comp:obl F 44.5**, ~1.5 LAS under the
+  pausa baseline 55.8 and **+0.8 LAS / +2.5 comp:obl F over the sandhied-surface model** 53.5/42.0 —
+  reverting the marked sandhi removes surface variation). UFAL was put **into training**, not held
+  out. (`corpus_sa_sandhi/` + `training_sa_sandhi/` are the superseded sandhied-surface arm.)
+- **comp/mod stays un-relabelled.** `scripts/ufal_compmod_probe.py` confirmed on classical UFAL
+  that the LLM is at chance on the case-marked Ins/Acc/Gen residue (0.43 vs 0.82 majority), same as
+  Vedic — structural (Sanskrit is case-based, not prepositional).
+- **Bundles `clause_parser`** (`punct_tag="PUNCT"`; `DEFAULT_PUNCT` already covers the daṇḍa
+  ।॥ `|` `||` / . ? !), like the former `sa_sud_vedic`, for raw multi-clause inference; packaged
+  with `spacy package … --code scripts/sa_tokenizer.py,scripts/clause_parser.py`. The shipped
+  pipeline is `[tok2vec, tagger, parser, clause_parser]`.
