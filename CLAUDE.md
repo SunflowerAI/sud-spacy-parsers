@@ -209,6 +209,32 @@ gold-preproc and raw end-to-end evaluations.
     head of the NP) use the verb-frame gold; case-based (sa) uses the dependent's morphological
     **Case** (parallel to Korean). Associative genitive → mod, like zh 的: **lzh 之** and **ja の**
     (relabel_ext buckets `lzh_zhi`/`ja_no`, deterministic).
+  - **Classical Chinese coverb rule** (`LZH_LOC_COMP_VCLASS`/`lzh_coverb_label` in lang_gold;
+    `lzh_coverb` bucket in relabel_ext). The bulk of lzh's coverb signal does **not** live on plain
+    `udep` (which both relabel pipelines scope to) — it lives on the **subtyped** `udep@lmod`
+    (locative, ~3029) and `udep@tmod` (temporal, ~105) ADP<-VERB deps, which the plain-`udep` scope
+    never reached. relabel_ext now brings them in and decides them from the annotators' own semantic
+    category + the head verb's class (XPOS field 3): **@tmod → mod** (WHEN adjunct); **@lmod →
+    comp:obl** only under a locus-selecting verb class (移動 motion / 姿勢 posture / 設置 placement /
+    存在 existence / 生物 birth-death), else **mod** (circumstantial locative). Object FEATS `Case=Tem`/
+    `Case=Loc` is the same signal for any *plain*-`udep` coverb (via `classify`). This commits ~815
+    of the test coverbs (`udep` 1288→473) and **nearly doubles the comp:obl class** (test 182→355,
+    incl. the locative-complement construction the LLM relabel had entirely missed): comp:obl F
+    base→verb-rl→**ext 0.716→0.685→0.701** (with the frame rule below), **precision 0.72**, **LAS
+    flat 0.789→0.790**, mod F unchanged. So lzh is near-vacuous only on the *plain* `udep` residue;
+    the locative complements
+    are a real, learnable comp:obl class (same lesson as Korean's case-marked NOUN deps).
+  - **lzh plain-`udep` 於 routing (object semantic class).** After Loc/Tem are ruled, the residue
+    splits ~evenly person 958 / non-person 912. The treebank commits **0 comp:obl and 0 mod on
+    於+person** (maximally ambiguous: recipient-dative vs comparison vs passive-agent) — only the LLM
+    can adjudicate it. **於+non-person** *is* committed (84:54, ~61% comp), so a verb-frame rule fits.
+    The default `_derive_comp_frames` (minc=8/thresh=.85) yields *no* lzh frames (too sparse), so
+    `COMP_FRAMES["lzh"]` is derived loosely (**minc=2/thresh=.70 → ~15 frames**: 至於/達於/在於/異於/
+    甚於/長於/怒於…), committing ~132 non-person comps by rule. So the LLM is scoped to where it is the
+    only tool — **於+person and the non-frame non-person residue** — while frames + Loc/Tem + the
+    @lmod/@tmod subtypes carry everything decidable by rule. No re-querying needed: the rule
+    intercepts cases *before* the cache; person 於 has no committed gold so its LLM decisions are
+    inherently unvalidatable (no benchmark possible).
   - **Sanskrit case rule** (`SA_MOD_CASES` in lang_gold; `sa_case_label` in relabel_ext): recipients
     are **dative** (confirmed in-treebank: dā/prayam+Dat), not locative — the locative-of-locus is
     the Vedic ritual `hu` "offer into fire-LOC", which SUD leaves `udep`/mod. So Loc/Abl/Voc/Nom→mod,
@@ -219,6 +245,19 @@ gold-preproc and raw end-to-end evaluations.
     one token, deterministic), loaded via `spacy ... --code`; the shipped wheel bundles it. ja =
     SudachiPy + gold_preproc. fa/ja run on raw text (TOK 99.1/99.4); **sa & lzh need pre-segmented
     sentences** (Vedic/Kyoto carry no in-text sentence boundaries — raw LAS collapses to ~41/~48).
+    `scripts/clause_parser.py` (lzh + sa, last pipe) recovers per-clause parses on punctuated
+    editions: it splits at punctuation, parses each 句讀 unit in isolation, and reattaches each mark
+    as `punct`. It also **normalises punctuation morphology** — Kyoto/Vedic carry almost no
+    punctuation, so the tagger hallucinates content tags on it (？→名詞,糧食 "noun, food", 。→動詞,
+    brackets even become ROOTs). Every punctuation token (Unicode P*, incl. quotation brackets) is
+    forced to `pos=PUNCT` + a deterministic XPOS: the Kyoto `s,記号,{句点,読点,括弧開,括弧閉}` map for lzh,
+    or the component's `punct_tag` config string flat (sa sets `punct_tag = "PUNCT"`, so the daṇḍa is
+    not stamped with Japanese-tagset notation). gold-preproc eval bypasses clause_parser, so metrics
+    are unaffected — this is purely a raw-inference fix. Repackage the lzh/sa wheels to ship it.
   - **Released (v0.1.0), all 6 + the original 4:** `fa_sud_perdt` (ext), `ja_sud_gsd` (ext),
-    `ar_sud_padt` (ext), `la_sud_ittbproiel` (ext), `sa_sud_vedic` (base), `lzh_sud_kyoto` (base).
-    Wheels live on the GitHub Release, not committed (`dist/` gitignored).
+    `ar_sud_padt` (ext), `la_sud_ittbproiel` (ext), `sa_sud_vedic` (base), `lzh_sud_kyoto` (**ext** —
+    bundles `training_lzh_ext` + `clause_parser` with the punctuation-morphology fix; replaced the
+    base wheel in-place at 0.1.0 via `gh release upload --clobber`). Wheels live on the GitHub
+    Release, not committed (`dist/` gitignored). Rebuild a custom-code wheel with
+    `spacy package <model> <out> --code scripts/lzh_tokenizer.py,scripts/clause_parser.py --build wheel`
+    (add `clause_parser` to the model first; remember `pip install click` — spaCy imports it directly).

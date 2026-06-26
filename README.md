@@ -20,7 +20,7 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
 | `fa_sud_perdt` | Persian | 90.8 | 87.3 | 79.4 | 99.1 |
 | `sa_sud_vedic` | Sanskrit | 68.7 | 55.8 | 40.4 | 100.0† |
-| `lzh_sud_kyoto` | Classical Chinese | 84.0 | 78.9 | 71.6 | 100.0† |
+| `lzh_sud_kyoto` | Classical Chinese | 84.2 | 79.0 | 70.1 | 100.0† |
 | `ja_sud_gsd` | Japanese | 91.5 | 88.6 | 68.8 | 99.4 |
 | `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
 | `la_sud_ittbproiel` | Latin | 82.7 | 77.2 | 68.4 | 100.0 |
@@ -66,17 +66,21 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated | rule tokeniser (enclitics merged) | CC BY-SA 4.0 |
 | `fa_sud_perdt`   | Persian    | SUD_Persian-PerDT   | disambiguated (ext) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
 | `sa_sud_vedic`   | Sanskrit   | SUD_Sanskrit-Vedic  | kept (baseline) | IAST / Devanagari / accented (needs `indic-transliteration`) | CC BY-SA 4.0 |
-| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto | kept (baseline) | character tokeniser (bundled) | CC BY-SA 4.0 |
+| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
 | `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | CAMeL ATB tokeniser (needs `camel-tools` + data) | CC BY-SA 4.0 |
 | `la_sud_ittbproiel` | Latin   | SUD_Latin-ITTB+PROIEL | disambiguated (ext) | rule tokeniser | CC BY-SA 4.0 |
 
-The Persian model ships the **extended-scope disambiguated** parser; for Sanskrit and Classical
-Chinese the **baseline** (un-relabelled, predicts `udep`) is shipped, because `comp:obl`/`mod`
-relabelling did not improve `comp:obl` F for those languages (Sanskrit's signal is case-based and
-near-chance for the LLM; Classical Chinese's `udep` adpositions are predominantly modifiers — the
-same near-vacuous pattern as Korean's verb-ADP scope). `lzh_sud_kyoto` registers a custom
-`lzh` language (spaCy ships no native Classical Chinese module) with a bundled character tokeniser.
+Most models ship the **extended-scope disambiguated** parser; Sanskrit ships the **baseline**
+(un-relabelled, predicts `udep`), because its `comp:obl`/`mod` signal is case-based and near-chance
+for the LLM, so relabelling did not improve `comp:obl` F. Classical Chinese ships the
+**extended-scope** parser: its disambiguation signal does not live on the plain `udep` adpositions
+(those are mostly modifiers — the near-vacuous pattern seen at Korean's verb-ADP scope) but on the
+treebank's locative/temporal coverb subtypes (`udep@lmod`/`@tmod`), which the extended scope
+resolves into `comp:obl`/`mod` from the head-verb semantic class and selectional frames, lifting
+`comp:obl` F to 0.70 over a roughly doubled `comp:obl` class (LAS unchanged). `lzh_sud_kyoto`
+registers a custom `lzh` language (spaCy ships no native Classical Chinese module) with a bundled
+character tokeniser, and its `clause_parser` also normalises punctuation morphology on raw input.
 
 ```bash
 # install a model from the latest release (example: Chinese)

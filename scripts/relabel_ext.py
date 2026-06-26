@@ -112,6 +112,17 @@ def sa_case_label(toks, by, t, head):
     return None                                     # Dat-of-purpose / Ins / Acc / Gen -> model
 
 
+def lzh_coverb_label(t, head):
+    """Classical Chinese coverb whose udep carries the treebank's own semantic-role subtype:
+    @tmod (temporal) is a WHEN adjunct -> mod; @lmod (locative) is the locus -> comp:obl only
+    under a verb class that selects a location (motion/posture/placement/existence/birth-death),
+    else a circumstantial mod. The bulk of the lzh coverb signal lives on these subtyped udep,
+    which the plain-`udep` relabel scope never reached."""
+    if t["deprel"] == "udep@tmod":
+        return "modifier"
+    return "complement" if g.xpos_field(head.get("xpos"), 3) in g.LZH_LOC_COMP_VCLASS else "modifier"
+
+
 def has_verb_descendant(toks, by, t):
     sub = d.descendants(toks, t["id"])
     return any(by[i]["upos"] == "VERB" for i in sub if i != t["id"])
@@ -120,10 +131,18 @@ def has_verb_descendant(toks, by, t):
 def targets(lang, toks, by):
     """Yield (token, head, bucket) for every extended-scope udep target."""
     for t in toks:
-        if t["deprel"] != "udep" or t["head"] == 0:
+        if t["head"] == 0:
             continue
         head = by.get(t["head"])
         if not head:
+            continue
+        # lzh: subtyped locative/temporal coverbs (udep@lmod / udep@tmod) carry the semantic
+        # role the annotators assigned; the plain-`udep` scope never sees them.
+        if lang == "lzh" and t["upos"] == "ADP" and head["upos"] == "VERB" \
+                and t["deprel"] in ("udep@lmod", "udep@tmod"):
+            yield t, head, "lzh_coverb"
+            continue
+        if t["deprel"] != "udep":          # all other targets are plain `udep`
             continue
         if lang == "zh" and t["upos"] == "PART" and t["lemma"] in ("的", "之") and head["upos"] == "NOUN":
             yield t, head, "zh_de"
@@ -160,6 +179,8 @@ def rule_label(lang, toks, by, t, head, bucket):
         return "modifier"
     if bucket == "lzh_zhi":
         return "modifier"
+    if bucket == "lzh_coverb":
+        return lzh_coverb_label(t, head)
     if bucket == "ja_no":
         return "modifier"
     if bucket == "ko_case":

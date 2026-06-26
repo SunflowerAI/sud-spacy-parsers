@@ -67,7 +67,7 @@ def parse_block(lines):
         if "-" in c[0] or "." in c[0]:
             continue
         toks.append({"id": int(c[0]), "form": c[1], "lemma": c[2], "upos": c[3],
-                     "feats": c[5], "head": int(c[6]), "deprel": c[7],
+                     "xpos": c[4], "feats": c[5], "head": int(c[6]), "deprel": c[7],
                      "space_after": "SpaceAfter=No" not in c[9]})
         lineidx[int(c[0])] = li
     return toks, lineidx

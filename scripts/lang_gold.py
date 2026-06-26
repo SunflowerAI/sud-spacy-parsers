@@ -36,6 +36,15 @@ CASE_LANGS = {"sa"}
 # so for lzh the whole gold is built from those (relaxed scope: 於-complements take clausal
 # objects, so the no-nested-VERB filter is dropped here).
 COMMITTED_GOLD_LANGS = {"lzh"}
+# Classical Chinese coverb (於/于 ...): the object noun carries the treebank's own semantic
+# category in FEATS Case and XPOS — Case=Tem ("時" time nouns) and Case=Loc (place nouns). We
+# use that, plus the head verb's semantic class (XPOS field 3), instead of leaning on the LLM
+# (which is barely above chance here). A temporal object is always a WHEN adjunct -> mod. A
+# locative object is a selected locus (-> comp:obl) only under verbs that lexically take a
+# location — motion (移動), posture (姿勢), placement (設置), existence (存在), life/birth-death
+# (生物); under any other verb the place is a circumstantial adjunct -> mod.
+LZH_LOC_COMP_VCLASS = {"移動", "姿勢", "設置", "存在", "生物"}
+
 # Sanskrit: confident MODIFIER cases (committed compShare <= ~.05 -> circumstantial place/
 # time/source/address/predication). Complements come from the derived (verb, Case) frames —
 # notably the recipient DATIVE of giving verbs (dā/prayam/pradā + Dat), per Pāṇinian
@@ -171,8 +180,14 @@ def derive_sa_comp_frames(thresh=0.85, minc=4):
     return {k for k, c in fr.items() if c >= minc and c / seen[k] >= thresh}
 
 
-for _l in ("fa", "ar", "la", "lzh"):
+for _l in ("fa", "ar", "la"):
     COMP_FRAMES[_l] = _derive_comp_frames(_l)
+# Classical Chinese commits very few verb-PPs, so the default minc=8/thresh=.85 derives *no*
+# frames (the verb-selection signal is real but sparse). Loosen to minc=2/thresh=.70 — this
+# recovers ~15 clean selectional 於/與 frames (至於 arrive-at, 達於 reach, 在於 lie-in, 異於
+# differ-from, 甚於 exceed, 長於 excel-at, 怒於 angry-at, ...) that the LLM otherwise adjudicates
+# unreliably. Per-label `comp:obl` (over committed deps) stays the calibration target.
+COMP_FRAMES["lzh"] = _derive_comp_frames("lzh", thresh=0.70, minc=2)
 
 # Sanskrit is case-based (handled via Case features, not adposition lemmas); give it empty
 # adposition tables so classify()/obj_is_temporal don't KeyError on its few stray ADP udep.
@@ -205,7 +220,32 @@ def obj_is_temporal(toks, prep_id, lang):
     return bool(obj) and (root(obj["lemma"], lang).lower() in TEMP_NOUN[lang] or is_year(obj["form"]))
 
 
+def xpos_field(xpos, i):
+    p = (xpos or "").split(",")
+    return p[i] if len(p) > i else ""
+
+
+def lzh_coverb_label(toks, prep, head):
+    """Classical Chinese coverb decided from the object's annotated semantic category (FEATS
+    Case) and the head verb's semantic class (XPOS field 3). Temporal object -> mod; locative
+    object -> comp:obl under a locus-selecting verb class, else mod. Returns None (-> caller's
+    frame logic / model) when the object carries no Case (person/abstract objects)."""
+    obj = prep_object(toks, prep["id"])
+    if not obj:
+        return None
+    case = _feat(obj.get("feats"), "Case")
+    if case == "Tem":
+        return "modifier"
+    if case == "Loc" and head["upos"] == "VERB":
+        return "complement" if xpos_field(head.get("xpos"), 3) in LZH_LOC_COMP_VCLASS else "modifier"
+    return None
+
+
 def classify(toks, prep, head, lang):
+    if lang == "lzh":
+        lab = lzh_coverb_label(toks, prep, head)
+        if lab is not None:
+            return lab
     vroot, adp = root(head["lemma"], lang), prep["lemma"]
     if (vroot, adp) in COMP_FRAMES[lang]:
         # temporal-object override: 成立于1997 / کرد در ۱۹۹۹ are temporal-WHEN adjuncts, not
