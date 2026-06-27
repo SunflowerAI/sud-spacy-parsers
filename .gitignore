@@ -39,6 +39,12 @@ corpus_*/
 # scratch --review output; the hand-corrections live in sa_ufal_csl_overrides.tsv
 sa_ufal_csl_review.tsv
 
+# one-off / scratch driver scripts (not part of the reproducible pipeline)
+scripts/finish_phase4.sh
+scripts/overnight_arla_ext.sh
+scripts/retrain_trimmed.sh
+scripts/run_japanese.sh
+
 # New-language raw SUD treebanks — re-download from https://grew.fr/download/ (see README).
 assets_fa/SUD_Persian-PerDT/
 assets_ar/SUD_Arabic-PADT/
