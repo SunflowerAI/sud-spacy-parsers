@@ -19,7 +19,7 @@ browser can send plain text — each model is matched to its treebank tokenisati
     fa  -> fa_sud_perdt       (rule tokeniser, PerDT)
     ar  -> ar_sud_padt        (rule tokeniser, PADT)
     la  -> la_sud_ittbproiel  (rule tokeniser, ITTB+PROIEL)
-    sa  -> sa_sud_vedic       (rule tokeniser, Vedic; case-based)
+    sa  -> sa_sud_sandhi_csl  (accepts sandhied CSL text, de-sandhied to clean wordforms; case-based)
     lzh -> lzh_sud_kyoto      (custom one-char tokeniser bundled in the wheel, Kyoto)
     ja  -> ja_sud_gsd         (SudachiPy, GSD)
 
@@ -50,7 +50,7 @@ MODELS = {
     "fa": "fa_sud_perdt",
     "ar": "ar_sud_padt",
     "la": "la_sud_ittbproiel",
-    "sa": "sa_sud_vedic",
+    "sa": "sa_sud_sandhi_csl",
     "lzh": "lzh_sud_kyoto",
     "ja": "ja_sud_gsd",
 }
@@ -72,7 +72,7 @@ EXAMPLES = {
     "fa": "وی در اواخر عمر به علت کار و مطالعهٔ زیاد نابینا شد.",
     "ar": "وفيما يلي اسماء الوزراء الجدد",
     "la": "perfectio autem operationis dependet ex quatuor.",
-    "sa": "śuka sāri kṛśānām jihvāḥ badhnāti",
+    "sa": "hāstidantaṃ badhnāti lomāni jatunā saṃdihya jātarūpeṇ' âpidhāpya",
     "lzh": "學而時習之",
     "ja": "また行きたい、そんな気持ちにさせてくれるお店です。",
 }
@@ -130,6 +130,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
+        # dev tool: never let the browser cache index.html / API responses, so edits show on reload
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.end_headers()
         self.wfile.write(data)
 

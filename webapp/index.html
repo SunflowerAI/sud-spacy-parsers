@@ -224,7 +224,8 @@ function render(sentences, rtl){
 function renderSentence(toks, rtl){
   const PAD_X = 28;                      // canvas side padding
   const ROW = 38;                       // vertical room per arc level
-  const WORD_Y_OFFSET = 26;             // word baseline below the arc zone
+  const NODE_R = 8;                      // invisible circle: arc ends stop this far short of a node
+  const WORD_Y_OFFSET = 26 - 2 * NODE_R; // word baseline, pulled a diameter up so it tucks under the arc ends
   const measure    = makeMeasurer("15px -apple-system, Helvetica Neue, Arial, sans-serif");
   const measurePos = makeMeasurer("11px -apple-system, Helvetica Neue, Arial, sans-serif");
   const SPACE = measure(" ");            // a single word space
@@ -289,20 +290,25 @@ function renderSentence(toks, rtl){
       .append("path").attr("d","M0,0 L8,4 L0,8 Z").attr("fill",c);
   });
 
-  // arcs
+  // arcs — same layout as the plain displaCy bumps, but each end "stops short" at the edge of
+  // an invisible circle (radius NODE_R) around the node point at `arcZone`, so the links to/from
+  // a token don't all touch one point. We keep the original cubic and trim the sub-curve outside
+  // the circles. The ROOT start has no circle.
+  const rootId = toks.findIndex(t => t.head === t.id);
   arcs.forEach(a => {
     const x1 = centres[a.from], x2 = centres[a.to];
     let top = arcZone - (a.level + 1) * ROW + ROW - 6;   // higher level -> higher up
     // lift adjacent (span-1) arcs: a ~6px-tall level-0 bump hooks straight down
     // into the arrowhead (hairpin); give the short curve room to round into it
     if (a.hi - a.lo === 1) top = Math.min(top, arcZone - 20);
-    const startX = x1;   // head side (t.head)
-    const endX   = x2;   // dependent side (t.id) — arrowhead (marker-end) lands here
+    // arc cubic: head node point -> over `top` -> dependent node point
+    const P = [[x1, arcZone], [x1, top], [x2, top], [x2, arcZone]];
+    let t0 = a.from === rootId ? 0 : trimT(P, 0, NODE_R);   // start side (head)
+    let t1 = trimT(P, 1, NODE_R);                            // end side (dependent, arrowhead)
+    if (t1 <= t0) { t0 = 0; t1 = 1; }                        // arc too short to trim
+    const s = subCurve(P, t0, t1);
     const c = depColor(a.dep);
-    const path = [
-      `M ${startX} ${arcZone}`,
-      `C ${startX} ${top}, ${endX} ${top}, ${endX} ${arcZone}`,
-    ].join(" ");
+    const path = `M ${s[0][0]} ${s[0][1]} C ${s[1][0]} ${s[1][1]}, ${s[2][0]} ${s[2][1]}, ${s[3][0]} ${s[3][1]}`;
     svg.append("path")
       .attr("d", path)
       .attr("class", "arc-path")
@@ -311,18 +317,13 @@ function renderSentence(toks, rtl){
     // no text label — the relation category is conveyed by colour (see legend)
   });
 
-  // words + POS + root marker
+  // words + POS
   toks.forEach((t, i) => {
     const cx = centres[i];
     svg.append("text").attr("class","tok-word")
       .attr("x", cx).attr("y", wordY).attr("text-anchor","middle").text(t.text);
     svg.append("text").attr("class","tok-pos")
       .attr("x", cx).attr("y", wordY+16).attr("text-anchor","middle").text(t.pos);
-    if(t.head === t.id){
-      svg.append("circle")            // root: a ball terminal where an incoming arc would land
-        .attr("cx", cx).attr("cy", arcZone)
-        .attr("r", 4).attr("fill","var(--muted)");
-    }
   });
 
   return svg.node();
@@ -333,6 +334,38 @@ function makeMeasurer(font){
   const c = document.createElement("canvas").getContext("2d");
   c.font = font;
   return s => c.measureText(s || "").width;
+}
+
+// ---- cubic Bézier trimming (so arc ends stop short at the node's circle) ----------
+function bezPt(P, t){
+  const u = 1 - t, a = u*u*u, b = 3*u*u*t, c = 3*u*t*t, d = t*t*t;
+  return [a*P[0][0] + b*P[1][0] + c*P[2][0] + d*P[3][0],
+          a*P[0][1] + b*P[1][1] + c*P[2][1] + d*P[3][1]];
+}
+function lerp(A, B, t){ return [A[0] + (B[0]-A[0])*t, A[1] + (B[1]-A[1])*t]; }
+function splitAt(P, t){                       // De Casteljau: split a cubic at t
+  const A = lerp(P[0],P[1],t), B = lerp(P[1],P[2],t), C = lerp(P[2],P[3],t);
+  const D = lerp(A,B,t), E = lerp(B,C,t), F = lerp(D,E,t);
+  return { left: [P[0],A,D,F], right: [F,E,C,P[3]] };
+}
+function subCurve(P, t0, t1){                  // the sub-cubic over [t0, t1]
+  if (t0 <= 0 && t1 >= 1) return P;
+  const r = splitAt(P, t0).right;              // [t0, 1]
+  const tt = t1 >= 1 ? 1 : (t1 - t0) / (1 - t0);
+  return splitAt(r, tt).left;                  // [t0, t1]
+}
+// the parameter where the curve first leaves a circle of radius R around an endpoint
+// (end 0 = walk forward from the start; end 1 = walk back from the end)
+function trimT(P, end, R){
+  const anchor = end === 0 ? P[0] : P[3], STEP = 0.004;
+  if (end === 0){
+    for (let t = 0; t <= 1; t += STEP){ const q = bezPt(P,t);
+      if (Math.hypot(q[0]-anchor[0], q[1]-anchor[1]) >= R) return t; }
+    return 1;
+  }
+  for (let t = 1; t >= 0; t -= STEP){ const q = bezPt(P,t);
+    if (Math.hypot(q[0]-anchor[0], q[1]-anchor[1]) >= R) return t; }
+  return 0;
 }
 </script>
 </body>
