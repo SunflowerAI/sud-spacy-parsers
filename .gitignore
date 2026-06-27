@@ -3,9 +3,13 @@
 __pycache__/
 *.egg-info/
 build/
+# spacy package staging dirs (e.g. build_lzh/)
+build_*/
 dist/
 wheelbuild/
 *.tgz
+# downloaded deps + built wheels (models ship via GitHub Releases, not in-repo)
+*.whl
 
 # Raw SUD treebanks — re-download from https://grew.fr/download/ (see README).
 # The relabelled derivatives + each LICENSE.txt are force-added (git add -f).
@@ -32,6 +36,8 @@ models/
 # Build artifacts / logs
 corpus_*/
 *.log
+# scratch --review output; the hand-corrections live in sa_ufal_csl_overrides.tsv
+sa_ufal_csl_review.tsv
 
 # New-language raw SUD treebanks — re-download from https://grew.fr/download/ (see README).
 assets_fa/SUD_Persian-PerDT/
