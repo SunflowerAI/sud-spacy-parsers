@@ -255,7 +255,7 @@ gold-preproc and raw end-to-end evaluations.
     not stamped with Japanese-tagset notation). gold-preproc eval bypasses clause_parser, so metrics
     are unaffected — this is purely a raw-inference fix. Repackage the lzh/sa wheels to ship it.
   - **Released (v0.1.0), all 6 + the original 4:** `fa_sud_perdt` (ext), `ja_sud_gsd` (ext),
-    `ar_sud_padt` (ext), `la_sud_ittbproiel` (ext), `sa_sud_sandhi_csl` (base, **CSL-reverted** —
+    `ar_sud_padt` (ext), `la_sud_ittbproielperseus` (ext), `sa_sud_sandhi_csl` (base, **CSL-reverted** —
     accepts sandhied CSL, de-sandhies to clean wordforms; see below; re-clobbered at 0.1.0),
     `lzh_sud_kyoto` (**ext** —
     bundles `training_lzh_ext` + `clause_parser` with the punctuation-morphology fix; replaced the
@@ -275,6 +275,25 @@ gold-preproc and raw end-to-end evaluations.
     (`scripts/opencc_conllu.py`; char-level, length-preserving). gold-preproc: zh combined LAS 69.3 /
     comp:obl F 32.6 (simp 35.3, GSD-trad 29.9); lzh combined LAS 79.0 / comp:obl F 70.9 — both within
     ~0.2 LAS across scripts, LAS/disambiguation unchanged vs the single-script ext models.
+  - **Cantonese (`yue_sud_hk`; `scripts/{split_yue,yue_tokenizer,train_yue,train_pkuseg_yue,bundle_yue_pkuseg}.py`).**
+    Coverb/prepositional like zh/lzh: in-scope `udep` ADPs are coverbs (喺 at, 畀 dative, 到 goal, 由
+    from, 根據 according-to), decided by the same verb-frame/temporal `lang_gold` rules + qwen3:8b
+    (`CHOSEN["yue"]=SUD_DEF`; gold 30c/12m, model==gemma4). ext adds two deterministic buckets in
+    relabel_ext: associative/genitive **嘅** (plain `udep` PART → mod, like zh 的/lzh 之/ja の) and the
+    annotators' temporal subtype **`udep@tmod`** (而家/今日/嗰陣時 → mod, like lzh @tmod), plus bare
+    NOUN-of-VERB (temporal-lemma→mod rule, else model) and ADP-of-NOUN/ADJ. comp:obl F base→verb-rl→
+    **ext 0.308→0.261→0.348**, LAS ~flat (noisy: see below). **SUD_Cantonese-HK is test-only** (1004
+    sents) → deterministic 80/10/10 round-robin split (`split_yue.py`, also copies empty XPOS←UPOS so
+    the tagger predicts UPOS in `tag_`; `pos_` empty). No spaCy `yue` module → `yue_tokenizer.py`
+    registers a custom `yue` language. **tok2vec is Mandarin-init by default**: `config_yue.cfg` bakes
+    `init_tok2vec = zh_both_tok2vec.bin` (extracted from `training_zh_both/model-best` via
+    `model.to_bytes()`; needs the `[pretraining]` component/layer block — spaCy's cross-lang `source=`
+    is blocked by E150 vocab-lang). vs from-scratch: TAG +0.4–1.4, UAS +0.7/+1.2 (base/ext), baseline
+    LAS +1.15; **comp:obl F within 100-sent noise**. **Raw tokeniser = pkuseg** (`yue.PkusegTokenizer.v1`,
+    falls back to char tok): word-F1 0.95 vs char 0.63; **fine-tuning pkuseg from `zh_gsdboth` ties
+    from-scratch (0.9474 vs 0.9472)** so the self-contained from-scratch model ships (userdict *hurt*,
+    0.93). Released v0.1.0 = ext arm + pkuseg, packaged from `training_yue_ext_pkuseg` (swap via
+    `bundle_yue_pkuseg.py`; meta requires `spacy-pkuseg`; no clause_parser — sentence-segmented).
 
 ## Sanskrit sandhied-CSL representation (`sa_sud_sandhi_csl`)
 

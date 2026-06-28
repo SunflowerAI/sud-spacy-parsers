@@ -25,6 +25,7 @@ FILES = {
     "sa": ["assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-%s.conllu" % s for s in ("train", "dev", "test")],
     "lzh": ["assets_lzh/SUD_Classical_Chinese-Kyoto/lzh_kyoto-sud-%s.conllu" % s for s in ("train", "dev", "test")],
     "ja": ["assets_ja/SUD_Japanese-GSD/ja_gsd-sud-%s.conllu" % s for s in ("train", "dev", "test")],
+    "yue": ["assets_yue/SUD_Cantonese-HK/yue_hk-sud-%s.conllu" % s for s in ("train", "dev", "test")],
 }
 
 # Languages whose `udep` sits on bare case-marked nominals (almost no adpositions): the gold
@@ -64,6 +65,11 @@ MOD_ADP = {
     "lzh": set(),  # lzh gold is committed-label only (see COMMITTED_GOLD_LANGS)
     # Japanese: comparative より and terminative まで particles are circumstantial -> mod.
     "ja": {"より", "まで"},
+    # Cantonese coverbs that are inherently circumstantial -> mod: basis (根據/按照/依照
+    # according-to), instrumental/means (透過 through), purpose (為咗 in-order-to), reason
+    # (因為 because), and the postpositional temporal relators (之後/之前/後/前 after/before).
+    "yue": {"根據", "按照", "依照", "透過", "為咗", "因為", "之後", "之前", "後", "前",
+            "嗰陣時", "嗰時"},
 }
 # adpositions that take a temporal/year object -> MODIFIER (if object is temporal)
 TEMP_OBJ_ADP = {
@@ -71,6 +77,8 @@ TEMP_OBJ_ADP = {
     "fa": {"در", "از", "تا", "به"}, "ar": {"فِي", "خِلَالَ", "عِندَ", "مُنذُ", "بَعدَ", "قَبلَ"},
     "la": {"in", "ad", "ante", "post", "per"}, "lzh": {"於", "于"},
     "ja": {"に", "で", "から", "まで"},
+    # Cantonese locative/source/terminal coverbs that take a temporal object -> WHEN adjunct.
+    "yue": {"喺", "响", "由", "到"},
 }
 TEMP_NOUN = {
     "zh": {"年", "月", "日", "时", "时候", "期间", "初", "末", "世纪", "年代", "凌晨",
@@ -97,6 +105,9 @@ TEMP_NOUN = {
            "現在", "今日", "明日", "昨日", "今", "後", "前", "間", "際", "末", "初", "始め",
            "初め", "中", "春", "夏", "秋", "冬", "月曜", "火曜", "水曜", "木曜", "金曜",
            "土曜", "日曜"},
+    "yue": {"而家", "今日", "聽日", "琴日", "頭先", "以前", "以後", "之後", "之前", "嗰陣時",
+            "嗰時", "舊時", "將來", "時候", "年", "月", "日", "點", "點鐘", "朝早", "晏晝",
+            "夜晚", "夜", "朝", "宜家", "而今", "依家", "陣間", "陣", "禮拜", "星期"},
 }
 # (verb-root, adposition) frames where the verb lexically selects the adposition -> COMPLEMENT
 COMP_FRAMES = {
@@ -131,6 +142,20 @@ COMP_FRAMES = {
            ("向かう", "へ"), ("行く", "へ"), ("赴く", "へ"), ("移す", "へ"), ("入る", "へ"),
            ("受ける", "から"), ("離れる", "から"), ("成る", "から"), ("始まる", "から"),
            ("来る", "から"), ("集める", "から"), ("出る", "から")},
+    # Cantonese: the coverb is lexically selected by the verb -> COMPLEMENT. Three frames,
+    # each genuinely ambiguous against an adjunct reading the LLM must otherwise resolve:
+    #   畀 bei2 (dative/benefactive 'give'): recipient of a transfer verb -> comp:obl
+    #   到 dou3 ('arrive/to'): goal of a motion verb -> comp:obl  (vs terminal-time -> mod)
+    #   喺/响 hai2 ('at/in'): selected locus of a position/placement/copula verb -> comp:obl
+    #   由 jau4 ('from'): source of a motion verb -> comp:obl
+    "yue": {("送", "畀"), ("攞", "畀"), ("打賞", "畀"), ("講", "畀"), ("寄", "畀"), ("畀", "畀"),
+            ("聽", "畀"), ("頂", "畀"), ("賣", "畀"), ("交", "畀"), ("還", "畀"), ("俾", "畀"),
+            ("去", "到"), ("嚟", "到"), ("唻", "到"), ("返", "到"), ("行", "到"), ("走", "到"),
+            ("搬", "到"), ("送", "到"), ("帶", "到"),
+            ("住", "喺"), ("徛", "喺"), ("坐", "喺"), ("企", "喺"), ("放", "喺"), ("擺", "喺"),
+            ("瞓", "喺"), ("進入", "喺"), ("位於", "喺"), ("係", "喺"), ("帶孫", "喺"),
+            ("玩", "响"), ("係", "响"),
+            ("嚟", "由"), ("唻", "由"), ("係", "由")},
 }
 
 
@@ -250,7 +275,7 @@ def classify(toks, prep, head, lang):
     if (vroot, adp) in COMP_FRAMES[lang]:
         # temporal-object override: 成立于1997 / کرد در ۱۹۹۹ are temporal-WHEN adjuncts, not
         # locative complements (zh first had this; same logic for the new prepositional langs)
-        if lang in ("zh", "fa", "ar", "la", "lzh", "ja") and obj_is_temporal(toks, prep["id"], lang):
+        if lang in ("zh", "fa", "ar", "la", "lzh", "ja", "yue") and obj_is_temporal(toks, prep["id"], lang):
             return "modifier"
         return "complement"
     if adp in MOD_ADP[lang]:

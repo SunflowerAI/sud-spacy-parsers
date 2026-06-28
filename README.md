@@ -1,4 +1,4 @@
-# SUD spaCy parsers (small/CPU, ten languages)
+# SUD spaCy parsers (small/CPU, eleven languages)
 
 Small, CPU-only spaCy pipelines (`tok2vec` → `tagger` → `parser`) for **English, Chinese, Korean,
 and Indonesian**, trained on **Surface-Syntactic Universal Dependencies (SUD)** treebanks. They
@@ -23,7 +23,8 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | `lzh_sud_kyoto` | Classical Chinese (trad+simp) | 84.3 | 79.0 | 70.9 | 100.0† |
 | `ja_sud_gsd` | Japanese | 91.5 | 88.6 | 68.8 | 99.4 |
 | `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
-| `la_sud_ittbproiel` | Latin | 82.7 | 77.2 | 68.4 | 100.0 |
+| `la_sud_ittbproielperseus` | Latin | 80.6 | 73.9 | 65.2 | 100.0¶ |
+| `yue_sud_hk` | Cantonese | 74.2 | 65.6 | 26.7 | 94.7◊ |
 
 Full per-relation breakdowns are in the `metrics_*.json` files.
 
@@ -37,6 +38,23 @@ collapses (LAS ~48 / ~41). `sa_sud_sandhi_csl` additionally **accepts sandhied t
 Clay-Sanskrit-Library (CSL) conventions** (see below). Persian runs fine on raw text (raw LAS 79.2).
 
 ‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~69 vs 78 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
+
+◊ SUD_Cantonese-HK ships a **test split only** (1004 sentences), so `yue_sud_hk` is trained on a
+deterministic 80/10/10 round-robin carve of it — the 100-sentence test makes its figures noisier
+than the others. The Cantonese XPOS column is empty, so UPOS is copied into it and the parser
+predicts UPOS in `tag_` (`pos_` is empty, as in all these models). TOK 94.7 is the bundled pkuseg
+word segmenter (trained on the treebank's gold tokens; vs 63 for the character fallback). The
+parser's `tok2vec` is initialised from the dual-script Mandarin model `zh_sud_gsdboth` and
+fine-tuned — a free TAG/UAS/baseline-LAS lift on so little data; the segmenter is *not* helped by a
+Mandarin warm-start (a local-feature CRF learns Cantonese boundaries from scratch just as well).
+
+¶ The Latin figures are on the **combined ITTB+PROIEL+Perseus** test, which now spans two very
+different registers. Broken out by sub-domain (gold-preproc): on the **ITTB+PROIEL** test the model
+scores LAS **78.3** / UAS **83.8** / `comp:obl` F **69.1** — *better* than before Perseus was added
+(LAS 77.7); the **Perseus** test (classical poetry — Virgil, Ovid, Phaedrus) is much harder at LAS
+**54.6** / UAS **66.8**, which pulls the combined headline down. So adding Perseus *improves* the
+original domain and *adds* poetry coverage the model previously lacked. Perseus's XPOS is blanked
+(incompatible tagset), so XPOS/TAG is reported on ITTB+PROIEL only.
 
 ## Layout
 
@@ -70,7 +88,16 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto (+ simplified) | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
 | `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | CAMeL ATB tokeniser (needs `camel-tools` + data) | CC BY-SA 4.0 |
-| `la_sud_ittbproiel` | Latin   | SUD_Latin-ITTB+PROIEL | disambiguated (ext) | rule tokeniser | CC BY-SA 4.0 |
+| `la_sud_ittbproielperseus` | Latin   | SUD_Latin-ITTB+PROIEL+Perseus | disambiguated (ext) | rule tokeniser | CC BY-NC-SA § |
+| `yue_sud_hk`     | Cantonese  | SUD_Cantonese-HK    | disambiguated (ext) | pkuseg (needs `spacy-pkuseg`); char fallback | CC BY-SA 4.0 |
+
+§ The Latin model is trained on the union of three SUD Latin treebanks, **all NonCommercial**:
+ITTB (CC BY-NC-SA 3.0), PROIEL (CC BY-NC-SA), and Perseus (CC BY-NC-SA 2.5). The model and its
+derived data are therefore **NonCommercial (CC BY-NC-SA)**. Perseus ships only train + test (no
+dev), so it is added train→train and test→test; the dev split stays ITTB+PROIEL. The three
+treebanks use mutually-incompatible XPOS tagsets, so Perseus's sparse 9-position XPOS is blanked
+(`scripts/blank_perseus_xpos.py`) to keep the tagger coherent — Perseus's UPOS and full dependency
+annotation are kept. See [`NOTICE.md`](NOTICE.md) and `scripts/add_perseus_la.sh`.
 
 Most models ship the **extended-scope disambiguated** parser; Sanskrit ships the **baseline**
 (un-relabelled, predicts `udep`), because its `comp:obl`/`mod` signal is case-based and near-chance
@@ -108,10 +135,23 @@ alignment and every deprel/head are unchanged); it tokenises one Han character p
 simplified needs no segmenter change. `scripts/both_scripts_release.sh` regenerates both arms end to
 end.
 
+**Cantonese.** `yue_sud_hk` is a coverb/prepositional system like Chinese: the in-scope `udep`
+adpositions are coverbs (喺 *at*, 畀 *dative*, 到 *goal*, 由 *from*, 根據 *according-to*), disambiguated by
+the same verb-frame + temporal rules and qwen3:8b relabel. Its extended scope adds two clean
+deterministic signals — the associative/genitive **嘅** (`你嘅牙` "your tooth" → mod, like Mandarin 的)
+and the treebank's own temporal subtype **`udep@tmod`** (而家/今日/嗰陣時 → mod). Because SUD_Cantonese-HK
+ships only a test split, it is carved 80/10/10 (`scripts/split_yue.py`, which also copies the empty
+XPOS from UPOS); spaCy has no `yue` module, so `scripts/yue_tokenizer.py` registers one. With only
+804 training sentences the parser's `tok2vec` is initialised from `zh_sud_gsdboth` and fine-tuned
+(`config_yue.cfg`; `scripts/train_yue.sh`), which lifts TAG/UAS. The bundled **pkuseg** raw-text
+segmenter (`scripts/train_pkuseg_yue.py`, swapped in by `bundle_yue_pkuseg.py`) is trained from
+scratch on the gold tokens — fine-tuning it from the Mandarin segmenter was tried and ties
+from-scratch, so the self-contained model ships.
+
 ```bash
 # install a model from the latest release (example: Chinese)
 pip install https://github.com/SunflowerAI/sud-spacy-parsers/releases/latest/download/zh_sud_gsdboth-0.1.0-py3-none-any.whl
-pip install spacy-pkuseg          # Chinese tokeniser dependency
+pip install spacy-pkuseg          # Chinese / Cantonese tokeniser dependency
 ```
 
 The English model ships **EWT-only**: SUD_English-GUM is CC BY-NC-SA (NonCommercial), so it is

@@ -44,7 +44,7 @@ BASE_CACHE = {"en": "relabel_cache.jsonl", "zh": "relabel_cache_zh.jsonl",
               "ko": "relabel_cache_ko.jsonl", "id": "relabel_cache_id.jsonl",
               "fa": "relabel_cache_fa.jsonl", "ar": "relabel_cache_ar.jsonl",
               "la": "relabel_cache_la.jsonl", "lzh": "relabel_cache_lzh.jsonl",
-              "ja": "relabel_cache_ja.jsonl"}
+              "ja": "relabel_cache_ja.jsonl", "yue": "relabel_cache_yue.jsonl"}
 ADP_HEADS = ("VERB", "NOUN", "PROPN", "ADJ")
 
 # Sanskrit case-based relabel (parallel to Korean): Sanskrit `udep` sits on bare case-marked
@@ -142,6 +142,12 @@ def targets(lang, toks, by):
                 and t["deprel"] in ("udep@lmod", "udep@tmod"):
             yield t, head, "lzh_coverb"
             continue
+        # Cantonese: the annotators' own temporal subtype udep@tmod (而家/今日/嗰陣時 …, plus
+        # the few temporal 喺/到 coverbs they marked) is a WHEN adjunct -> mod, deterministic —
+        # exactly parallel to lzh @tmod. The plain-`udep` scope never reaches it.
+        if lang == "yue" and t["deprel"] == "udep@tmod":
+            yield t, head, "yue_tmod"
+            continue
         if t["deprel"] != "udep":          # all other targets are plain `udep`
             continue
         if lang == "zh" and t["upos"] == "PART" and t["lemma"] in ("的", "之") and head["upos"] == "NOUN":
@@ -152,6 +158,17 @@ def targets(lang, toks, by):
             continue
         if lang == "ja" and t["lemma"] == "の" and head["upos"] in ("NOUN", "PROPN", "NUM", "ADJ"):
             yield t, head, "ja_no"          # genitive/associative の (N の N) -> mod
+            continue
+        if lang == "yue" and t["lemma"] == "嘅" and t["upos"] == "PART":
+            yield t, head, "yue_ge"         # associative/genitive 嘅 (X 嘅 Y = "Y of X") -> mod
+            continue
+        if lang == "yue" and t["upos"] in ("NOUN", "PROPN") and head["upos"] == "VERB":
+            # bare (adposition-less) nominal dependent of a verb: Cantonese has no case marking,
+            # so a temporal-noun lemma is a WHEN adjunct -> mod (rule); any other bare nominal is
+            # the genuinely-ambiguous oblique the LLM adjudicates (cf. Korean's case-marked deps).
+            if has_verb_descendant(toks, by, t):       # nominal only (skip relative clauses)
+                continue
+            yield t, head, "yue_nounverb"
             continue
         if lang == "ko" and t["upos"] in ("ADV", "NOUN") and head["upos"] == "VERB":
             if has_verb_descendant(toks, by, t):       # nominal only (skip relative clauses)
@@ -183,6 +200,11 @@ def rule_label(lang, toks, by, t, head, bucket):
         return lzh_coverb_label(t, head)
     if bucket == "ja_no":
         return "modifier"
+    if bucket in ("yue_tmod", "yue_ge"):
+        return "modifier"
+    if bucket == "yue_nounverb":
+        return "modifier" if t["lemma"] in g.TEMP_NOUN["yue"] else None  # else -> model
+
     if bucket == "ko_case":
         return ko_case_label(toks, by, t, head)
     if bucket == "sa_case":

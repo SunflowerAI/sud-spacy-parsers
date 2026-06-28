@@ -62,3 +62,6 @@ assets_sa/SUD_Sanskrit-Vedic/
 assets_sa_ufal/SUD_Sanskrit-UFAL/
 assets_lzh/SUD_Classical_Chinese-Kyoto/
 assets_ja/SUD_Japanese-GSD/
+assets_yue/SUD_Cantonese-HK/
+# derived init_tok2vec weights (extracted from the zh_gsdboth model; regenerate via scripts/train_yue.sh notes)
+zh_both_tok2vec.bin

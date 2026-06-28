@@ -28,7 +28,8 @@ idb = importlib.util.module_from_spec(_si); _si.loader.exec_module(idb)
 # shows native instructions win for fa/ar.
 CHOSEN = {"id": b.NATIVE_DEF["id"], "zh": b.NATIVE_DEF["zh"], "ko": b.SUD_DEF,
           "fa": b.SUD_DEF, "ar": b.SUD_DEF, "la": b.SUD_DEF, "sa": b.SUD_DEF, "lzh": b.SUD_DEF,
-          "ja": b.NATIVE_DEF["ja"]}  # Japanese native instructions win (0.86 vs 0.73, Phase 3)
+          "ja": b.NATIVE_DEF["ja"],  # Japanese native instructions win (0.86 vs 0.73, Phase 3)
+          "yue": b.SUD_DEF}  # Cantonese: English instructions (qwen3:8b == gemma4 on the gold)
 # extra curated same-adposition contrastive shots that improved disambiguation
 EXTRA_SHOTS = {"zh": zb.CONTRAST, "id": idb.CONTRAST}
 
