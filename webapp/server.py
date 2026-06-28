@@ -53,12 +53,13 @@ MODELS = {
     "sa": "sa_sud_sandhi_csl",
     "lzh": "lzh_sud_kyoto",
     "ja": "ja_sud_gsd",
+    "yue": "yue_sud_hk",
 }
 
 LANG_NAMES = {
     "en": "English", "zh": "Chinese", "ko": "Korean", "id": "Indonesian",
     "fa": "Persian", "ar": "Arabic", "la": "Latin", "sa": "Sanskrit",
-    "lzh": "Classical Chinese", "ja": "Japanese",
+    "lzh": "Classical Chinese", "ja": "Japanese", "yue": "Cantonese",
 }
 
 # right-to-left scripts — the viewer lays these out right-to-left
@@ -75,6 +76,7 @@ EXAMPLES = {
     "sa": "hāstidantaṃ badhnāti lomāni jatunā saṃdihya jātarūpeṇ' âpidhāpya",
     "lzh": "學而時習之",
     "ja": "また行きたい、そんな気持ちにさせてくれるお店です。",
+    "yue": "我今日喺屋企睇電視。",
 }
 
 _cache = {}  # (lang, variant) -> loaded nlp
