@@ -16,7 +16,7 @@ Then package + release:
   gh release upload v0.1.0 build_yue/yue_sud_hk-0.1.0/dist/yue_sud_hk-0.1.0-py3-none-any.whl --clobber
 (remember to add spacy-pkuseg to training_yue_ext_pkuseg/meta.json "requirements" first.)
 """
-import importlib.util, json, spacy
+import argparse, importlib.util, json, spacy
 
 SRC = "training_yue_ext/model-best"
 PKUSEG = "models/yue_hk_pkuseg_scratch"
@@ -24,22 +24,29 @@ OUT = "training_yue_ext_pkuseg"
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--src", default=SRC)
+    ap.add_argument("--out", default=OUT)
+    ap.add_argument("--pkuseg", default=PKUSEG)
+    args = ap.parse_args()
+    src, out = args.src, args.out
+
     spec = importlib.util.spec_from_file_location("yue_tokenizer", "scripts/yue_tokenizer.py")
     yt = importlib.util.module_from_spec(spec); spec.loader.exec_module(yt)
 
-    nlp = spacy.load(SRC)
+    nlp = spacy.load(src)
     seg_tok = yt.PkusegTokenizer(nlp.vocab)
-    seg_tok.initialize(pkuseg_model=PKUSEG)
+    seg_tok.initialize(pkuseg_model=args.pkuseg)
     nlp.tokenizer = seg_tok
     nlp.config["nlp"]["tokenizer"] = {"@tokenizers": "yue.PkusegTokenizer.v1"}
-    nlp.to_disk(OUT)
+    nlp.to_disk(out)
 
     # declare the runtime dep so the wheel pulls spacy-pkuseg
-    mp = f"{OUT}/meta.json"
+    mp = f"{out}/meta.json"
     m = json.load(open(mp))
     m["requirements"] = sorted(set(m.get("requirements") or []) | {"spacy-pkuseg>=0.0.27"})
     json.dump(m, open(mp, "w"), ensure_ascii=False, indent=2)
-    print(f"wrote {OUT} (pkuseg tokeniser bundled; requirements={m['requirements']})")
+    print(f"wrote {out} (pkuseg tokeniser bundled; requirements={m['requirements']})")
 
 
 if __name__ == "__main__":

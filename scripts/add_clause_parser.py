@@ -11,6 +11,10 @@ Usage:
 
 --punct-tag "" (default) uses the Kyoto 記号 subtype map (lzh); pass "PUNCT" for
 Sanskrit (daṇḍa not stamped with the Japanese tagset).
+
+--sent-punct "" (default) makes every punctuation mark a sentence boundary (lzh: each 句讀
+unit is its own sentence). Sanskrit passes the daṇḍa-class marks ("।॥|/.?!…") so that a
+sentence-medial comma is pulled out for isolated parsing but does NOT break the sentence.
 """
 import argparse
 import importlib.util
@@ -29,15 +33,20 @@ def main():
     ap.add_argument("in_model")
     ap.add_argument("out_model")
     ap.add_argument("--punct-tag", default="")
+    ap.add_argument("--sent-punct", default="")
     args = ap.parse_args()
 
-    # register the lzh tokenizer + clause_parser factory before loading
-    load_code("scripts/lzh_tokenizer.py")
-    load_code("scripts/clause_parser.py")
+    # register every custom tokenizer (lzh char, sa CSL, …) + the clause_parser factory before
+    # loading, so this works for both the Classical Chinese and Sanskrit models.
+    load_code("scripts/seg_code.py")
 
     nlp = spacy.load(args.in_model)
-    if "clause_parser" not in nlp.pipe_names:
-        nlp.add_pipe("clause_parser", config={"punct_tag": args.punct_tag})
+    # replace any existing clause_parser so the new code + config (sent_punct) take effect — the
+    # model may already carry one from an earlier release built with the old factory.
+    if "clause_parser" in nlp.pipe_names:
+        nlp.remove_pipe("clause_parser")
+    nlp.add_pipe("clause_parser",
+                 config={"punct_tag": args.punct_tag, "sent_punct": args.sent_punct})
     nlp.to_disk(args.out_model)
     print(f"{args.out_model}: pipeline {nlp.pipe_names}")
 

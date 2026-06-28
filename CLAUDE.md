@@ -75,6 +75,29 @@ When editing configs programmatically, load with `Config().from_disk(p, interpol
 the default interpolation resolves `${paths.train}` to null and silently breaks CLI path
 overrides (this caused `E913` errors).
 
+### Sentence segmentation (learned; `gold_tok_corpus.py`, `config_*_seg.cfg`, `retrain_seg.sh`)
+
+`gold_preproc = true` had a hidden cost: it feeds the parser one **pre-segmented** sentence at a
+time, so the parser never learned to *start* a sentence — on raw multi-sentence input the released
+non-English models collapsed everything into one tree (raw `SENT F` 0). `en` was fine (trained
+`gold_preproc=false`); `lzh`/`sa` segment via `clause_parser` (their treebanks carry no in-text
+boundaries, so they can't learn them). The released models now **learn** boundaries via a custom
+reader: **`scripts/gold_tok_corpus.py`** registers `sud.GoldTokCorpus.v1`, which yields whole
+multi-sentence docs (corpora are `convert -n 10`) but with **gold tokenisation** for the predicted
+doc — so segmentation is learned with **zero tokeniser skew** (matters for zh/yue pkuseg). Toolchain:
+`make_seg_config.py` derives `config_<lang>_seg.cfg` (swaps both corpus readers + sets `sents_f`
+weight 0.05); `seg_code.py` is the single `--code` loader (spacy **train** `--code` takes one file,
+unlike **package**); `retrain_seg.sh <langs>` retrains each released arm into `training_<lang>_seg/`;
+`regen_idko_corpora.sh` rebuilds the cleaned-up id/ko corpora from the surviving `*.relabeled.conllu`.
+Each released arm was retrained with its own recipe (la = ext+macron union `corpus_la_ext_union/`,
+zh = `config_zh_both` + baked pkuseg, yue = `zh_both_tok2vec.bin` init + `bundle_yue_pkuseg.py` swap)
+and repackaged with `package_seg.sh` (sa/lzh repackaged from `model-seg`, new `clause_parser`, no
+retrain). **Result (raw end-to-end LAS / `SENT F`, old→new):** ar 69.4→72.4 / 0→66, fa 79.2→85.3 /
+0→99, ja 81.9→85.8 / 0→96, id 68.3→73.4 / 0→87, ko 68.6→74.3 / 0→90, la 63.9→70.9 / 0→74,
+zh 54.3→57.4 / 0→99, yue 52.0→60.0 / 2→81 — raw LAS up everywhere (correct boundaries help parsing),
+gold-preproc LAS within ~1 (the research metrics above are gold-preproc and still describe the
+relabel contribution). Re-released over v0.1.0 (clobber); `en` unchanged.
+
 ## Tokeniser–treebank matching (`retokenize.py`, `coarsen_id.py`, `train_pkuseg_zh.py`)
 
 `gold_preproc` sidesteps the tokeniser/treebank mismatch for *evaluation*; this layer makes the
@@ -246,9 +269,15 @@ gold-preproc and raw end-to-end evaluations.
     one token, deterministic), loaded via `spacy ... --code`; the shipped wheel bundles it. ja =
     SudachiPy + gold_preproc. fa/ja run on raw text (TOK 99.1/99.4); **sa & lzh need pre-segmented
     sentences** (Vedic/Kyoto carry no in-text sentence boundaries — raw LAS collapses to ~41/~48).
-    `scripts/clause_parser.py` (lzh + sa, last pipe) recovers per-clause parses on punctuated
-    editions: it splits at punctuation, parses each 句讀 unit in isolation, and reattaches each mark
-    as `punct`. It also **normalises punctuation morphology** — Kyoto/Vedic carry almost no
+    `scripts/clause_parser.py` (lzh + sa, last pipe) recovers per-sentence parses on punctuated
+    editions. A **sentence** is the span between two sentence-final marks (`sent_punct`); within it
+    the content tokens are concatenated **with sentence-medial marks removed** and parsed as one doc,
+    then every mark is reattached as `punct`. For lzh `sent_punct` is empty, so *every* mark is
+    sentence-final and each 句讀 unit is parsed in isolation (unchanged). **Sanskrit sets
+    `sent_punct = "।॥|/.?!…"`** so a comma is *medial*: the comma-separated units are parsed together
+    (the parser itself relates them — no fabricated `parataxis`) and the comma reattaches as a `punct`
+    child of the **head of its left unit**, so only a daṇḍa/full stop ends a sentence
+    (`add_clause_parser.py --sent-punct`). It also **normalises punctuation morphology** — Kyoto/Vedic carry almost no
     punctuation, so the tagger hallucinates content tags on it (？→名詞,糧食 "noun, food", 。→動詞,
     brackets even become ROOTs). Every punctuation token (Unicode P*, incl. quotation brackets) is
     forced to `pos=PUNCT` + a deterministic XPOS: the Kyoto `s,記号,{句点,読点,括弧開,括弧閉}` map for lzh,
