@@ -193,7 +193,8 @@ gold-preproc and raw end-to-end evaluations.
   relabel rewrites the *test* gold too, so `comp:obl` F has a moving denominator (same caveat as
   base-vs-rl). Partitives are left `udep` by design.
 - **Six more languages (fa/ar/la/sa/lzh/ja; `*_new.sh` drivers, configs `config_<lang>.cfg`).**
-  Treebanks: Persian-PerDT, Arabic-PADT, Latin-ITTB+PROIEL (merged), Sanskrit-Vedic,
+  Treebanks: Persian-PerDT, Arabic-PADT, Latin-ITTB+PROIEL+Perseus (merged; see the Latin section
+  below for the Perseus addition), Sanskrit-Vedic,
   Classical_Chinese-Kyoto, Japanese-GSD. Per-language relabel model (Phase-3 benchmark, English
   prompt unless noted): fa/sa/lzh→qwen3:8b, ar/la→gemma4, **ja→qwen3 + native-Japanese prompt**
   (`OLLAMA_MODEL` env selects it; `disambiguate_pp.MODEL` reads it). `comp:obl` F base→verb-rl→ext:
@@ -294,6 +295,33 @@ gold-preproc and raw end-to-end evaluations.
     from-scratch (0.9474 vs 0.9472)** so the self-contained from-scratch model ships (userdict *hurt*,
     0.93). Released v0.1.0 = ext arm + pkuseg, packaged from `training_yue_ext_pkuseg` (swap via
     `bundle_yue_pkuseg.py`; meta requires `spacy-pkuseg`; no clause_parser — sentence-segmented).
+
+## Latin (`la_sud_ittbproielperseus`): three treebanks, macrons, XPOS blanking
+
+The released Latin model trains on a plain `cat` of three SUD Latin treebanks (each keeps its own
+sent_ids): **ITTB + PROIEL + Perseus**. `scripts/add_perseus_la.sh` is the reproducible driver
+(phases `merge|macron|relabel|train`); it composes the macron and ext-relabel pipelines below.
+
+- **Perseus splits.** Perseus ships only train + test (no dev), so it is added **train→train,
+  test→test**; dev stays ITTB+PROIEL. Source: `grew.fr/download/SUD_2.18/SUD_Latin-Perseus.tgz`
+  (ITTB in `assets_la/SUD_Latin-ITTB`, PROIEL in `assets_la2/SUD_Latin-PROIEL`).
+- **XPOS blanking (non-obvious).** The three treebanks use mutually-incompatible XPOS tagsets (field
+  5): ITTB Index-Thomisticus codes, PROIEL 2-letter, Perseus 9-position morphology. ITTB+PROIEL
+  already mixed two and coped (TAG ~92), but Perseus's sparse fine tagset on ~1.3k sents tags at
+  ~34% and tanks the combined TAG/LAS. Fix: **blank Perseus XPOS** (`scripts/blank_perseus_xpos.py`,
+  field 5→`_` on the Perseus tail of each split; folded into `add_perseus_la.sh do_merge`). UPOS,
+  FORM and dependencies are kept, so Perseus still trains the parser — only the tagger stays coherent.
+  Blanking is orthogonal to the macron (FORM) and relabel (DEPREL) transforms.
+- **Results (gold-preproc, ext+macron union = release).** Apples-to-apples on the ITTB+PROIEL test:
+  LAS 77.7→**78.3**, UAS 83.1→83.8, `comp:obl` F ~69 (Perseus *improves* the original domain).
+  Perseus-only test LAS ~54.6 (classical poetry — genuinely hard). Combined-test headline LAS 73.9 /
+  comp:obl F 65.2 is lower only because the test now includes Perseus. ext relabel uses
+  `OLLAMA_MODEL=gemma4:latest`; macrons via the Docker macroniser (see `macronise_la.py`).
+- **Macrons.** One union parser handles plain + macronised input (`scripts/train_la_ext_macron.sh`
+  trains on plain-ext ∪ macron-ext; `macronise_la.py` restores macrons via the Alatius Docker
+  macroniser, `transfer_macrons.py` composes the FORM transform onto the ext deprels).
+- **Licence: CC BY-NC-SA (NonCommercial).** All three sources are NC (ITTB BY-NC-SA 3.0, PROIEL
+  BY-NC-SA, Perseus BY-NC-SA 2.5) — the only NonCommercial released model. See `NOTICE.md`.
 
 ## Sanskrit sandhied-CSL representation (`sa_sud_sandhi_csl`)
 

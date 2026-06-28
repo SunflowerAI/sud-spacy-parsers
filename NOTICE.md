@@ -20,8 +20,17 @@ the underlying treebanks. You must give attribution and share derivatives alike.
 | `zh_sud_gsdboth` model, `assets_zh/.../*.relabeled*.conllu` | SUD_Chinese-GSD + SUD_Chinese-GSDSimp | CC BY-SA 4.0 |
 | `ko_sud_gsd` model, `assets_ko/.../*.relabeled*.conllu` | SUD_Korean-GSD | CC BY-SA 4.0 |
 | `id_sud_gsd` model, `assets_id/.../*.relabeled*.conllu` | SUD_Indonesian-GSD | CC BY-SA 4.0 |
+| `la_sud_ittbproielperseus` model, `assets_la/la_ittbproiel-sud-*.conllu` | SUD_Latin-ITTB + SUD_Latin-PROIEL + SUD_Latin-Perseus | **CC BY-NC-SA** (NonCommercial — see below) |
 
 Each source treebank's own `LICENSE.txt` is retained alongside its data.
+
+## NonCommercial — the Latin model (`la_sud_ittbproielperseus`)
+
+The Latin model is trained on the union of three SUD Latin treebanks, **all NonCommercial**:
+**ITTB** (CC BY-NC-SA 3.0), **PROIEL** (CC BY-NC-SA), and **Perseus** (CC BY-NC-SA 2.5). Unlike
+the other models — which are kept free of NonCommercial sources to stay commercially usable — the
+Latin model and its derived data (`assets_la/la_ittbproiel-sud-*.conllu` and the released wheel)
+are therefore licensed **CC BY-NC-SA (NonCommercial)**. Use it for non-commercial purposes only.
 
 ## NonCommercial exclusion — SUD_English-GUM
 

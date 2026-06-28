@@ -18,7 +18,7 @@ browser can send plain text — each model is matched to its treebank tokenisati
     id  -> id_sud_gsd         (rule tokeniser, enclitics merged)
     fa  -> fa_sud_perdt       (rule tokeniser, PerDT)
     ar  -> ar_sud_padt        (rule tokeniser, PADT)
-    la  -> la_sud_ittbproiel  (rule tokeniser, ITTB+PROIEL)
+    la  -> la_sud_ittbproielperseus  (rule tokeniser, ITTB+PROIEL+Perseus)
     sa  -> sa_sud_sandhi_csl  (accepts sandhied CSL text, de-sandhied to clean wordforms; case-based)
     lzh -> lzh_sud_kyoto      (custom one-char tokeniser bundled in the wheel, Kyoto)
     ja  -> ja_sud_gsd         (SudachiPy, GSD)
@@ -49,7 +49,7 @@ MODELS = {
     "id": "id_sud_gsd",
     "fa": "fa_sud_perdt",
     "ar": "ar_sud_padt",
-    "la": "la_sud_ittbproiel",
+    "la": "la_sud_ittbproielperseus",
     "sa": "sa_sud_sandhi_csl",
     "lzh": "lzh_sud_kyoto",
     "ja": "ja_sud_gsd",
