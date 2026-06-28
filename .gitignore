@@ -16,8 +16,15 @@ wheelbuild/
 assets/SUD_English-EWT/
 assets/SUD_English-GUM/
 assets_zh/SUD_Chinese-GSDSimp/
+assets_zh/SUD_Chinese-GSD/
 assets_ko/SUD_Korean-GSD/
 assets_id/SUD_Indonesian-GSD/
+
+# Dual-script (simplified+traditional) build dirs. zh = GSD + GSDSimp combined;
+# lzh = Kyoto + its OpenCC-t2s simplified copy. Regenerate with both_scripts_release.sh.
+assets_zh/SUD_Chinese-GSDBoth/
+assets_lzh/SUD_Classical_Chinese-Kyoto-Hans/
+assets_lzh/SUD_Classical_Chinese-Kyoto-Both/
 
 # GUM is CC BY-NC-SA (NonCommercial) — the English model/data ship EWT-only.
 # Exclude every GUM-mixed English artifact; only assets/en_ewt-sud-*.relabeled*.conllu is published.

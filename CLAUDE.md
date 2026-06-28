@@ -263,6 +263,18 @@ gold-preproc and raw end-to-end evaluations.
     Release, not committed (`dist/` gitignored). Rebuild a custom-code wheel with
     `spacy package <model> <out> --code scripts/lzh_tokenizer.py,scripts/clause_parser.py --build wheel`
     (add `clause_parser` to the model first; remember `pip install click` — spaCy imports it directly).
+  - **Both Han scripts (`zh_sud_gsdboth`, `lzh_sud_kyoto`; `scripts/both_scripts_release.sh`).** Both
+    models train on a traditional+simplified union. **zh was renamed `sud_gsdsimp`→`sud_gsdboth`** (old
+    asset deleted): it trains on the two *real* treebanks for the same sentences — `SUD_Chinese-GSD`
+    (original traditional) + `SUD_Chinese-GSDSimp` (simplified auto-conversion) — NOT an OpenCC
+    re-traditionalisation (simplification is lossy/many-to-one). The ext relabel lives on GSDSimp;
+    `transfer_relabel_gsd.py` overlays it onto aligned GSD tokens (udep-only + alignment guard;
+    comp:obl/mod is script-independent). pkuseg is retrained on the union (`models/zh_gsdboth_pkuseg`),
+    swapped into the bundle post-hoc (gold_preproc training is segmenter-agnostic). **lzh** has no
+    simplified counterpart treebank, so its simplified half IS OpenCC `t2s` of Kyoto
+    (`scripts/opencc_conllu.py`; char-level, length-preserving). gold-preproc: zh combined LAS 69.3 /
+    comp:obl F 32.6 (simp 35.3, GSD-trad 29.9); lzh combined LAS 79.0 / comp:obl F 70.9 — both within
+    ~0.2 LAS across scripts, LAS/disambiguation unchanged vs the single-script ext models.
 
 ## Sanskrit sandhied-CSL representation (`sa_sud_sandhi_csl`)
 

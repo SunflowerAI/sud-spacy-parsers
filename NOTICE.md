@@ -17,7 +17,7 @@ the underlying treebanks. You must give attribution and share derivatives alike.
 | Component | Source treebank | Licence |
 |-----------|-----------------|---------|
 | `en_sud_ewt` model, `assets/en_ewt-sud-*.conllu` | SUD_English-EWT | CC BY-SA 4.0 |
-| `zh_sud_gsdsimp` model, `assets_zh/.../*.relabeled*.conllu` | SUD_Chinese-GSDSimp | CC BY-SA 4.0 |
+| `zh_sud_gsdboth` model, `assets_zh/.../*.relabeled*.conllu` | SUD_Chinese-GSD + SUD_Chinese-GSDSimp | CC BY-SA 4.0 |
 | `ko_sud_gsd` model, `assets_ko/.../*.relabeled*.conllu` | SUD_Korean-GSD | CC BY-SA 4.0 |
 | `id_sud_gsd` model, `assets_id/.../*.relabeled*.conllu` | SUD_Indonesian-GSD | CC BY-SA 4.0 |
 

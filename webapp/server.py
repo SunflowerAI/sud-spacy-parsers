@@ -9,11 +9,11 @@ Korean needs mecab-ko; MECAB_PATH is set below before spaCy is imported so the
 Korean pipeline loads without the caller having to export it.
 
 Loads the released model wheels by package name (install them first, e.g.
-`pip install <release-url>/zh_sud_gsdsimp-0.1.0-py3-none-any.whl`), so the
+`pip install <release-url>/zh_sud_gsdboth-0.1.0-py3-none-any.whl`), so the
 browser can send plain text — each model is matched to its treebank tokenisation:
 
     en  -> en_sud_ewt         (default rules, EWT)
-    zh  -> zh_sud_gsdsimp     (pkuseg, GSDSimp)
+    zh  -> zh_sud_gsdboth     (pkuseg, GSDSimp + OpenCC traditional)
     ko  -> ko_sud_gsd         (mecab morphemes; needs mecab-ko)
     id  -> id_sud_gsd         (rule tokeniser, enclitics merged)
     fa  -> fa_sud_perdt       (rule tokeniser, PerDT)
@@ -44,7 +44,7 @@ INDEX = ROOT / "index.html"
 # lang -> installed model wheel package name
 MODELS = {
     "en": "en_sud_ewt",
-    "zh": "zh_sud_gsdsimp",
+    "zh": "zh_sud_gsdboth",
     "ko": "ko_sud_gsd",
     "id": "id_sud_gsd",
     "fa": "fa_sud_perdt",

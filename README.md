@@ -15,12 +15,12 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | Model | Language | UAS | LAS | `comp:obl` F | TOK (raw) |
 |-------|----------|----:|----:|-------------:|----------:|
 | `en_sud_ewt` | English | 84.5 | 79.5 | 69.4 | 99.6 |
-| `zh_sud_gsdsimp` | Chinese | 72.6 | 67.6 | 29.1 | 94.1 |
+| `zh_sud_gsdboth` | Chinese (simp+trad) | 74.3 | 69.3 | 32.6 | 94.9 |
 | `ko_sud_gsd` | Korean | 79.7 | 75.6 | 24.7 | 100.0 |
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
 | `fa_sud_perdt` | Persian | 90.8 | 87.3 | 79.4 | 99.1 |
 | `sa_sud_sandhi_csl` | Sanskrit | 67.7 | 54.3 | 44.5 | 100.0† |
-| `lzh_sud_kyoto` | Classical Chinese | 84.2 | 79.0 | 70.1 | 100.0† |
+| `lzh_sud_kyoto` | Classical Chinese (trad+simp) | 84.3 | 79.0 | 70.9 | 100.0† |
 | `ja_sud_gsd` | Japanese | 91.5 | 88.6 | 68.8 | 99.4 |
 | `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
 | `la_sud_ittbproiel` | Latin | 82.7 | 77.2 | 68.4 | 100.0 |
@@ -62,12 +62,12 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | Package | Language | Treebank | `udep` | Tokenisation | Licence |
 |---------|----------|----------|--------|--------------|---------|
 | `en_sud_ewt`     | English    | SUD_English-EWT     | disambiguated (ext) | default rules | CC BY-SA 4.0 |
-| `zh_sud_gsdsimp` | Chinese    | SUD_Chinese-GSDSimp | disambiguated | pkuseg (needs `spacy-pkuseg`) | CC BY-SA 4.0 |
+| `zh_sud_gsdboth` | Chinese    | SUD_Chinese-GSD + GSDSimp | disambiguated (ext) | pkuseg, both scripts (needs `spacy-pkuseg`) | CC BY-SA 4.0 |
 | `ko_sud_gsd`     | Korean     | SUD_Korean-GSD      | disambiguated | mecab morphemes (needs `mecab-ko` + `MECAB_PATH`) | CC BY-SA 4.0 |
 | `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated | rule tokeniser (enclitics merged) | CC BY-SA 4.0 |
 | `fa_sud_perdt`   | Persian    | SUD_Persian-PerDT   | disambiguated (ext) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
 | `sa_sud_sandhi_csl` | Sanskrit | SUD_Sanskrit-Vedic + UFAL | kept (baseline) | **accepts sandhied CSL text**, de-sandhied to clean wordforms; IAST / Devanagari / accented (needs `indic-transliteration`); compound `\|`→`-`, guillemets `«»`, straightens curly quotes | CC BY-SA 4.0 |
-| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
+| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto (+ simplified) | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
 | `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | CAMeL ATB tokeniser (needs `camel-tools` + data) | CC BY-SA 4.0 |
 | `la_sud_ittbproiel` | Latin   | SUD_Latin-ITTB+PROIEL | disambiguated (ext) | rule tokeniser | CC BY-SA 4.0 |
@@ -93,9 +93,24 @@ resolves into `comp:obl`/`mod` from the head-verb semantic class and selectional
 registers a custom `lzh` language (spaCy ships no native Classical Chinese module) with a bundled
 character tokeniser, and its `clause_parser` also normalises punctuation morphology on raw input.
 
+**Both Han scripts.** Both models are trained on the union of a traditional and a simplified
+treebank, so they parse **simplified and traditional** text alike (within ~0.2 LAS of each other on
+either script). For Chinese this uses **two real treebanks** for the same sentences —
+`SUD_Chinese-GSD` (the original traditional annotation) and `SUD_Chinese-GSDSimp` (its simplified
+auto-conversion) — rather than re-traditionalising GSDSimp, since simplification is lossy
+(many-to-one, e.g. 後/后→后). The ext relabel lives on GSDSimp; `scripts/transfer_relabel_gsd.py`
+overlays it onto the aligned GSD tokens (the `comp:obl`/`mod` decision is script-independent), and
+the bundled pkuseg segmenter is retrained on both (`models/zh_gsdboth_pkuseg`), lifting raw
+**traditional** segmentation/LAS (TOK 93.2→95.7, LAS 51.0→56.3) with simplified unchanged. Classical
+Chinese has no simplified counterpart treebank, so its simplified half is auto-converted from Kyoto
+with `scripts/opencc_conllu.py` (OpenCC `t2s`, character-level and length-preserving, so token
+alignment and every deprel/head are unchanged); it tokenises one Han character per token, so
+simplified needs no segmenter change. `scripts/both_scripts_release.sh` regenerates both arms end to
+end.
+
 ```bash
 # install a model from the latest release (example: Chinese)
-pip install https://github.com/SunflowerAI/sud-spacy-parsers/releases/latest/download/zh_sud_gsdsimp-0.1.0-py3-none-any.whl
+pip install https://github.com/SunflowerAI/sud-spacy-parsers/releases/latest/download/zh_sud_gsdboth-0.1.0-py3-none-any.whl
 pip install spacy-pkuseg          # Chinese tokeniser dependency
 ```
 
