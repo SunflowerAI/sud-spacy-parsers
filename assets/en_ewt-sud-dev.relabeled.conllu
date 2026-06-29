@@ -1789,7 +1789,7 @@
 10	it	it	PRON	PRP	Case=Nom|Gender=Neut|Number=Sing|Person=3|PronType=Prs	11	subj	_	_
 11	will	will	AUX	MD	VerbForm=Fin	9	comp:obj	_	_
 12	look	look	VERB	VB	VerbForm=Inf	11	comp:aux	_	_
-13	like	like	ADP	IN	_	12	comp:obl	_	_
+13	like	like	ADP	IN	_	12	comp:pred	_	_
 14	the	the	DET	DT	Definite=Def|PronType=Art	15	det	_	_
 15	end	end	NOUN	NN	Number=Sing	13	comp:obj	_	_
 16	of	of	ADP	IN	_	15	udep	_	_
@@ -5982,7 +5982,7 @@
 # text = they look like they were doberman pinchers who were shrunk.
 1	they	they	PRON	PRP	Case=Nom|Number=Plur|Person=3|PronType=Prs	2	subj	_	_
 2	look	look	VERB	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
-3	like	like	SCONJ	IN	_	2	mod	_	_
+3	like	like	SCONJ	IN	_	2	comp:pred	_	_
 4	they	they	PRON	PRP	Case=Nom|Number=Plur|Person=3|PronType=Prs	5	subj	_	_
 5	were	be	AUX	VBD	Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin	3	comp:obj	_	_
 6	doberman	Doberman	NOUN	NN	Number=Sing	7	compound	_	_
@@ -8175,7 +8175,7 @@
 # text = It smelled like shit.
 1	It	it	PRON	PRP	Case=Nom|Gender=Neut|Number=Sing|Person=3|PronType=Prs	2	subj	_	_
 2	smelled	smell	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	0	root	_	_
-3	like	like	ADP	IN	_	2	comp:obl	_	_
+3	like	like	ADP	IN	_	2	comp:pred	_	_
 4	shit	shit	NOUN	NN	Number=Sing	3	comp:obj	_	SpaceAfter=No
 5	.	.	PUNCT	.	_	2	punct	_	_
 
@@ -12607,7 +12607,7 @@
 5	,	,	PUNCT	,	_	1	punct	_	_
 6	it	it	PRON	PRP	Case=Nom|Gender=Neut|Number=Sing|Person=3|PronType=Prs	7	comp@expl	_	_
 7	seems	seem	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	Cxn=Conditional-UnspecifiedEpistemic-NoInversion|CxnElt=7:Conditional-UnspecifiedEpistemic-NoInversion.Apodosis
-8	like	like	SCONJ	IN	_	7	mod	_	_
+8	like	like	SCONJ	IN	_	7	comp:pred	_	_
 9	I	I	PRON	PRP	Case=Nom|Number=Sing|Person=1|PronType=Prs	10	subj	_	_
 10	need	need	VERB	VBP	Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin	8	comp:obj	_	_
 11	to	to	PART	TO	_	10	comp:obl	_	_
@@ -14105,7 +14105,7 @@
 # sent_id = newsgroup-groups.google.com_alt.animals.cat_119630d7ce2d2e9c_ENG_20051107_021600-0005
 # text = Sounds like your cat is stressed out .
 1	Sounds	sound	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
-2	like	like	SCONJ	IN	_	1	mod	_	_
+2	like	like	SCONJ	IN	_	1	comp:pred	_	_
 3	your	your	PRON	PRP$	Case=Gen|Person=2|Poss=Yes|PronType=Prs	4	mod@poss	_	_
 4	cat	cat	NOUN	NN	Number=Sing	5	subj@pass	_	_
 5	is	be	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	2	comp:obj	_	_
@@ -14460,7 +14460,7 @@
 # text = It looks like the future of space exploration might as well be with the space tourists .
 1	It	it	PRON	PRP	Case=Nom|Gender=Neut|Number=Sing|Person=3|PronType=Prs	2	subj	_	_
 2	looks	look	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
-3	like	like	SCONJ	IN	_	2	mod	_	_
+3	like	like	SCONJ	IN	_	2	comp:pred	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	5	det	_	_
 5	future	future	NOUN	NN	Number=Sing	9	subj	_	_
 6	of	of	ADP	IN	_	5	udep	_	_
@@ -17777,7 +17777,7 @@
 # text = It looks as if Hamas has thrown in the towel for this round, unable to take the beating the Israeli Defense Forces have unleashed upon this terrorist group.
 1	It	it	PRON	PRP	Case=Nom|Gender=Neut|Number=Sing|Person=3|PronType=Prs	2	subj	_	_
 2	looks	look	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	Cxn=Conditional-UnspecifiedEpistemic-NoInversion|CxnElt=2:Conditional-UnspecifiedEpistemic-NoInversion.Apodosis
-3	as	as	SCONJ	IN	_	2	mod	_	_
+3	as	as	SCONJ	IN	_	2	comp:pred	_	_
 4	if	if	SCONJ	IN	_	3	comp:obj	_	_
 5	Hamas	Hamas	PROPN	NNP	Number=Sing	6	subj	_	_
 6	has	have	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	4	comp:obj	_	_
@@ -18071,7 +18071,7 @@
 9	will	will	AUX	MD	VerbForm=Fin	0	root	_	_
 10	probably	probably	ADV	RB	_	9	mod	_	_
 11	look	look	VERB	VB	VerbForm=Inf	9	comp:aux	_	_
-12	like	like	ADP	IN	_	11	comp:obl	_	_
+12	like	like	ADP	IN	_	11	comp:pred	_	_
 13	a	a	DET	DT	Definite=Ind|PronType=Art	15	det	_	_
 14	battle	battle	NOUN	NN	Number=Sing	15	compound	_	_
 15	field	field	NOUN	NN	Number=Sing	12	comp:obj	_	_
@@ -19220,7 +19220,7 @@
 # text = it seems like I'm at a real restaurant like Applebees, their food is usually that good
 1	it	it	PRON	PRP	Case=Nom|Gender=Neut|Number=Sing|Person=3|PronType=Prs	2	comp@expl	_	_
 2	seems	seem	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
-3	like	like	SCONJ	IN	_	2	mod	_	_
+3	like	like	SCONJ	IN	_	2	comp:pred	_	_
 4-5	I'm	_	_	_	_	_	_	_	_
 4	I	I	PRON	PRP	Case=Nom|Number=Sing|Person=1|PronType=Prs	5	subj	_	_
 5	'm	be	AUX	VBP	Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin	3	comp:obj	_	_
@@ -20611,7 +20611,7 @@
 1	Anyone	anyone	PRON	NN	Number=Sing|PronType=Ind	0	root	_	_
 2	who	who	PRON	WP	PronType=Rel	3	subj	_	_
 3	looks	look	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	1	mod@relcl	_	Cxn=rc-wh-nsubj
-4	like	like	ADP	IN	_	3	mod	_	_
+4	like	like	ADP	IN	_	3	comp:pred	_	_
 5	a	a	DET	DT	Definite=Ind|PronType=Art	6	det	_	_
 6	druggy	druggy	NOUN	NN	Number=Sing	4	comp:obj	_	_
 7	or	or	CCONJ	CC	_	8	cc	_	_
@@ -22302,7 +22302,7 @@
 1	it	it	PRON	PRP	Case=Nom|Gender=Neut|Number=Sing|Person=3|PronType=Prs	2	subj	_	_
 2	may	may	AUX	MD	VerbForm=Fin	0	root	_	_
 3	sound	sound	VERB	VB	VerbForm=Inf	2	comp:aux	_	_
-4	like	like	ADP	IN	_	3	comp:obl	_	_
+4	like	like	ADP	IN	_	3	comp:pred	_	_
 5	a	a	DET	DT	Definite=Ind|PronType=Art	7	det	_	_
 6	bad	bad	ADJ	JJ	Degree=Pos	7	mod	_	_
 7	idea	idea	NOUN	NN	Number=Sing	4	comp:obj	_	_
@@ -23608,7 +23608,7 @@
 7	kitten	kitten	NOUN	NN	Number=Sing	3	comp:pred	_	_
 8	she	she	PRON	PRP	Case=Nom|Gender=Fem|Number=Sing|Person=3|PronType=Prs	9	subj	_	_
 9	looked	look	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	0	root	_	_
-10	like	like	ADP	IN	_	9	comp:obl	_	_
+10	like	like	ADP	IN	_	9	comp:pred	_	_
 11	those	that	DET	DT	Number=Plur|PronType=Dem	14	det	_	_
 12	twinky	twinky	NOUN	NN	Number=Sing	14	compound	_	_
 13	snack	snack	NOUN	NN	Number=Sing	14	compound	_	_
@@ -25131,7 +25131,7 @@
 1	The	the	DET	DT	Definite=Def|PronType=Art	2	det	_	_
 2	food	food	NOUN	NN	Number=Sing	3	subj	_	Supersense=n.FOOD
 3	tasted	taste	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	0	root	_	Supersense=v.perception
-4	like	like	ADP	IN	_	3	mod	_	PRel[config]=default|PRel[gov]=3:taste|PRel[obj]=6:feces|Supersense[coding]=p.ComparisonRef|Supersense[scene]=p.Manner
+4	like	like	ADP	IN	_	3	comp:pred	_	PRel[config]=default|PRel[gov]=3:taste|PRel[obj]=6:feces|Supersense[coding]=p.ComparisonRef|Supersense[scene]=p.Manner
 5	rat	rat	NOUN	NN	Number=Sing	6	compound	_	Supersense=n.ANIMAL
 6	feces	feces	NOUN	NNS	Number=Ptan	4	comp:obj	_	Supersense=n.SUBSTANCE
 
@@ -32552,7 +32552,7 @@
 3	and	and	CCONJ	CC	_	4	cc	_	_
 4	wheels	wheel	NOUN	NNS	Number=Plur	2	conj:coord	_	Supersense=n.ARTIFACT
 5	looked	look	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	0	root	_	Supersense=v.perception
-6	like	like	ADP	IN	_	5	mod	_	PRel[config]=default|PRel[gov]=5:look|PRel[obj]=7:glass|Supersense[coding]=p.ComparisonRef|Supersense[scene]=p.Manner
+6	like	like	ADP	IN	_	5	comp:pred	_	PRel[config]=default|PRel[gov]=5:look|PRel[obj]=7:glass|Supersense[coding]=p.ComparisonRef|Supersense[scene]=p.Manner
 7	glass	glass	NOUN	NN	Number=Sing	6	comp:obj	_	Supersense=n.SUBSTANCE
 8	and	and	CCONJ	CC	_	11	cc	_	_
 9	the	the	DET	DT	Definite=Def|PronType=Art	10	det	_	_
