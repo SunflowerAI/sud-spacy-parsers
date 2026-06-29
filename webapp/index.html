@@ -322,8 +322,9 @@ function renderSentence(toks, rtl){
     const cx = centres[i];
     svg.append("text").attr("class","tok-word")
       .attr("x", cx).attr("y", wordY).attr("text-anchor","middle").text(t.text);
-    svg.append("text").attr("class","tok-pos")
+    const pos = svg.append("text").attr("class","tok-pos")
       .attr("x", cx).attr("y", wordY+16).attr("text-anchor","middle").text(t.pos);
+    if (t.xpos && t.xpos !== t.pos) pos.append("title").text("XPOS: " + t.xpos);
   });
 
   return svg.node();

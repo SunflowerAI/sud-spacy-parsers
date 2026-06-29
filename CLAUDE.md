@@ -98,6 +98,31 @@ zh 54.3→57.4 / 0→99, yue 52.0→60.0 / 2→81 — raw LAS up everywhere (cor
 gold-preproc LAS within ~1 (the research metrics above are gold-preproc and still describe the
 relabel contribution). Re-released over v0.1.0 (clobber); `en` unchanged.
 
+### UPOS morphologisers (`make_morph_config.py`, `train_morph.sh`, `package_morph.sh`)
+
+The released pipelines were `[tok2vec, tagger, parser]` — the `tagger` predicts **XPOS** (`tag_`),
+so `token.pos_` (UPOS) was **empty** in output (no `morphologizer`; the parser's embed reads only
+`["NORM","PREFIX","SUFFIX","SHAPE"]`, so POS never fed parsing anyway). To emit UPOS+morph for
+downstream tasks **without changing parsing**, every released arm gained a `morphologizer` trained
+with a **freeze recipe**: source the released `tok2vec`/`tagger`/`parser`, **freeze** them, and train
+ONLY a new `morphologizer` that carries its **OWN small `HashEmbedCNN`** (width 64 / depth 3 / embed
+2000). A *dedicated* encoder (not a listener) is the key choice — it is immune to treebanks whose
+**XPOS is orthogonal to UPOS** (id: 33/46 XPOS values map to >1 UPOS). Verified empirically on id:
+standalone-frozen 92.8 vs listener-on-frozen-encoder 92.2 (the orthogonality penalty) vs **co-train**
+92.95 *but* LAS −0.3 / TAG −0.5 — so **co-training is dominated** (no UPOS gain, hurts parsing) and
+was discarded. The frozen components are **byte-identical** to the release (verified per-arm with
+`cmp` on `*/model`), so parse/seg metrics need no re-verification. `make_morph_config.py` derives
+`config_<lang>_morph.cfg` from the released arm's (seg) config: sources+freezes the three, nulls
+`init_tok2vec` (else yue's Mandarin-init `zh_both_tok2vec.bin` clobbers the sourced encoder and breaks
+the parser's input), and keeps only factory args common to the standard **and** `ja.morphologizer`
+factories (the latter rejects `label_smoothing`/`overwrite`/`extend`). `train_morph.sh` trains all 11
+arms (en uses the plain `config.cfg`; lzh/sa source from `model-seg`); `package_morph.sh` packages
+each (lzh/sa re-append `clause_parser` **after** the morphologiser — `clause_parser` reads `pos_` from
+the whole-doc pass and preserves it through its re-parse; yue re-runs `bundle_yue_pkuseg.py`).
+**UPOS (`pos_acc`), small encoder:** en 0.934, ar 0.946, fa 0.960, ja 0.967, id 0.928, ko 0.939,
+la 0.955, zh 0.896, yue 0.911, lzh 0.912, sa 0.877 (UPOS ≥ the model's own XPOS acc where XPOS is
+coarse-mappable; en UPOS 0.934 > XPOS 0.929). Wheels add ~+2 MB; re-released over v0.1.0 (clobber).
+
 ## Tokeniser–treebank matching (`retokenize.py`, `coarsen_id.py`, `train_pkuseg_zh.py`)
 
 `gold_preproc` sidesteps the tokeniser/treebank mismatch for *evaluation*; this layer makes the

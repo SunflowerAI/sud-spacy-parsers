@@ -41,8 +41,9 @@ Clay-Sanskrit-Library (CSL) conventions** (see below). Persian runs fine on raw 
 
 ◊ SUD_Cantonese-HK ships a **test split only** (1004 sentences), so `yue_sud_hk` is trained on a
 deterministic 80/10/10 round-robin carve of it — the 100-sentence test makes its figures noisier
-than the others. The Cantonese XPOS column is empty, so UPOS is copied into it and the parser
-predicts UPOS in `tag_` (`pos_` is empty, as in all these models). TOK 94.7 is the bundled pkuseg
+than the others. The Cantonese XPOS column is empty, so UPOS is copied into it and the tagger
+predicts UPOS in `tag_` (as with every model here, a `morphologizer` separately fills `pos_` and
+`morph` — see *Use* below). TOK 94.7 is the bundled pkuseg
 word segmenter (trained on the treebank's gold tokens; vs 63 for the character fallback). The
 parser's `tok2vec` is initialised from the dual-script Mandarin model `zh_sud_gsdboth` and
 fine-tuned — a free TAG/UAS/baseline-LAS lift on so little data; the segmenter is *not* helped by a
@@ -190,10 +191,15 @@ python -m spacy evaluate training/model-best corpus/en_sud-test.spacy --output m
 import spacy
 nlp = spacy.load("en_sud_ewt")              # after: pip install en_sud_ewt-0.1.0-...whl
 doc = nlp("She put the book on the table.")
-print([(t.text, t.tag_, t.dep_, t.head.text) for t in doc])
+print([(t.text, t.pos_, t.tag_, t.dep_, t.head.text) for t in doc])
 # "on" attaches to "put" and is labelled comp:obl vs mod — this model resolves the prep-dependent
 # ambiguity that the baseline left as the noncommittal `udep`.
 ```
+
+Every model carries a `morphologizer`, so `token.pos_` (UPOS) and `token.morph` are populated
+alongside `token.tag_` (the treebank's XPOS) and the dependency parse. The morphologiser was added
+on top of the frozen parser/tagger (its own small encoder), so the dependency and XPOS output is
+unchanged from the parsing-only release — UPOS is purely an added annotation layer.
 
 A small local web tester is in `webapp/` (`python webapp/server.py`, then open the printed URL);
 it loads whichever model wheels you have installed.

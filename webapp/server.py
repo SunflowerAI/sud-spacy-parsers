@@ -117,7 +117,8 @@ def parse_text(lang, text):
             {
                 "id": t.i - base,
                 "text": t.text,
-                "pos": t.tag_ or t.pos_,   # tagger fills tag_ (XPOS); pos_ is empty
+                "pos": t.pos_ or t.tag_,   # primary line: UPOS (morphologizer); falls back to XPOS
+                "xpos": t.tag_,            # treebank XPOS (tagger), shown on hover
                 "dep": t.dep_,
                 "head": t.head.i - base,   # self-loop on the root
             }
