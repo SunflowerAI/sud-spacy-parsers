@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Input front-end for the Sanskrit model (`sa_sud_sandhi_csl`).
+"""Input front-end for the Sanskrit model (`sa_sud_vedic_ufal_csl`).
 
 The model is trained on **CSL-reverted** wordforms: sandhied Clay-Sanskrit-Library text with the
 *notation-marked* sandhi undone (vowel coalescence and avagraha) but the unmarked consonant/visarga
@@ -195,6 +195,10 @@ class SanskritInputTokenizer:
         if not words:
             words, spaces = [norm or text], [False]
         words = desandhi_csl(words)                    # reverse CSL-marked sandhi (vowel/avagraha)
+        # Emit the compound join as '|' (the CSL thin vertical line) to match the pipe-marked
+        # training data: internally a compound member is split with a trailing '-', which becomes
+        # a trailing '|' here. A lone dash (the '-' PUNCT, length 1) is a genuine dash — left as is.
+        words = [w[:-1] + "|" if len(w) > 1 and w.endswith("-") else w for w in words]
         return Doc(self.vocab, words=words, spaces=spaces)
 
     def to_bytes(self, **kwargs):

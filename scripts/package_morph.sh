@@ -27,14 +27,14 @@ case $lang in
   ja)  pkg ja  training_ja_morph/model-best  sud_gsd               "" ;;
   id)  pkg id  training_id_morph/model-best  sud_gsd               "" ;;
   ko)  pkg ko  training_ko_morph/model-best  sud_gsd               "" ;;
-  la)  pkg la  training_la_morph/model-best  sud_ittbproielperseus "" ;;
-  zh)  pkg zh  training_zh_morph/model-best  sud_gsdboth           "" ;;
+  la)  pkg la  training_la_morph/model-best  sud_ittb_proiel_perseus "" ;;
+  zh)  pkg zh  training_zh_morph/model-best  sud_gsd_simp_trad           "" ;;
   yue) $PY scripts/bundle_yue_pkuseg.py --src training_yue_morph/model-best \
             --out training_yue_morph_pkuseg >/dev/null 2>&1
        pkg yue training_yue_morph_pkuseg     sud_hk                "--code scripts/yue_tokenizer.py" ;;
   sa)  $PY scripts/add_clause_parser.py training_sa_morph/model-best training_sa_morph/model-seg \
             --punct-tag PUNCT --sent-punct "।॥|/.?!…" >/dev/null 2>&1
-       pkg sa  training_sa_morph/model-seg   sud_sandhi_csl \
+       pkg sa  training_sa_morph/model-seg   sud_vedic_ufal_csl \
             "--code scripts/sa_tokenizer.py,scripts/clause_parser.py" ;;
   lzh) $PY scripts/add_clause_parser.py training_lzh_morph/model-best training_lzh_morph/model-seg \
             >/dev/null 2>&1

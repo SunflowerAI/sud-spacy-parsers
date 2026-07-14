@@ -123,6 +123,43 @@ the whole-doc pass and preserves it through its re-parse; yue re-runs `bundle_yu
 la 0.955, zh 0.896, yue 0.911, lzh 0.912, sa 0.877 (UPOS ≥ the model's own XPOS acc where XPOS is
 coarse-mappable; en UPOS 0.934 > XPOS 0.929). Wheels add ~+2 MB; re-released over v0.1.0 (clobber).
 
+### Lemmatisers (`make_lemma_config.py`, `train_lemma.sh`, `package_lemma.sh`)
+
+Every released arm also carries a `lemmatizer` (`token.lemma_`), added with the **same freeze recipe**
+one layer up from the morphologiser: source + **freeze** the arm's `tok2vec`/`tagger`/`parser`/
+`morphologizer` from `training_<lang>_morph/model-best`, and train ONLY a new **`trainable_lemmatizer`**
+(spaCy's edit-tree lemmatiser, `backoff="orth"`) that carries its **OWN small `HashEmbedCNN`** (64/3/2000).
+The edit-tree lemmatiser learns FORM→LEMMA string edits from the treebank `LEMMA` column, so it is
+language- and script-agnostic (works for lzh/sa). `make_lemma_config.py` derives `config_<lang>_lemma.cfg`
+from the arm's `_morph` config (inheriting its reader + train/dev data), sources+freezes the four,
+appends the lemmatiser, and sets `lemma_acc` as the only score weight. The frozen components are
+**byte-identical** to the morph arm (verified per-arm with `cmp`), so parse/seg/morph/UPOS metrics are
+unchanged — lemma is a purely added layer. `train_lemma.sh` trains all 11 arms; `package_lemma.sh`
+packages each with the **new names** (`sud_gsd_simp_trad`/`sud_ittb_proiel_perseus`/`sud_vedic_ufal_csl`),
+re-appending `clause_parser` for lzh/sa and swapping pkuseg for yue. **`clause_parser` now also carries
+`lemma`/`morph`** through its per-clause re-parse (it rebuilt the doc with only tag/pos/head/dep before,
+which would have dropped lemmas on raw lzh/sa input). **`lemma_acc`:** en 0.949, ar 0.907, fa 0.981,
+ja 0.979, id 0.957, ko 0.977, la 0.936, sa 0.848, zh 0.999, yue 0.999 (Chinese/Cantonese lemma ≈ form —
+near-identity), lzh 0.999. (id/ko lemmas were recovered from the raw treebanks — see the coarsen/retok
+notes above; their corpora had been 100 % `_`, which would have made those two lemmatisers vacuous.) Wheels add
+~+1 MB; re-released over v0.1.0 (clobber). NB the lemmatiser is a purely additive layer — the frozen
+tok2vec/tagger/parser/morphologizer stay byte-identical, so parsing/UPOS metrics are unchanged.
+
+### SUD-relation conformance (`normalise_reparandum.py`)
+
+Two SUD-relation audits against the guidelines: (1) `conj` is correctly **chained** (each conjunct →
+the previous, `cc` → the conjunct it precedes) in every treebank, and no transform disturbs it —
+nothing to fix. (2) `appos` is never emitted bare; apposition is the sanctioned `conj:appos` (46260).
+(3) The UD relation **`reparandum`** (disfluency/repair) survived un-converted in a few upstream SUD
+releases; SUD renders it as **`conj:dicto`** (sibling of `conj:coord`/`conj:appos`). `normalise_reparandum.py`
+rewrites it (696 total across all derived files; distinct instances la 32 / yue 165 / zh 2 — ITTB /
+Cantonese-HK / Chinese-GSD+GSDSimp) → `conj:dicto`, **DEPREL column only** (`reparandum` is also a Latin gerundive word form — FORM/LEMMA
+untouched). It is a **pure label rename** (head/attachment unchanged). The affected corpora were
+reconverted and **la/yue/zh bases retrained** (then morph + lemma) so the released models emit
+`conj:dicto`. Other non-official UD carry-overs (`mod@poss` family, `@unmarked/@desc/@predet/@preconj`,
+`compound@prt`) were left as-is by user decision (they'd need broad base retrains; `@lmod/@tmod` and the
+other language-specific semantic subtypes are legitimate SUD conventions the pipeline relies on).
+
 ## Tokeniser–treebank matching (`retokenize.py`, `coarsen_id.py`, `train_pkuseg_zh.py`)
 
 `gold_preproc` sidesteps the tokeniser/treebank mismatch for *evaluation*; this layer makes the
@@ -142,10 +179,15 @@ language by whether the treebank tokenisation is a deterministic function of the
   particle — parallel to the adpositions in the other languages. Lossless + reversible (asserts
   per-sentence round-trip). Evidence for functional-head: the native `mSUD_Nenets-Tundra` treebank
   (case suffix = ADP heads its noun via `comp:obj`; verbal suffix = AUX is the clause root).
+  **Lemmas** are carried onto the morphemes: the eojeol lemma is `+`-separated and aligns 1:1 with
+  the mecab morphemes (`잡스는`→`잡스+는`), so each morpheme takes its part (else falls back to the
+  surface form). Without this the retok corpus had 100 % `_` lemmas and the lemmatiser was vacuous.
 - **id — coarsen the treebank.** Enclitics (`-nya/-lah/…`) are lexically ambiguous (`-lah` is a
   clitic 73× but inside whole words like `adalah`/`salah` 1723×) and not rule-separable, so
   `coarsen_id.py` merges each MWT range (host+enclitic) into one whitespace token, which the rule
-  tokeniser reproduces deterministically. token-F1 vs spaCy 0.955→0.989.
+  tokeniser reproduces deterministically. token-F1 vs spaCy 0.955→0.989. The merged token keeps the
+  **host (representative) token's lemma** (`penghuninya`→`penghuni`; the clitic is not part of the
+  lemma) — likewise needed so the lemmatiser isn't vacuous (`coarsen_id` had hardcoded lemma `_`).
 - **en — leave as is.** `Tokenizer.v1` already matches EWT at the rule ceiling (F1 0.991);
   hyphen/slash tweaks both regress (EWT is internally inconsistent). A useful negative result.
 
@@ -310,7 +352,7 @@ gold-preproc and raw end-to-end evaluations.
     not stamped with Japanese-tagset notation). gold-preproc eval bypasses clause_parser, so metrics
     are unaffected — this is purely a raw-inference fix. Repackage the lzh/sa wheels to ship it.
   - **Released (v0.1.0), all 6 + the original 4:** `fa_sud_perdt` (ext), `ja_sud_gsd` (ext),
-    `ar_sud_padt` (ext), `la_sud_ittbproielperseus` (ext), `sa_sud_sandhi_csl` (base, **CSL-reverted** —
+    `ar_sud_padt` (ext), `la_sud_ittb_proiel_perseus` (ext), `sa_sud_vedic_ufal_csl` (base, **CSL-reverted** —
     accepts sandhied CSL, de-sandhies to clean wordforms; see below; re-clobbered at 0.1.0),
     `lzh_sud_kyoto` (**ext** —
     bundles `training_lzh_ext` + `clause_parser` with the punctuation-morphology fix; replaced the
@@ -318,8 +360,8 @@ gold-preproc and raw end-to-end evaluations.
     Release, not committed (`dist/` gitignored). Rebuild a custom-code wheel with
     `spacy package <model> <out> --code scripts/lzh_tokenizer.py,scripts/clause_parser.py --build wheel`
     (add `clause_parser` to the model first; remember `pip install click` — spaCy imports it directly).
-  - **Both Han scripts (`zh_sud_gsdboth`, `lzh_sud_kyoto`; `scripts/both_scripts_release.sh`).** Both
-    models train on a traditional+simplified union. **zh was renamed `sud_gsdsimp`→`sud_gsdboth`** (old
+  - **Both Han scripts (`zh_sud_gsd_simp_trad`, `lzh_sud_kyoto`; `scripts/both_scripts_release.sh`).** Both
+    models train on a traditional+simplified union. **zh was renamed `sud_gsdsimp`→`sud_gsd_simp_trad`** (old
     asset deleted): it trains on the two *real* treebanks for the same sentences — `SUD_Chinese-GSD`
     (original traditional) + `SUD_Chinese-GSDSimp` (simplified auto-conversion) — NOT an OpenCC
     re-traditionalisation (simplification is lossy/many-to-one). The ext relabel lives on GSDSimp;
@@ -350,7 +392,7 @@ gold-preproc and raw end-to-end evaluations.
     0.93). Released v0.1.0 = ext arm + pkuseg, packaged from `training_yue_ext_pkuseg` (swap via
     `bundle_yue_pkuseg.py`; meta requires `spacy-pkuseg`; no clause_parser — sentence-segmented).
 
-## Latin (`la_sud_ittbproielperseus`): three treebanks, macrons, XPOS blanking
+## Latin (`la_sud_ittb_proiel_perseus`): three treebanks, macrons, XPOS blanking
 
 The released Latin model trains on a plain `cat` of three SUD Latin treebanks (each keeps its own
 sent_ids): **ITTB + PROIEL + Perseus**. `scripts/add_perseus_la.sh` is the reproducible driver
@@ -377,7 +419,7 @@ sent_ids): **ITTB + PROIEL + Perseus**. `scripts/add_perseus_la.sh` is the repro
 - **Licence: CC BY-NC-SA (NonCommercial).** All three sources are NC (ITTB BY-NC-SA 3.0, PROIEL
   BY-NC-SA, Perseus BY-NC-SA 2.5) — the only NonCommercial released model. See `NOTICE.md`.
 
-## Sanskrit sandhied-CSL representation (`sa_sud_sandhi_csl`)
+## Sanskrit sandhied-CSL representation (`sa_sud_vedic_ufal_csl`)
 
 The released Sanskrit model **replaces `sa_sud_vedic`**. It **accepts sandhied text in
 Clay-Sanskrit-Library (CSL) conventions** (the Vedic treebank is natively *pausa*/unsandhied; UFAL
@@ -408,11 +450,19 @@ inference. Representation, built once and shared by both treebanks:
   re-segment MWTs (compounds hyphen-joined, external sandhi space-resegmented into surface forms,
   vowel coalescence marked); hard cases hand-corrected via `sa_ufal_csl_overrides.tsv`; typographic
   double quotes → **guillemets `«»`** (CSL direct-speech mark) before normalise.
-- **`scripts/sa_tokenizer.py`** — reproduces the tokenisation (hyphen-split keeping `-` on the left
-  member; daṇḍa/`||` run-grouping; `circumflix` U+0302 NOT stripped as it's a coalescence mark);
-  **accepts CSL compound `|`** (word-internal `|`→`-`; a sentence daṇḍa `|` is never letter-followed)
-  and **straightens curly apostrophes/double-quotes → `' "`**; then **reverses the CSL-marked
-  sandhi** via `desandhi_csl` (see below) before building the `Doc`.
+- **Compound join = `|` (not `-`).** CSL prints samāsa division with a thin vertical line, so the
+  compound/preverb join in the **data** is a pipe (`śuka|sāri|kṛśānāṃ`), not a hyphen.
+  `scripts/hyphen_to_pipe_sa.py` flipped the CSL-reverted CoNLL-U (trailing join `-` on a len>1
+  token → `|`; MWT surface + `# text` too; the lone-dash `-` PUNCT and native daṇḍa `|`/`||` are
+  left alone; round-trip asserted). The pipe base retrained at **LAS 54.95 / UAS 68.9 / TAG 88.5**
+  (≈ the old hyphen arm, within noise). `backup_sa_prepipe/` holds the pre-flip CoNLL-U.
+- **`scripts/sa_tokenizer.py`** — reproduces the tokenisation (hyphen-split keeping the join on the
+  left member; daṇḍa/`||` run-grouping; `circumflix` U+0302 NOT stripped as it's a coalescence mark);
+  **accepts BOTH a compound `|`** (CSL, word-internal `|`→`-` internally; a sentence daṇḍa `|` is
+  never letter-followed) **and a legacy compound `-`**, and **straightens curly apostrophes/double-
+  quotes → `' "`**; **reverses the CSL-marked sandhi** via `desandhi_csl` (see below); then **emits
+  the join as `|`** (a trailing internal `-` on a len>1 token → `|`) so the output matches the
+  pipe-marked training data. A lone dash stays `-`.
 - **`desandhi_csl` (`scripts/sa_tokenizer.py`) + `scripts/revert_csl_sandhi.py`** — the inverse of
   the coalescence marks. `desandhi_csl(tokens)` walks the ordered token list and undoes ONLY the
   notation-marked sandhi: **vowel coalescence** (the left word's `'`/`"` + the right word's

@@ -15953,7 +15953,7 @@
 7	其	其	PRON	PRP	Person=3	6	comp:obj	_	LTranslit=qí|SpaceAfter=No|Translit=qí
 8	升	升	VERB	VV	_	9	comp:obj	_	LTranslit=shēng|SpaceAfter=No|Translit=shēng
 9	為	為	VERB	VC	_	4	comp:obj	_	LTranslit=wèi|SpaceAfter=No|Translit=wèi
-10	為	為	VERB	VC	_	9	reparandum	_	LTranslit=wèi|SpaceAfter=No|Translit=wèi
+10	為	為	VERB	VC	_	9	conj:dicto	_	LTranslit=wèi|SpaceAfter=No|Translit=wèi
 11	熱帶	熱帶	NOUN	NN	_	12	mod	_	LTranslit=rèdài|SpaceAfter=No|Translit=rèdài
 12	風暴	風暴	NOUN	NN	_	8	comp:obj	_	LTranslit=fēngbào|SpaceAfter=No|Translit=fēngbào
 13	，	，	PUNCT	,	_	4	punct	_	LTranslit=,|SpaceAfter=No|Translit=,

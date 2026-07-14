@@ -1,7 +1,7 @@
 # SUD spaCy parsers (small/CPU, eleven languages)
 
-Small, CPU-only spaCy pipelines (`tok2vec` → `tagger` → `parser`) for **English, Chinese, Korean,
-and Indonesian**, trained on **Surface-Syntactic Universal Dependencies (SUD)** treebanks. They
+Small, CPU-only spaCy pipelines (`tok2vec` → `tagger` → `parser` → `morphologizer` → `lemmatizer`)
+for **English, Chinese, Korean, and Indonesian**, trained on **Surface-Syntactic Universal Dependencies (SUD)** treebanks. They
 predict SUD relations (`subj`, `comp:obj`, `mod`, …) rather than UD relations, and — the research
 focus of this repo — disambiguate the noncommittal `udep` on adpositional/case dependents into
 `comp:obl` (complement) vs `mod` (modifier). Models ship as installable wheels (see
@@ -15,15 +15,15 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | Model | Language | UAS | LAS | `comp:obl` F | TOK (raw) |
 |-------|----------|----:|----:|-------------:|----------:|
 | `en_sud_ewt` | English | 84.5 | 79.5 | 69.4 | 99.6 |
-| `zh_sud_gsdboth` | Chinese (simp+trad) | 74.3 | 69.3 | 32.6 | 94.9 |
+| `zh_sud_gsd_simp_trad` | Chinese (simp+trad) | 74.3 | 69.3 | 32.6 | 94.9 |
 | `ko_sud_gsd` | Korean | 79.7 | 75.6 | 24.7 | 100.0 |
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
 | `fa_sud_perdt` | Persian | 90.8 | 87.3 | 79.4 | 99.1 |
-| `sa_sud_sandhi_csl` | Sanskrit | 67.7 | 54.3 | 44.5 | 100.0† |
+| `sa_sud_vedic_ufal_csl` | Sanskrit | 68.3 | 55.0 | 43.5 | 100.0† |
 | `lzh_sud_kyoto` | Classical Chinese (trad+simp) | 84.3 | 79.0 | 70.9 | 100.0† |
 | `ja_sud_gsd` | Japanese | 91.5 | 88.6 | 68.8 | 99.4 |
 | `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
-| `la_sud_ittbproielperseus` | Latin | 80.6 | 73.9 | 65.2 | 100.0¶ |
+| `la_sud_ittb_proiel_perseus` | Latin | 80.6 | 73.9 | 65.2 | 100.0¶ |
 | `yue_sud_hk` | Cantonese | 74.2 | 65.6 | 26.7 | 94.7◊ |
 
 Full per-relation breakdowns are in the `metrics_*.json` files.
@@ -34,7 +34,7 @@ boundaries. Both models bundle a `clause_parser` component that splits punctuate
 boundary marks (。，；for Classical Chinese; daṇḍa ।॥ and . ? ! `|` `||` / // for Sanskrit), parses
 each clause in isolation, and reattaches each mark as a `punct` dependent — recovering the
 per-clause accuracy (78.9 / 54.3) on punctuated running text; only **unpunctuated** running text
-collapses (LAS ~48 / ~41). `sa_sud_sandhi_csl` additionally **accepts sandhied text in
+collapses (LAS ~48 / ~41). `sa_sud_vedic_ufal_csl` additionally **accepts sandhied text in
 Clay-Sanskrit-Library (CSL) conventions** (see below). Persian runs fine on raw text (raw LAS 79.2).
 
 ‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~69 vs 78 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
@@ -42,10 +42,10 @@ Clay-Sanskrit-Library (CSL) conventions** (see below). Persian runs fine on raw 
 ◊ SUD_Cantonese-HK ships a **test split only** (1004 sentences), so `yue_sud_hk` is trained on a
 deterministic 80/10/10 round-robin carve of it — the 100-sentence test makes its figures noisier
 than the others. The Cantonese XPOS column is empty, so UPOS is copied into it and the tagger
-predicts UPOS in `tag_` (as with every model here, a `morphologizer` separately fills `pos_` and
-`morph` — see *Use* below). TOK 94.7 is the bundled pkuseg
+predicts UPOS in `tag_` (as with every model here, a `morphologizer` fills `pos_`/`morph` and a
+`lemmatizer` fills `lemma_` — see *Use* below). TOK 94.7 is the bundled pkuseg
 word segmenter (trained on the treebank's gold tokens; vs 63 for the character fallback). The
-parser's `tok2vec` is initialised from the dual-script Mandarin model `zh_sud_gsdboth` and
+parser's `tok2vec` is initialised from the dual-script Mandarin model `zh_sud_gsd_simp_trad` and
 fine-tuned — a free TAG/UAS/baseline-LAS lift on so little data; the segmenter is *not* helped by a
 Mandarin warm-start (a local-feature CRF learns Cantonese boundaries from scratch just as well).
 
@@ -73,7 +73,7 @@ deployable models and the canonical metrics are kept in-tree.
 
 ## Available models
 
-Small CPU pipelines (`tok2vec` → `tagger` → `parser`). The English/Chinese/Korean/Indonesian
+Small CPU pipelines (`tok2vec` → `tagger` → `parser` → `morphologizer` → `lemmatizer`). The English/Chinese/Korean/Indonesian
 models are matched to their treebank's tokenisation so they run on **raw text** and predict the
 disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheels on the
 [Releases](https://github.com/SunflowerAI/sud-spacy-parsers/releases) page.
@@ -81,15 +81,15 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | Package | Language | Treebank | `udep` | Tokenisation | Licence |
 |---------|----------|----------|--------|--------------|---------|
 | `en_sud_ewt`     | English    | SUD_English-EWT     | disambiguated (ext) | default rules | CC BY-SA 4.0 |
-| `zh_sud_gsdboth` | Chinese    | SUD_Chinese-GSD + GSDSimp | disambiguated (ext) | pkuseg, both scripts (needs `spacy-pkuseg`) | CC BY-SA 4.0 |
+| `zh_sud_gsd_simp_trad` | Chinese    | SUD_Chinese-GSD + GSDSimp | disambiguated (ext) | pkuseg, both scripts (needs `spacy-pkuseg`) | CC BY-SA 4.0 |
 | `ko_sud_gsd`     | Korean     | SUD_Korean-GSD      | disambiguated | mecab morphemes (needs `mecab-ko` + `MECAB_PATH`) | CC BY-SA 4.0 |
 | `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated | rule tokeniser (enclitics merged) | CC BY-SA 4.0 |
 | `fa_sud_perdt`   | Persian    | SUD_Persian-PerDT   | disambiguated (ext) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
-| `sa_sud_sandhi_csl` | Sanskrit | SUD_Sanskrit-Vedic + UFAL | kept (baseline) | **accepts sandhied CSL text**, de-sandhied to clean wordforms; IAST / Devanagari / accented (needs `indic-transliteration`); compound `\|`→`-`, guillemets `«»`, straightens curly quotes | CC BY-SA 4.0 |
+| `sa_sud_vedic_ufal_csl` | Sanskrit | SUD_Sanskrit-Vedic + UFAL | kept (baseline) | **accepts sandhied CSL text**, de-sandhied to clean wordforms; IAST / Devanagari / accented (needs `indic-transliteration`); compound join `\|` (hyphen input also accepted), guillemets `«»`, straightens curly quotes | CC BY-SA 4.0 |
 | `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto (+ simplified) | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
 | `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | CAMeL ATB tokeniser (needs `camel-tools` + data) | CC BY-SA 4.0 |
-| `la_sud_ittbproielperseus` | Latin   | SUD_Latin-ITTB+PROIEL+Perseus | disambiguated (ext) | rule tokeniser | CC BY-NC-SA § |
+| `la_sud_ittb_proiel_perseus` | Latin   | SUD_Latin-ITTB+PROIEL+Perseus | disambiguated (ext) | rule tokeniser | CC BY-NC-SA § |
 | `yue_sud_hk`     | Cantonese  | SUD_Cantonese-HK    | disambiguated (ext) | pkuseg (needs `spacy-pkuseg`); char fallback | CC BY-SA 4.0 |
 
 § The Latin model is trained on the union of three SUD Latin treebanks, **all NonCommercial**:
@@ -143,7 +143,7 @@ deterministic signals — the associative/genitive **嘅** (`你嘅牙` "your to
 and the treebank's own temporal subtype **`udep@tmod`** (而家/今日/嗰陣時 → mod). Because SUD_Cantonese-HK
 ships only a test split, it is carved 80/10/10 (`scripts/split_yue.py`, which also copies the empty
 XPOS from UPOS); spaCy has no `yue` module, so `scripts/yue_tokenizer.py` registers one. With only
-804 training sentences the parser's `tok2vec` is initialised from `zh_sud_gsdboth` and fine-tuned
+804 training sentences the parser's `tok2vec` is initialised from `zh_sud_gsd_simp_trad` and fine-tuned
 (`config_yue.cfg`; `scripts/train_yue.sh`), which lifts TAG/UAS. The bundled **pkuseg** raw-text
 segmenter (`scripts/train_pkuseg_yue.py`, swapped in by `bundle_yue_pkuseg.py`) is trained from
 scratch on the gold tokens — fine-tuning it from the Mandarin segmenter was tried and ties
@@ -151,7 +151,7 @@ from-scratch, so the self-contained model ships.
 
 ```bash
 # install a model from the latest release (example: Chinese)
-pip install https://github.com/SunflowerAI/sud-spacy-parsers/releases/latest/download/zh_sud_gsdboth-0.1.0-py3-none-any.whl
+pip install https://github.com/SunflowerAI/sud-spacy-parsers/releases/latest/download/zh_sud_gsd_simp_trad-0.1.0-py3-none-any.whl
 pip install spacy-pkuseg          # Chinese / Cantonese tokeniser dependency
 ```
 
@@ -191,15 +191,17 @@ python -m spacy evaluate training/model-best corpus/en_sud-test.spacy --output m
 import spacy
 nlp = spacy.load("en_sud_ewt")              # after: pip install en_sud_ewt-0.1.0-...whl
 doc = nlp("She put the book on the table.")
-print([(t.text, t.pos_, t.tag_, t.dep_, t.head.text) for t in doc])
+print([(t.text, t.lemma_, t.pos_, t.tag_, t.dep_, t.head.text) for t in doc])
 # "on" attaches to "put" and is labelled comp:obl vs mod — this model resolves the prep-dependent
 # ambiguity that the baseline left as the noncommittal `udep`.
 ```
 
-Every model carries a `morphologizer`, so `token.pos_` (UPOS) and `token.morph` are populated
-alongside `token.tag_` (the treebank's XPOS) and the dependency parse. The morphologiser was added
-on top of the frozen parser/tagger (its own small encoder), so the dependency and XPOS output is
-unchanged from the parsing-only release — UPOS is purely an added annotation layer.
+Every model carries a `morphologizer` and a `lemmatizer`, so `token.pos_` (UPOS), `token.morph`
+and `token.lemma_` are populated alongside `token.tag_` (the treebank's XPOS) and the dependency
+parse. Both were added on top of the frozen parser/tagger (each with its own small encoder), so the
+dependency and XPOS output is unchanged from the parsing-only release — UPOS, morph and lemma are
+purely added annotation layers. The lemmatiser is a trainable edit-tree lemmatiser trained on the
+treebank's `LEMMA` column.
 
 A small local web tester is in `webapp/` (`python webapp/server.py`, then open the printed URL);
 it loads whichever model wheels you have installed.

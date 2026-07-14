@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build the dual-script (simplified + traditional) release models for Chinese and
-# Classical Chinese, and package them as the zh_sud_gsdboth / lzh_sud_kyoto wheels.
+# Classical Chinese, and package them as the zh_sud_gsd_simp_trad / lzh_sud_kyoto wheels.
 #
 # Chinese has two real treebanks for the same sentences: SUD_Chinese-GSD (the original
 # TRADITIONAL annotation) and SUD_Chinese-GSDSimp (its simplified auto-conversion). We
@@ -75,7 +75,7 @@ $PY scripts/add_clause_parser.py training_lzh_both_ext/model-best training_lzh_b
 ############################## package wheels ##############################
 mkdir -p build_zh_both build_lzh_both
 $PY -m spacy package training_zh_both_ext/model-best build_zh_both \
-  --name sud_gsdboth --version 0.1.0 --build wheel --force
+  --name sud_gsd_simp_trad --version 0.1.0 --build wheel --force
 $PY -m spacy package training_lzh_both_ext/model-clause build_lzh_both \
   --name sud_kyoto --version 0.1.0 \
   --code scripts/lzh_tokenizer.py,scripts/clause_parser.py --build wheel --force

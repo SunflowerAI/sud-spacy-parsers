@@ -155,6 +155,11 @@ class ClauseParser:
         deps = ["dep"] * n
         tags = [doc[i].tag_ for i in range(n)]
         poss = [doc[i].pos_ for i in range(n)]
+        # lemma/morph come from the whole-doc pass (the morphologizer/lemmatizer run before this
+        # component); the per-clause re-parse only re-decides tag/pos/head/dep, so carry these
+        # through unchanged rather than dropping them when the doc is rebuilt below.
+        lemmas = [doc[i].lemma_ for i in range(n)]
+        morphs = [str(doc[i].morph) for i in range(n)]
         pipes = self._subpipes()
         sent_roots = []                 # doc-index root of each sentence (aligned with `sentences`)
 
@@ -207,5 +212,6 @@ class ClauseParser:
 
         out = Doc(self.nlp.vocab, words=[t.text for t in doc],
                   spaces=[bool(t.whitespace_) for t in doc],
-                  heads=heads, deps=deps, tags=tags, pos=poss)
+                  heads=heads, deps=deps, tags=tags, pos=poss,
+                  lemmas=lemmas, morphs=morphs)
         return out

@@ -9,17 +9,17 @@ Korean needs mecab-ko; MECAB_PATH is set below before spaCy is imported so the
 Korean pipeline loads without the caller having to export it.
 
 Loads the released model wheels by package name (install them first, e.g.
-`pip install <release-url>/zh_sud_gsdboth-0.1.0-py3-none-any.whl`), so the
+`pip install <release-url>/zh_sud_gsd_simp_trad-0.1.0-py3-none-any.whl`), so the
 browser can send plain text — each model is matched to its treebank tokenisation:
 
     en  -> en_sud_ewt         (default rules, EWT)
-    zh  -> zh_sud_gsdboth     (pkuseg, GSDSimp + OpenCC traditional)
+    zh  -> zh_sud_gsd_simp_trad     (pkuseg, GSDSimp + OpenCC traditional)
     ko  -> ko_sud_gsd         (mecab morphemes; needs mecab-ko)
     id  -> id_sud_gsd         (rule tokeniser, enclitics merged)
     fa  -> fa_sud_perdt       (rule tokeniser, PerDT)
     ar  -> ar_sud_padt        (rule tokeniser, PADT)
-    la  -> la_sud_ittbproielperseus  (rule tokeniser, ITTB+PROIEL+Perseus)
-    sa  -> sa_sud_sandhi_csl  (accepts sandhied CSL text, de-sandhied to clean wordforms; case-based)
+    la  -> la_sud_ittb_proiel_perseus  (rule tokeniser, ITTB+PROIEL+Perseus)
+    sa  -> sa_sud_vedic_ufal_csl  (accepts sandhied CSL text, de-sandhied to clean wordforms; case-based)
     lzh -> lzh_sud_kyoto      (custom one-char tokeniser bundled in the wheel, Kyoto)
     ja  -> ja_sud_gsd         (SudachiPy, GSD)
 
@@ -44,13 +44,13 @@ INDEX = ROOT / "index.html"
 # lang -> installed model wheel package name
 MODELS = {
     "en": "en_sud_ewt",
-    "zh": "zh_sud_gsdboth",
+    "zh": "zh_sud_gsd_simp_trad",
     "ko": "ko_sud_gsd",
     "id": "id_sud_gsd",
     "fa": "fa_sud_perdt",
     "ar": "ar_sud_padt",
-    "la": "la_sud_ittbproielperseus",
-    "sa": "sa_sud_sandhi_csl",
+    "la": "la_sud_ittb_proiel_perseus",
+    "sa": "sa_sud_vedic_ufal_csl",
     "lzh": "lzh_sud_kyoto",
     "ja": "ja_sud_gsd",
     "yue": "yue_sud_hk",

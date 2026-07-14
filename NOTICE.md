@@ -17,14 +17,14 @@ the underlying treebanks. You must give attribution and share derivatives alike.
 | Component | Source treebank | Licence |
 |-----------|-----------------|---------|
 | `en_sud_ewt` model, `assets/en_ewt-sud-*.conllu` | SUD_English-EWT | CC BY-SA 4.0 |
-| `zh_sud_gsdboth` model, `assets_zh/.../*.relabeled*.conllu` | SUD_Chinese-GSD + SUD_Chinese-GSDSimp | CC BY-SA 4.0 |
+| `zh_sud_gsd_simp_trad` model, `assets_zh/.../*.relabeled*.conllu` | SUD_Chinese-GSD + SUD_Chinese-GSDSimp | CC BY-SA 4.0 |
 | `ko_sud_gsd` model, `assets_ko/.../*.relabeled*.conllu` | SUD_Korean-GSD | CC BY-SA 4.0 |
 | `id_sud_gsd` model, `assets_id/.../*.relabeled*.conllu` | SUD_Indonesian-GSD | CC BY-SA 4.0 |
-| `la_sud_ittbproielperseus` model, `assets_la/la_ittbproiel-sud-*.conllu` | SUD_Latin-ITTB + SUD_Latin-PROIEL + SUD_Latin-Perseus | **CC BY-NC-SA** (NonCommercial — see below) |
+| `la_sud_ittb_proiel_perseus` model, `assets_la/la_ittbproiel-sud-*.conllu` | SUD_Latin-ITTB + SUD_Latin-PROIEL + SUD_Latin-Perseus | **CC BY-NC-SA** (NonCommercial — see below) |
 
 Each source treebank's own `LICENSE.txt` is retained alongside its data.
 
-## NonCommercial — the Latin model (`la_sud_ittbproielperseus`)
+## NonCommercial — the Latin model (`la_sud_ittb_proiel_perseus`)
 
 The Latin model is trained on the union of three SUD Latin treebanks, **all NonCommercial**:
 **ITTB** (CC BY-NC-SA 3.0), **PROIEL** (CC BY-NC-SA), and **Perseus** (CC BY-NC-SA 2.5). Unlike

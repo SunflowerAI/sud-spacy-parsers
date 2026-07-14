@@ -218,6 +218,7 @@ def reproject(comments, toks, mwts, nlp, lang, stats):
     new_dep = [None] * n
     new_up = [None] * n
     new_xp = [None] * n
+    new_lemma = [None] * n                # carried from gold; ko splits the eojeol +-lemma
     gold_headrep = {}                     # gold token index -> sp index that represents it
 
     for gi, sj in blocks:
@@ -225,6 +226,7 @@ def reproject(comments, toks, mwts, nlp, lang, stats):
             g, s = gi[0], sj[0]
             gt = toks[g]
             new_up[s], new_xp[s] = gt.upos, gt.xpos
+            new_lemma[s] = gt.lemma
             new_dep[s] = gt.deprel
             new_head[s] = ("ext", g)
             gold_headrep[g] = s
@@ -234,9 +236,14 @@ def reproject(comments, toks, mwts, nlp, lang, stats):
             if lang == "ko":
                 morphs = [(sp[s].text, sp[s].tag_) for s in sj]
                 hrel, parent, deprel, upos = ko_eojeol_tree(morphs)
+                # the eojeol lemma is +-separated and aligns 1:1 with the mecab morphemes
+                # (잡스는 -> 잡스+는); split it across them, else fall back to each surface form.
+                lem_parts = gt.lemma.split("+")
+                use_parts = len(lem_parts) == len(sj)
                 for local, s in enumerate(sj):
                     new_up[s] = upos[local]
                     new_xp[s] = sp[s].tag_
+                    new_lemma[s] = lem_parts[local] if use_parts else sp[s].text
                     if local == hrel:
                         new_dep[s] = gt.deprel
                         new_head[s] = ("ext", g)
@@ -250,6 +257,7 @@ def reproject(comments, toks, mwts, nlp, lang, stats):
                 for local, s in enumerate(sj):
                     new_up[s] = gt.upos if local == head_local else "X"
                     new_xp[s] = gt.xpos if local == head_local else "_"
+                    new_lemma[s] = gt.lemma if local == head_local else sp[s].text
                     if local == head_local:
                         new_dep[s] = gt.deprel
                         new_head[s] = ("ext", g)
@@ -270,10 +278,12 @@ def reproject(comments, toks, mwts, nlp, lang, stats):
                 gt = toks[anchor]
                 if local == head_local:
                     new_up[s], new_xp[s] = gt.upos, gt.xpos
+                    new_lemma[s] = gt.lemma
                     new_dep[s] = gt.deprel
                     new_head[s] = ("ext", anchor)
                 else:
                     new_up[s], new_xp[s] = "X", "_"
+                    new_lemma[s] = sp[s].text
                     new_dep[s] = "dep"
                     new_head[s] = ("int", sj[head_local])
             for g in gi:
@@ -295,7 +305,7 @@ def reproject(comments, toks, mwts, nlp, lang, stats):
             head_id = new_head[s][1] + 1
         heads[s] = head_id
         misc = "_" if sp[s].whitespace_ else "SpaceAfter=No"
-        rows.append([str(s + 1), sp[s].text, "_", new_up[s] or "X",
+        rows.append([str(s + 1), sp[s].text, new_lemma[s] or sp[s].text, new_up[s] or "X",
                      new_xp[s] or "_", "_", str(head_id), new_dep[s] or "dep",
                      "_", misc])
 

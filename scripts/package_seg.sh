@@ -22,14 +22,14 @@ case $lang in
   ar)  pkg ar  training_ar_seg/model-best  sud_padt              "--code scripts/ar_tokenizer.py" ;;
   fa)  pkg fa  training_fa_seg/model-best  sud_perdt             "" ;;
   ja)  pkg ja  training_ja_seg/model-best  sud_gsd               "" ;;
-  la)  pkg la  training_la_seg/model-best  sud_ittbproielperseus "" ;;
+  la)  pkg la  training_la_seg/model-best  sud_ittb_proiel_perseus "" ;;
   id)  pkg id  training_id_seg/model-best  sud_gsd               "" ;;
   ko)  pkg ko  training_ko_seg/model-best  sud_gsd               "" ;;
-  zh)  pkg zh  training_zh_seg/model-best  sud_gsdboth           "" ;;
+  zh)  pkg zh  training_zh_seg/model-best  sud_gsd_simp_trad           "" ;;
   yue) $PY scripts/bundle_yue_pkuseg.py --src training_yue_seg/model-best \
             --out training_yue_seg_pkuseg >/dev/null 2>&1
        pkg yue training_yue_seg_pkuseg     sud_hk                "--code scripts/yue_tokenizer.py" ;;
-  sa)  pkg sa  training_sa_csl_rev/model-seg   sud_sandhi_csl \
+  sa)  pkg sa  training_sa_csl_rev/model-seg   sud_vedic_ufal_csl \
             "--code scripts/sa_tokenizer.py,scripts/clause_parser.py" ;;
   lzh) pkg lzh training_lzh_both_ext/model-seg sud_kyoto \
             "--code scripts/lzh_tokenizer.py,scripts/clause_parser.py" ;;
