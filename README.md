@@ -1,7 +1,8 @@
 # SUD spaCy parsers (small/CPU, eleven languages)
 
 Small, CPU-only spaCy pipelines (`tok2vec` → `tagger` → `parser` → `morphologizer` → `lemmatizer`)
-for **English, Chinese, Korean, and Indonesian**, trained on **Surface-Syntactic Universal Dependencies (SUD)** treebanks. They
+for **eleven languages** (English, Chinese, Korean, Indonesian, Persian, Sanskrit, Classical Chinese,
+Japanese, Arabic, Latin, and Cantonese), trained on **Surface-Syntactic Universal Dependencies (SUD)** treebanks. They
 predict SUD relations (`subj`, `comp:obj`, `mod`, …) rather than UD relations, and — the research
 focus of this repo — disambiguate the noncommittal `udep` on adpositional/case dependents into
 `comp:obl` (complement) vs `mod` (modifier). Models ship as installable wheels (see
@@ -14,12 +15,12 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 
 | Model | Language | UAS | LAS | `comp:obl` F | TOK (raw) |
 |-------|----------|----:|----:|-------------:|----------:|
-| `en_sud_ewt` | English | 84.5 | 79.5 | 69.4 | 99.6 |
+| `en_sud_ewt` | English | 84.4 | 79.6 | 70.8 | 99.6 |
 | `zh_sud_gsd_simp_trad` | Chinese (simp+trad) | 74.3 | 69.3 | 32.6 | 94.9 |
 | `ko_sud_gsd` | Korean | 79.7 | 75.6 | 24.7 | 100.0 |
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
 | `fa_sud_perdt` | Persian | 90.8 | 87.3 | 79.4 | 99.1 |
-| `sa_sud_vedic_ufal_csl` | Sanskrit | 68.3 | 55.0 | 43.5 | 100.0† |
+| `sa_sud_vedic_ufal_csl` | Sanskrit | 67.9 | 54.8 | 44.9 | 100.0† |
 | `lzh_sud_kyoto` | Classical Chinese (trad+simp) | 84.3 | 79.0 | 70.9 | 100.0† |
 | `ja_sud_gsd` | Japanese | 91.5 | 88.6 | 68.8 | 99.4 |
 | `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
@@ -33,11 +34,11 @@ treebanks segment into punctuation-free **clause units** (句讀 / clause) with 
 boundaries. Both models bundle a `clause_parser` component that splits punctuated input at its
 boundary marks (。，；for Classical Chinese; daṇḍa ।॥ and . ? ! `|` `||` / // for Sanskrit), parses
 each clause in isolation, and reattaches each mark as a `punct` dependent — recovering the
-per-clause accuracy (78.9 / 54.3) on punctuated running text; only **unpunctuated** running text
+per-clause accuracy (79.0 / 54.8) on punctuated running text; only **unpunctuated** running text
 collapses (LAS ~48 / ~41). `sa_sud_vedic_ufal_csl` additionally **accepts sandhied text in
-Clay-Sanskrit-Library (CSL) conventions** (see below). Persian runs fine on raw text (raw LAS 79.2).
+Clay-Sanskrit-Library (CSL) conventions** (see below). Persian runs fine on raw text (raw LAS 85.3).
 
-‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~69 vs 78 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
+‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~72 vs 78 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
 
 ◊ SUD_Cantonese-HK ships a **test split only** (1004 sentences), so `yue_sud_hk` is trained on a
 deterministic 80/10/10 round-robin carve of it — the 100-sentence test makes its figures noisier
@@ -109,8 +110,7 @@ de-sandhied wordforms**: the bundled `sa_tokenizer.py` reverses the CSL notation
 vowel coalescence (the `'`/`"`/circumflex marks) and avagraha — while leaving the unmarked
 consonant/visarga sandhi (visarga → -o/-r, m → ṃ, t/n assimilation) on the surface, since CSL marks
 it ambiguously and it cannot be reversed without a lexicon. The parser is trained on those same
-CSL-reverted forms, which beats training on the sandhied surface (LAS 54.3 vs 53.5, ~1.5 under the
-pausa ceiling 55.8). The CSL representation is built by `scripts/external_sandhi.py` +
+CSL-reverted forms, which beats training on the sandhied surface (LAS 54.8 vs 53.5). The CSL representation is built by `scripts/external_sandhi.py` +
 `apply_vedic_sandhi.py` (Vedic) and `sa_csl_prep.py` (UFAL), then reverted by `revert_csl_sandhi.py`
 (sharing the tokeniser's `desandhi_csl`). Classical Chinese ships the
 **extended-scope** parser: its disambiguation signal does not live on the plain `udep` adpositions
