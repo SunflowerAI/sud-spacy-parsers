@@ -34,6 +34,10 @@ def main():
     ap.add_argument("out_model")
     ap.add_argument("--punct-tag", default="")
     ap.add_argument("--sent-punct", default="")
+    # "" (default) uses the fixed --sent-punct set (lzh). "danda" uses the document-dependent
+    # Sanskrit scheme: ?/! always end a sentence, then periods / double daṇḍas / single daṇḍas by
+    # what the text contains, with a trailing quotation mark kept on the closing sentence.
+    ap.add_argument("--sent-scheme", default="")
     args = ap.parse_args()
 
     # register every custom tokenizer (lzh char, sa CSL, …) + the clause_parser factory before
@@ -46,7 +50,8 @@ def main():
     if "clause_parser" in nlp.pipe_names:
         nlp.remove_pipe("clause_parser")
     nlp.add_pipe("clause_parser",
-                 config={"punct_tag": args.punct_tag, "sent_punct": args.sent_punct})
+                 config={"punct_tag": args.punct_tag, "sent_punct": args.sent_punct,
+                         "sent_scheme": args.sent_scheme})
     nlp.to_disk(args.out_model)
     print(f"{args.out_model}: pipeline {nlp.pipe_names}")
 

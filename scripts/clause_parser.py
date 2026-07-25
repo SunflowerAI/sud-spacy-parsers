@@ -7,9 +7,14 @@ over running text can't find the unit boundaries and collapses. Any real edition
 those boundaries with punctuation (。，；for Classical Chinese, daṇḍa ।॥ for Sanskrit). This
 component recovers them.
 
-Each **sentence** is the span between two sentence-final marks (`sent_punct`: the daṇḍa ।॥ and
-.?! for Sanskrit; for Classical Chinese the empty default makes *every* mark sentence-final, so a
-sentence is one 句讀 unit). Within a sentence the content tokens are concatenated **with the
+Each **sentence** is the span between two sentence-final marks. Which marks those are is set by
+`sent_scheme`: the default uses the fixed `sent_punct` set (Classical Chinese leaves it empty, so
+*every* mark is sentence-final and a sentence is one 句讀 unit); `sent_scheme="danda"` (Sanskrit)
+chooses the set **per document** — ? and ! (optionally + a trailing CLOSING quotation mark, a space
+before it allowed) always end a sentence, and then a period / a double daṇḍa / a single daṇḍa is the
+other sentence-final mark depending on which of those the text contains (see `_sentencer`). Within a
+sentence the content
+tokens are concatenated **with the
 sentence-medial marks removed** (a stray comma derails the parser as much as a daṇḍa) and parsed
 as a single doc — so the parser itself decides how the comma-separated units relate, rather than
 the component fabricating a join. Then every punctuation mark is reinserted: a **medial** mark
@@ -27,7 +32,7 @@ from spacy.tokens import Doc
 
 # clause-boundary punctuation across the relevant scripts; each model overrides via its pipe
 # config (Classical Chinese 句讀 vs Sanskrit daṇḍa . ? ! | || / //).
-DEFAULT_PUNCT = "。．，、；：？！…।॥|/.?!"
+DEFAULT_PUNCT = "。．，、；：？！…।॥|/.?!‖"
 
 # The subset of `punct` that ends a *sentence* (as opposed to a sentence-medial pause). Every
 # punctuation mark is still pulled out before parsing — a stray comma derails the parser just like
@@ -71,8 +76,70 @@ def is_punct_text(text):
     return bool(text) and all(unicodedata.category(c).startswith("P") for c in text)
 
 
-def make_clause_parser(nlp, name, punct, punct_tag, sent_punct):
-    return ClauseParser(nlp, punct, punct_tag, sent_punct)
+# --- the "danda" sentence scheme (Sanskrit): the set of sentence-final marks is chosen PER DOCUMENT.
+#   1. ? and ! (optionally + a trailing quotation mark) always end a sentence;
+#   2. else if the text has periods (not decimal points), a period is the only other sentence-final
+#      mark (daṇḍas become medial);
+#   3. else if the text has any double daṇḍa, a double daṇḍa is sentence-final (a single is medial);
+#   4. else a single daṇḍa is sentence-final.
+# A daṇḍa may be | || / // ‖ or a daṇḍa character in any Indic script (।॥ …); the sa tokenizer already
+# normalises the Indic ones to |/|| and groups runs, but `_danda_kind` handles the raw chars too.
+_QEXCL = set("?？!！")                                   # question / exclamation (+ fullwidth)
+# CLOSING quotation marks (straight — ambiguous but act as closers here — + curly-close + angular-close).
+# Only these may trail a sentence-final mark: an OPENING quote (« ‹ “ ‘) after a final mark begins the
+# NEXT (quoted) sentence, so it must not be pulled back onto the sentence just closed.
+_CLOSE_QUOTES = set("\"'”’»›")
+
+
+def _char_danda(c):
+    """Stroke count of a single daṇḍa character: 1 (single), 2 (double), 0 (not a daṇḍa)."""
+    if c in "|/":
+        return 1
+    if c == "‖":                                   # ‖ DOUBLE VERTICAL LINE
+        return 2
+    try:
+        name = unicodedata.name(c)
+    except ValueError:
+        return 0
+    if name.endswith("DANDA"):                          # any Indic-script daṇḍa (।॥ and script variants)
+        return 2 if "DOUBLE DANDA" in name else 1
+    return 0
+
+
+def _danda_kind(text):
+    """'single' / 'double' / None for a token WHOLLY composed of daṇḍa marks (| || / // ‖ ।॥ …).
+    A run of single strokes counts as double (`||`, `//`, or two single daṇḍa chars)."""
+    if not text:
+        return None
+    strokes = 0
+    for c in text:
+        v = _char_danda(c)
+        if not v:
+            return None
+        strokes += v
+    return "double" if strokes >= 2 else "single"
+
+
+def _is_qexcl(text):
+    return bool(text) and all(c in _QEXCL for c in text)
+
+
+def _is_close_quote(text):
+    return bool(text) and all(c in _CLOSE_QUOTES for c in text)
+
+
+def _is_period(doc, i):
+    """A period token (all '.') that is NOT a decimal point (a '.' flanked by digit tokens)."""
+    txt = doc[i].text
+    if not txt or any(c != "." for c in txt):
+        return False
+    prev_d = i > 0 and doc[i - 1].text[-1:].isdigit()
+    next_d = i + 1 < len(doc) and doc[i + 1].text[:1].isdigit()
+    return not (prev_d and next_d)
+
+
+def make_clause_parser(nlp, name, punct, punct_tag, sent_punct, sent_scheme):
+    return ClauseParser(nlp, punct, punct_tag, sent_punct, sent_scheme)
 
 
 # Guard registration: both the lzh and sa wheels bundle this module, so it is imported twice
@@ -83,15 +150,18 @@ def make_clause_parser(nlp, name, punct, punct_tag, sent_punct):
 if not Language.has_factory("clause_parser"):
     Language.factory("clause_parser",
                      default_config={"punct": DEFAULT_PUNCT, "punct_tag": "",
-                                     "sent_punct": SENT_PUNCT_DEFAULT})(make_clause_parser)
+                                     "sent_punct": SENT_PUNCT_DEFAULT, "sent_scheme": ""})(make_clause_parser)
 
 
 class ClauseParser:
-    def __init__(self, nlp, punct, punct_tag="", sent_punct=SENT_PUNCT_DEFAULT):
+    def __init__(self, nlp, punct, punct_tag="", sent_punct=SENT_PUNCT_DEFAULT, sent_scheme=""):
         self.nlp = nlp
         self.punct = set(punct)
         self.punct_tag = punct_tag
         self.sent_punct = set(sent_punct)
+        # "" -> the fixed `sent_punct` set decides boundaries (lzh: empty set = every mark is a
+        # boundary). "danda" -> the document-dependent Sanskrit scheme (see the module comment above).
+        self.sent_scheme = sent_scheme
         self._pipes = None
 
     def _subpipes(self):
@@ -117,6 +187,23 @@ class ClauseParser:
             return True
         return tok.text in self.sent_punct or all(c in self.sent_punct for c in tok.text)
 
+    def _sentencer(self, doc):
+        """Return (is_sent_final, allow_trailing_quote) for THIS doc. The `danda` scheme chooses the
+        sentence-final mark set per document (see the module comment): ?/! always, then a period /
+        double daṇḍa / single daṇḍa depending on what the text contains. Other schemes fall back to
+        the fixed `sent_punct` set (with no trailing-quote handling)."""
+        if self.sent_scheme != "danda":
+            return self._is_sent_boundary, False
+        has_period = any(_is_period(doc, t.i) for t in doc)
+        has_double = any(_danda_kind(t.text) == "double" for t in doc)
+        if has_period:
+            other = lambda t: _is_period(doc, t.i)                       # rule 2: periods only
+        elif has_double:
+            other = lambda t: _danda_kind(t.text) == "double"           # rule 3: double daṇḍa only
+        else:
+            other = lambda t: _danda_kind(t.text) is not None           # rule 4: single daṇḍa
+        return (lambda t: _is_qexcl(t.text) or other(t)), True           # rule 1: ?/! always final
+
     @staticmethod
     def _unit_head(unit, heads):
         """The dependency head of a contiguous unit (the run of content tokens to the left of a
@@ -133,20 +220,30 @@ class ClauseParser:
         # its tokens in order as ("content", idx) or ("medial", idx) (a sentence-medial mark, e.g. a
         # comma); a sentence-final mark closes the sentence and is recorded against the sentence on
         # its left. With sent_punct empty every mark is sentence-final, so a sentence is one unit.
+        sent_final, allow_trailing_quote = self._sentencer(doc)
         sentences = []                  # each: list of ("content"|"medial", token index)
         boundary_puncts = []            # (punct index, index into `sentences` on its left, or None)
         cur = []
+        after_final = False             # last emitted mark was sentence-final (for trailing quotes)
+        left_of_final = None            # the sentence a trailing quote should attach to
         for t in doc:
             if self._is_punct(t):
-                if self._is_sent_boundary(t):
+                if sent_final(t):
                     if cur:
                         sentences.append(cur); cur = []
                     left = len(sentences) - 1 if sentences else None
                     boundary_puncts.append((t.i, left))
+                    after_final, left_of_final = True, left
+                elif allow_trailing_quote and after_final and _is_close_quote(t.text):
+                    # a CLOSING quotation mark stays with the sentence the sentence-final mark just
+                    # closed (…vākyam ॥ » -> the » ends the same sentence; a space before it is fine,
+                    # since whitespace is not a token). An opening quote is NOT pulled back — it starts
+                    # the next quoted sentence and falls through to the medial/content path.
+                    boundary_puncts.append((t.i, left_of_final))    # keep after_final for ?"» chains
                 else:
-                    cur.append(("medial", t.i))
+                    cur.append(("medial", t.i)); after_final = False
             else:
-                cur.append(("content", t.i))
+                cur.append(("content", t.i)); after_final = False
         if cur:
             sentences.append(cur)
 

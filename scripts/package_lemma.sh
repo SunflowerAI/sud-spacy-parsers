@@ -34,7 +34,7 @@ case $lang in
             --out training_yue_lemma_pkuseg >/dev/null 2>&1
        pkg yue training_yue_lemma_pkuseg     sud_hk                  "--code scripts/yue_tokenizer.py" ;;
   sa)  $PY scripts/add_clause_parser.py training_sa_lemma/model-best training_sa_lemma/model-seg \
-            --punct-tag PUNCT --sent-punct "।॥|/.?!…" >/dev/null 2>&1
+            --punct-tag PUNCT --sent-scheme danda >/dev/null 2>&1
        pkg sa  training_sa_lemma/model-seg   sud_vedic_ufal_csl \
             "--code scripts/sa_tokenizer.py,scripts/clause_parser.py" ;;
   lzh) $PY scripts/add_clause_parser.py training_lzh_lemma/model-best training_lzh_lemma/model-seg \

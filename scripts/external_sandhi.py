@@ -10,7 +10,9 @@ for the UFAL treebank:
     the right word's initial vowel becomes the marked result (â ê î ô û / âi âu / macron
     ā ē ī ō ū);  reusable, reversible.
   * yaṇ (i/u/ṛ + dissimilar vowel) -> semivowel on the left, surface form.
-  * ayādi (e/o + a -> avagraha ' ; e/o + other vowel -> a + V hiatus; ai/au -> ā/āv).
+  * ayādi (e/o + a -> avagraha ' ; e/o + other vowel -> ay/av + V; ai/au -> āy/āv + V). The glide
+    is KEPT (not elided to bare hiatus), so the junction stays unambiguously reversible — bare -a/-ā
+    hiatus is then only ever a dropped visarga, and -ay/-av/-āy/-āv only ever ayādi.
   * visarga sandhi -> surface (namaḥ ca -> namaś ca, agniḥ iva -> agnir iva, namaḥ astu
     -> namo 'stu, …).
   * final m -> ṃ before consonant; final t / n / stops -> standard surface assimilation.
@@ -96,13 +98,13 @@ def join_pair(L, R, feats_L="", internal=False):
             return L, ("l" if v2 == "ḷ" else "r") + R[len(v2):]
         if v1 in _YAN:                                     # yaṇ: i/u/ṛ + dissimilar
             return L[:-len(v1)] + _YAN[v1], R
-        if v1 == "e":                                      # ayādi
-            return (L, APOS + R[1:]) if v2 == "a" else (L[:-1] + "a", R)
-        if v1 == "o":
-            return (L, APOS + R[1:]) if v2 == "a" else (L[:-1] + "a", R)
-        if v1 == "ai":
-            return L[:-2] + "ā", R
-        if v1 == "au":
+        if v1 == "e":                                      # ayādi: e + a -> e' (a-lopa); e + V -> ay V
+            return (L, APOS + R[1:]) if v2 == "a" else (L[:-1] + "ay", R)
+        if v1 == "o":                                      # o + a -> o' (a-lopa); o + V -> av V
+            return (L, APOS + R[1:]) if v2 == "a" else (L[:-1] + "av", R)
+        if v1 == "ai":                                     # ai + V -> āy V
+            return L[:-2] + "āy", R
+        if v1 == "au":                                     # au + V -> āv V
             return L[:-2] + "āv", R
         return L, R
 

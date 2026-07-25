@@ -337,14 +337,23 @@ gold-preproc and raw end-to-end evaluations.
     SudachiPy + gold_preproc. fa/ja run on raw text (TOK 99.1/99.4); **sa & lzh need pre-segmented
     sentences** (Vedic/Kyoto carry no in-text sentence boundaries — raw LAS collapses to ~41/~48).
     `scripts/clause_parser.py` (lzh + sa, last pipe) recovers per-sentence parses on punctuated
-    editions. A **sentence** is the span between two sentence-final marks (`sent_punct`); within it
+    editions. A **sentence** is the span between two sentence-final marks; within it
     the content tokens are concatenated **with sentence-medial marks removed** and parsed as one doc,
-    then every mark is reattached as `punct`. For lzh `sent_punct` is empty, so *every* mark is
-    sentence-final and each 句讀 unit is parsed in isolation (unchanged). **Sanskrit sets
-    `sent_punct = "।॥|/.?!…"`** so a comma is *medial*: the comma-separated units are parsed together
-    (the parser itself relates them — no fabricated `parataxis`) and the comma reattaches as a `punct`
-    child of the **head of its left unit**, so only a daṇḍa/full stop ends a sentence
-    (`add_clause_parser.py --sent-punct`). It also **normalises punctuation morphology** — Kyoto/Vedic carry almost no
+    then every mark is reattached as `punct`. Which marks are sentence-final is set by **`sent_scheme`**
+    (`add_clause_parser.py --sent-scheme`). For lzh `sent_scheme=""` + empty `sent_punct`, so *every*
+    mark is sentence-final and each 句讀 unit is parsed in isolation (unchanged). **Sanskrit sets
+    `sent_scheme="danda"`** — a **document-dependent** rule: `?`/`!` (+ an optional trailing **closing**
+    straight/curly/angular quotation mark, a space before it allowed) *always* end a sentence; then, of
+    the remaining marks, **only** the period ends a sentence if the text has periods (non-decimal),
+    **else** only the double daṇḍa if the text has any double daṇḍa (single daṇḍas become medial),
+    **else** the single daṇḍa. An OPENING quote after a final mark begins the next sentence (not pulled
+    back). A daṇḍa may be `| || / //`, `‖`, or an Indic-script daṇḍa `।॥` (the sa tokenizer normalises
+    `।`→`|` and every **double** daṇḍa `॥`/`||`/`।।`/`//`→`‖`; `_danda_kind` counts strokes, ≥2 ⇒
+    double). A *medial* mark (a comma, a single daṇḍa
+    when doubles are present) is pulled out but its comma-separated units are parsed together (the parser
+    itself relates them — no fabricated `parataxis`) and it reattaches as a `punct` child of the **head
+    of its left unit**; a sentence-final mark (and any trailing quote) attaches to the sentence root on
+    its left. It also **normalises punctuation morphology** — Kyoto/Vedic carry almost no
     punctuation, so the tagger hallucinates content tags on it (？→名詞,糧食 "noun, food", 。→動詞,
     brackets even become ROOTs). Every punctuation token (Unicode P*, incl. quotation brackets) is
     forced to `pos=PUNCT` + a deterministic XPOS: the Kyoto `s,記号,{句点,読点,括弧開,括弧閉}` map for lzh,
@@ -423,14 +432,17 @@ sent_ids): **ITTB + PROIEL + Perseus**. `scripts/add_perseus_la.sh` is the repro
 
 The released Sanskrit model **replaces `sa_sud_vedic`**. It **accepts sandhied text in
 Clay-Sanskrit-Library (CSL) conventions** (the Vedic treebank is natively *pausa*/unsandhied; UFAL
-is classical Pañcatantra prose) but parses **CSL-reverted wordforms**: the tokeniser undoes the
-notation-marked sandhi (vowel coalescence + avagraha) and the parser is trained on those reverted
-forms — cleaner than the sandhied surface, so it parses better (LAS 54.3 vs 53.5). The pipeline is
-(1) build the sandhied CSL representation, then (2) revert the marked sandhi for both training and
-inference. Representation, built once and shared by both treebanks:
+is classical Pañcatantra prose) but parses **de-sandhied wordforms normalised toward the pre-pausal
+(pausa) form**: the tokeniser undoes the notation-marked sandhi (vowel coalescence + avagraha) AND
+the deterministic, place-preserving external sandhi (visarga, `-s`/`-r`→`-ḥ`, voiced-stop
+neutralisation, anusvara), and the parser is trained on those normalised forms — cleaner than the
+sandhied surface, so it parses better (test-gp LAS 54.03 vs 53.5 sandhied-surface). The pipeline is
+(1) build the sandhied CSL representation, then (2) revert the sandhi (`desandhi_csl`) for both
+training and inference. Representation, built once and shared by both treebanks:
 
 - **`scripts/external_sandhi.py`** — forward classical external-sandhi engine (`join_pair`): vowel
-  coalescence (savarṇa/guṇa incl. `a+ṛ→` word2 `r`, vṛddhi, yaṇ, ayādi/avagraha), visarga (`-aḥ→
+  coalescence (savarṇa/guṇa incl. `a+ṛ→` word2 `r`, vṛddhi, yaṇ, ayādi **glide-preserving** — `e/o+V→
+  ay/av`, `ai/au+V→āy/āv`, NOT bare hiatus, so the junction stays reversible), visarga (`-aḥ→
   -o/-aś/-as`, `-iḥ→-ir`, `-āḥ→-ā`, final `-s`=visarga), `m→ṃ`, `-t→-d/-c/-j`, `-n→-ṃs/ñ/nn`,
   `t+ś→cch`, stop voicing; `internal=True` suppresses external-only rules (the `-n→-nn`
   gemination) for bound junctions. NB **no gold sandhied text exists**, so this is rule-based
@@ -450,40 +462,152 @@ inference. Representation, built once and shared by both treebanks:
   re-segment MWTs (compounds hyphen-joined, external sandhi space-resegmented into surface forms,
   vowel coalescence marked); hard cases hand-corrected via `sa_ufal_csl_overrides.tsv`; typographic
   double quotes → **guillemets `«»`** (CSL direct-speech mark) before normalise.
-- **Compound join = `|` (not `-`).** CSL prints samāsa division with a thin vertical line, so the
-  compound/preverb join in the **data** is a pipe (`śuka|sāri|kṛśānāṃ`), not a hyphen.
-  `scripts/hyphen_to_pipe_sa.py` flipped the CSL-reverted CoNLL-U (trailing join `-` on a len>1
-  token → `|`; MWT surface + `# text` too; the lone-dash `-` PUNCT and native daṇḍa `|`/`||` are
-  left alone; round-trip asserted). The pipe base retrained at **LAS 54.95 / UAS 68.9 / TAG 88.5**
-  (≈ the old hyphen arm, within noise). `backup_sa_prepipe/` holds the pre-flip CoNLL-U.
+- **Compound members carry NO join marker; MWTs recover from the `Compound` FEAT + `n-m` range.**
+  Compound/preverb/privative members are emitted as **clean wordforms** (`śuka`/`sāri`/`kṛśānāṃ`), not
+  the pipe-joined `śuka|sāri|kṛśānāṃ` used earlier. `scripts/strip_pipe_sa.py` removed the trailing
+  compound-join `|` from **plain-token FORMs only** (len>1, guarded against the daṇḍa `|`/`||`), leaving
+  the `n-m` MWT **surface** line (`śuka|sāri|kṛśānāṃ`) and `# text` intact so every grouping stays
+  recoverable; the `Compound=Yes` FEAT marks *samāsa* members (the privative `a-/an-`/preverbs are
+  PART/ADV and carry **no** `Compound` feat, so those recover from the range line / `SpaceAfter=No`
+  adjacency only). The morphologiser predicts `Compound=Yes`, so a live-output samāsa MWT = a
+  `Compound=Yes` run + the following head token. Stripped **8326/1044/1035** markers (train/dev/test);
+  that strip-only base ran **LAS 54.11 (dev) / 53.83 (test gp) / TAG 88.5 / UAS 66.9** — ~−0.5 LAS vs
+  the pipe arm (the parser embed reads NORM/PREFIX/SUFFIX/SHAPE, not FEATS, so removing the visible
+  member cue costs a little and the feat gives nothing back). **Superseded** by the pre-pausal
+  normalisation base below (test gp LAS 54.03 > 53.83). `backup_sa_prestrip/`
+  holds the pre-strip (pipe) CoNLL-U; `backup_sa_prepipe/` the earlier hyphen version;
+  `scripts/hyphen_to_pipe_sa.py` converts the compound join hyphen→pipe (still used by
+  `rebuild_sa_csl_rev.sh`).
 - **`scripts/sa_tokenizer.py`** — reproduces the tokenisation (hyphen-split keeping the join on the
   left member; daṇḍa/`||` run-grouping; `circumflix` U+0302 NOT stripped as it's a coalescence mark);
   **accepts BOTH a compound `|`** (CSL, word-internal `|`→`-` internally; a sentence daṇḍa `|` is
   never letter-followed) **and a legacy compound `-`**, and **straightens curly apostrophes/double-
-  quotes → `' "`**; **reverses the CSL-marked sandhi** via `desandhi_csl` (see below); then **emits
-  the join as `|`** (a trailing internal `-` on a len>1 token → `|`) so the output matches the
-  pipe-marked training data. A lone dash stays `-`.
-- **`desandhi_csl` (`scripts/sa_tokenizer.py`) + `scripts/revert_csl_sandhi.py`** — the inverse of
-  the coalescence marks. `desandhi_csl(tokens)` walks the ordered token list and undoes ONLY the
-  notation-marked sandhi: **vowel coalescence** (the left word's `'`/`"` + the right word's
-  circumflex/macron mark `â ê î ô û / ē ō / âi âu` together encode both original vowels — split them
-  back) and **avagraha** (leading `'`→`a`). The unmarked **consonant/visarga** sandhi (visarga →
-  -o/-r/-ā, m → ṃ, t/n assimilation) is **left on the surface** — CSL leaves it ambiguous (e.g. `-r`
-  + vowel vs a genuine `-r` stem) and it cannot be reversed without a lexicon, so full pausa is not
-  deterministically recoverable (the standard Sanskrit sandhi-splitting problem). Two fallbacks
-  clear the residue from `apply_vedic_sandhi`'s single-char-particle overlap guard: an unpaired
-  trailing `'`/`"` → restore the dominant a-stem vowel (`a`/`ā`), and a leading **circumflex** (only
-  ever a coalescence mark, never genuine) → restore unconditionally. Validated: **0 residual marks**
-  over 208 k tokens; 83.7 % of marked tokens reach pure pausa (== `Unsandhied=`), the rest keep
-  consonant surface by design. `revert_csl_sandhi.py` applies the *same* `desandhi_csl` to the
-  sandhied CoNLL-U (rewriting FORM + MWT-range surfaces, regenerating `# text`) → `*.csl_rev.conllu`,
-  so training data and the runtime tokeniser produce identical forms.
+  quotes → `' "`**; **reverses the CSL-marked sandhi** via `desandhi_csl` (see below); then **drops
+  the compound-join marker** (a trailing internal `-` on a len>1 token is removed) so members are clean
+  wordforms matching the training data, with membership carried by `SpaceAfter=No` adjacency. A lone
+  dash stays `-`.
+- **`desandhi_csl` (`scripts/sa_tokenizer.py`) + `scripts/revert_csl_sandhi.py`** — normalises each
+  word toward its **pre-pausal (pausa) form**, so the parser sees ONE canonical wordform regardless
+  of the following context (less surface sparsity). `desandhi_csl(tokens)` walks the ordered token
+  list and undoes, in six stages: **(0)** on the raw surface, the dropped visarga — `-a`/`-ā` in
+  HIATUS before a vowel → `-aḥ`/`-āḥ` (a genuine `-a`/`-ā` + V would have coalesced *and been marked*,
+  so an unmarked one is a lost visarga), `-o` before avagraha / a voiced consonant → `-aḥ`
+  (`namo 'stu`→`namaḥ astu`, `vatso vi-`→`vatsaḥ`), the **ayādi glide** before a vowel → the mid
+  vowel/diphthong (`-ay/-av/-āy/-āv`→`-e/-o/-ai/-au`: `tay i-`→`te`, `tāv a-`→`tau`), and **yaṇ**
+  before a vowel → the **short** vowel (`-Cy/-Cv`→`-Ci/-Cu`: `ity a-`→`iti`, `tanv a-`→`tanu`,
+  `dadātv a-`→`dadātu`; the i/ī, u/ū length is lost so short is the default — `iti`, not `itī`), plus a
+  **bare glide** token `v`/`y` (the emphatic `u`/`i` reduced before a vowel) → `u`/`i`. NB the following
+  vowel that triggered the glide/visarga may be **hidden**: when the next word is a single-vowel particle
+  (preverb `ā`, emphatic `u`) that itself coalesces FORWARD, its vowel survives only as the mark `'`/`"`
+  (`nayatu ā agram`→`nayatv " âgram`) — and stage 0 runs *before* the marks are undone, so `rvow` also
+  counts a following `'`/`"` or a bare glide `y`/`v` as a vowel (`vai u X`→`vāy v X`, both reverted).
+  Validated over the whole Vedic gold `Unsandhied`: 112 changed / 111→gold / 0 regressions, residual stray
+  `-v`/`-y` = 0. **(0.5)** the **guṇa of a following vocalic ṛ/ḷ** (`_rev_guna_r`, the reverse of the
+  `-a/-ā + ṛ- → -ar` rule `external_sandhi` has always generated): word2's initial `r`/`l` **before a
+  consonant** → `ṛ`/`ḷ` (`ca rṣiḥ`→`ca ṛṣiḥ`, `etayā rcā`→`etayā ṛcā`, `vāmadevya- rco`→`ṛcaḥ`). Word1
+  keeps its own vowel at this junction, so — unlike coalescence — **nothing is marked** and the only cue
+  sits on word2; it is unambiguous because no native Sanskrit word may begin `r`/`l` + consonant. Runs
+  AFTER stage 0, which must still see that word2 as consonant-initial: an *unreduced* `ṛ-` after `-a`
+  means a dropped visarga (`-aḥ + ṛ- → -a ṛ-`, so `tata ṛṣiḥ`→`tataḥ ṛṣiḥ`), while the reduced `r-`
+  shows word1's `-a` is genuine. 195 corpus tokens (Vedic train 155 / dev 26 / test 14) were previously
+  left as `rṣiḥ`/`rcā`; recovery vs the gold pausa rises 94.698→94.785 % (train), 94.343→94.431 (dev),
+  94.403→94.461 (test), with **0** tokens moving away from gold. **(1)** the notation-marked
+  **vowel coalescence** (the left word's `'`/`"` + the right word's circumflex/macron mark
+  `â ê î ô û / ē ō / âi âu` encode both original vowels) and **avagraha** (leading `'`→`a`);
+  **(1.5)** the CONTEXT-SENSITIVE sibilant/palatal junctions, gated by a small **gold-derived lexicon**
+  of genuine consonant-final / ch-initial stems (`_rev_sibilant_and_c`; `_SIB_FINAL` 17 / `_C_FINAL` 19
+  / `_J_FINAL` 22 / `_L_FINAL` 1 / `_CH_INITIAL` 90, harvested from Vedic gold): word-final `-ś` before
+  c/ch and `-ṣ` before ṭ/ṭh → visarga `-ḥ` (`kratuś ca`→`kratuḥ ca`) unless a genuine `-ś`/`-ṣ` stem
+  (`diś`, `haviṣ`); word-final `-c`/`-j`/`-l` before their trigger → `-t` (`tac ca`→`tat ca`,
+  `taj jal-`→`tat jal-`) unless a genuine stem (`vāc`, `rāj`, the `-añc` directionals — `-ñc` never
+  arises from t+c so it is structurally genuine); and the `ch` of a `-c ch-` junction → `ś`
+  (`paṭhec chiva`→`paṭhet śiva`) unless a genuine ch-word (`chāyā`, `chandas`);
+  **(2)** the DETERMINISTIC final-consonant reductions — word-final `-s`/`-r` (after a vowel) →
+  visarga `-ḥ` (`tatas`→`tataḥ`, `punar`→`punaḥ`, `agnir`→`agniḥ`); voiced stop `-d`/`-g`/`-b` →
+  `-t`/`-k`/`-p` (place preserved: `tad`→`tat`, `id`→`it`); anusvara `-ṃ` before a non-sibilant
+  consonant → `-m`; gemination `-nn` → `-n`. **(3)** the **law of finals** (avasāna), a per-stem map
+  `_LAW_OF_FINALS` (57 entries, Whitney §141-2 + gold) that normalises a genuine consonant-final stem
+  to its pausa form: `-c`→`-k` / `-ñc`→`-ṅ` (`vāc`→`vāk`, `ṛc`→`ṛk`, `pratyañc`→`pratyaṅ`), the
+  lexical `-ś` split (`diś`→`dik` but `viś`→`viṭ`), the lexical `-j` split (`rāj`→`rāṭ` but `yuj`→`yuk`),
+  and `-ṣ`→`-ḥ` for `-s`-stems (`haviṣ`→`haviḥ`) / `-ṭ` for genuine `-ṣ` (`ṣaṣ`→`ṣaṭ`). Applied to
+  **compound members too** (`prāc-`→`prāk-`, the join marker preserved), so each stem has one pre-pausal
+  form regardless of position; the treebank is itself inconsistent (writes both `ṛc`/`ṛk`, `prāñc`/`prāṅ`,
+  `haviṣ`/`haviḥ`), so this collapses each genuine stem to ONE canonical pausa form. The hapax `dadhṛṣ`
+  is omitted (uncertain place). **(4)** daṇḍa normalisation (`_normalise_danda`): every DOUBLE daṇḍa
+  (`||`/`//`/`॥`/`।।`) → the single char `‖` (U+2016); a single daṇḍa stays `|`. Runs here so the corpus
+  build (`revert_csl_sandhi`) and the runtime tokeniser agree. Stage 0
+  runs BEFORE stage 1 so a coalescence-derived
+  hiatus (L ends in the elision mark) is never mistaken for a dropped visarga (L ends in a plain vowel).
+  **Punctuation: non-coalescent sandhi applies straight across a sentence-MEDIAL mark.** A comma /
+  semicolon / colon / dash / guillemet / bracket (`_MEDIAL_PUNCT`) is a typographic overlay a modern
+  editor lays over a phonological chain that does not pause there, so stages 0, 1.5 and 2 take their
+  neighbour *through* it (`_next_word`): `tataś, ca`→`tataḥ ca`, `vatso, vipra-`→`vatsaḥ`, `kiṃ, bhadre`→
+  `kim`, `tay, iti`→`te`. A **single daṇḍa counts as medial too, when the sentence is closed by a DOUBLE
+  daṇḍa** — there it is only a pāda / half-verse boundary, a metrical rather than a phonological break, so
+  sandhi reads across it (`tataś | ca gataḥ ||`→`tataḥ`). The test is DOCUMENT-dependent, exactly as in
+  `clause_parser`'s `sent_scheme = "danda"`, so `_next_word` evaluates it over the whole token list: a
+  single daṇḍa is medial iff some double daṇḍa is present. The two **coalescent** reversions (stage 1's
+  marked coalescence and stage 0.5's guṇa ṛ) stay **adjacency-only** — coalescence fuses the two vowels
+  into one syllable, so no mark can sit inside it. Everything else — `. ? ! …`, a double daṇḍa, and a
+  single daṇḍa in a text with no doubles (there it IS the sentence end) — is a **pause** (avasāna) and
+  blocks every rule: the words flanking it already stand in pausa form. Verified over the Vedic sandhied
+  corpus by inserting a mark at all 147 368 non-coalescent external junctions — a comma, and a single
+  daṇḍa under a closing `||`, each leave **0 / 206 440** reverted forms different from the un-punctuated
+  reversion, while a double daṇḍa (or a lone single one) blocks 42 031 reversions as intended.
+  This also settles the **anusvara at a pause**, consistently with the earlier decision that `-ṃ` before a
+  vowel or a pause is a GENUINE anusvara: it is now left alone before a pause daṇḍa too (`oṃ ‖`), where the
+  old code counted every daṇḍa as an ordinary following consonant and reduced it to `om` while leaving a
+  sentence-final `oṃ` — a fix in passing, and the reason the guṇa-ṛ rebuild moves **0** tokens away from
+  gold. (Before a *medial* single daṇḍa the reduction does fire, on the real following word.)
+  Residual risk, accepted: an edition that *resets to pausa* before its commas gets a spurious visarga at
+  `-a/-ā , V` junctions (`rājā, ṛtvijam`→`rājāḥ`) — but in genuinely sandhied text that junction would
+  read `rājā, rtvijam` (stage 0.5), so the two conventions stay distinguishable in practice.
+  **NOT reverted — genuinely ambiguous even with the lexicon:** the remaining palatal/retroflex finals
+  `-j`/`-h` and a word-final `-c`/`-ś`/`-ṣ` at pause or before a non-triggering segment (`diś`→dik but
+  `viś`→viṭ), and `-ā`/`-a` before a voiced consonant (a dropped `-āḥ`/`-aḥ` is indistinguishable from a
+  genuine final vowel there); these stay on the surface, as do the unpaired-mark fallbacks (unpaired
+  trailing `'`/`"` → `a`/`ā`; leading circumflex → restore). Measured on Vedic (round-trip through
+  `external_sandhi` against gold): the bare-hiatus visarga rule is **100 % clean** (5922/5922 genuine
+  visarga — since ayādi keeps its glide, it no longer collides), the ayādi glide reversal round-trips
+  exactly, and the **lexicon-gated sibilant/-c junctions are 100 % on the gold** (word2 1668/1668; the
+  `-ś`/`-ṣ` and `-c` guards 1230+438, zero genuine-stem mangling). The only accepted collision is the
+  ~0.8 % `-u`-stem vocative in `-o`, plus the yaṇ length default. That `-o` collision costs **95 train
+  tokens** (`go`→`gaḥ` 21, `viṣṇo`→`viṣṇaḥ` 19, `atho`, `bho` …) and the medial-punctuation transparency
+  exposes it a little more, since a CSL editor sets vocatives off with commas (`bho, brāhmaṇa`→`bhaḥ`);
+  a gold-derived `_O_FINAL` guard (the same shape as `_SIB_FINAL`, 47 types / 239 tokens) would fix it,
+  but it would drift the corpus, so it is **not** implemented — left as a candidate for the next rebuild. **This depends on the glide-preserving
+  ayādi in `external_sandhi.py`** — if the engine reverted to bare-hiatus ayādi, `-a/-ā` hiatus would be
+  ~33 % ayādi and the visarga rule wrong.
+  `revert_csl_sandhi.py` applies the *same* `desandhi_csl` to the sandhied CoNLL-U
+  (rewriting FORM + MWT-range surfaces, regenerating `# text`) → `*.csl_rev.conllu`; `scripts/rebuild_sa_csl_rev.sh`
+  is the full corpus driver (revert → `hyphen_to_pipe_sa` → `strip_pipe_sa` → combine Vedic-train+UFAL
+  → convert), so training data and the runtime tokeniser produce identical forms. **Outstanding after the
+  punctuation + guṇa-ṛ refinement:** the corpora on disk (and hence the trained arms) still carry the old
+  forms at the **195** guṇa-ṛ tokens — the drift is 0.10 % of train and each new form (`ṛṣiḥ` for `rṣiḥ`)
+  is the one already dominant in training, so no retrain was done; `rebuild_sa_csl_rev.sh` + base→morph→
+  lemma **was** run (2026-07-26), so corpus, model and tokeniser are back in step. The punctuation change
+  drifts **0** corpus tokens (Vedic has no punctuation; the UFAL commas and medial daṇḍas sit at junctions
+  with nothing to revert) — it is purely an inference-side fix, and the rebuild moved only the 195 guṇa-ṛ
+  tokens. Wheel repackaged (`package_lemma.sh sa`) and re-uploaded to the v0.1.0 release with `--clobber`
+  (12 020 101 bytes, sha256 `e66317f3…`). Useful check when a release is meant to be **code-only**: diff
+  the wheel against the previous asset file by file — the intermediate code-only wheel differed in exactly
+  two of 29 files (`sa_tokenizer.py` + dist-info `RECORD`), proving the weights were untouched.
 - Trained on **CSL-reverted Vedic-train + UFAL** (`corpus_sa_csl_rev/`, `config_sa.cfg`, `--code
-  scripts/sa_tokenizer.py`) → `training_sa_csl_rev/`, `metrics_sa_csl_rev.json` (gold-preproc on
-  CSL-reverted Vedic test: **LAS 54.3 / UAS 67.7 / TAG 88.3 / comp:obl F 44.5**, ~1.5 LAS under the
-  pausa baseline 55.8 and **+0.8 LAS / +2.5 comp:obl F over the sandhied-surface model** 53.5/42.0 —
-  reverting the marked sandhi removes surface variation). UFAL was put **into training**, not held
-  out. (`corpus_sa_sandhi/` + `training_sa_sandhi/` are the superseded sandhied-surface arm.)
+  scripts/sa_tokenizer.py`) → `training_sa_csl_rev/`. Gold-preproc on the pre-pausal-normalised Vedic
+  test (after the yaṇ + t-assimilation (c/j/l) + law-of-finals + daṇḍa-norm + hidden-vowel glide-follower
+  + medial-punctuation + guṇa-ṛ additions — the **current released arm**, retrained 2026-07-26):
+  **LAS 54.71 / UAS 67.63 / TAG 89.52 / POS 88.49 / morph 79.57 / lemma 86.60** (dev LAS 54.93 / UAS 68.19
+  / TAG 89.67 / POS 88.88 / lemma 86.77). The preceding (pre-punctuation) arm ran LAS 54.80 / UAS 67.94 /
+  TAG 89.77 / POS 88.62 / lemma 86.43 — i.e. flat within seed noise, on a test set whose own FORMs move
+  with each revert convention; both are well up on the earlier ayādi-only arm (54.03), with the
+  representation now linguistically
+  correct (see the ayādi/yaṇ/law-of-finals notes below). The pre-pausal normalisation collapses each
+  word's sandhi variants to one form; the numbers are not strictly comparable across
+  arms since the test FORMs themselves change with each revert convention. (comp:obl F moves with its
+  denominator and sa comp/mod is un-relabelled, so it is not the metric of interest here.) UFAL was
+  put **into training**, not held out; its 36 bare-hiatus junctions (no `Unsandhied=` to disambiguate)
+  keep the residual visarga/ayādi ambiguity, negligible against 21 k Vedic sentences. (`corpus_sa_sandhi/` + `training_sa_sandhi/` are the
+  superseded sandhied-surface arm; `backup_sa_prestrip/`, the earlier partial-revert corpora.)
 - **comp/mod stays un-relabelled.** `scripts/ufal_compmod_probe.py` confirmed on classical UFAL
   that the LLM is at chance on the case-marked Ins/Acc/Gen residue (0.43 vs 0.82 majority), same as
   Vedic — structural (Sanskrit is case-based, not prepositional).
