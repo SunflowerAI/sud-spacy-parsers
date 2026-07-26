@@ -16,11 +16,26 @@ then **reverses the CSL-marked sandhi** with `desandhi_csl` (see below).
 Input must be **word-segmented** (space-separated padas) — like the treebank; continuous
 saṃhitā/Devanagari needs sandhi splitting, which is out of scope. Runtime dependency:
 `pip install indic-transliteration` (only needed when Devanagari is fed; pure-Python, MIT).
+
+**Source offsets.** Because the tokeniser *rewrites* what it reads (Devanagari -> IAST, accents
+stripped, sandhi reverted), `doc.text` is NOT the input string and no token form need be a
+substring of it — so the usual `token.idx` is an offset into the reconstructed text and is useless
+to a caller that wants to highlight the input. Each token therefore also carries the character span
+of the RAW INPUT it came from, as spaCy extensions (registered below):
+
+    doc._.src_text          the exact string this tokeniser was handed
+    doc._.src_spans         list, one entry per token: (start, end) into `src_text`, or None
+    token._.src_span        that token's entry
+
+The spans are **purely additive** — the tokens themselves (and hence the parser's input) are
+byte-identical to what this module produced before, which is what lets the wheel be repackaged
+without retraining. `None` is reported wherever the span cannot be established honestly rather
+than a guess (see `_normalise_aligned`).
 """
 import re
 import unicodedata
 
-from spacy.tokens import Doc
+from spacy.tokens import Doc, Token
 from spacy.util import registry
 
 # Punctuation the treebanks tokenise as separate tokens (Devanagari daṇḍa ।॥, which the
@@ -74,7 +89,14 @@ def _has_devanagari(s):
 
 def normalise(text):
     text = text.translate(_STRAIGHTEN)            # curly apostrophes/double-quotes -> ASCII ' "
-    if _has_devanagari(text):
+    return _normalise_body(text, _has_devanagari(text))
+
+
+def _normalise_body(text, deva):
+    """`normalise` minus the (index-preserving) quote straightening, with the Devanagari test
+    passed in so a SEGMENT can be normalised exactly as the whole string would be — see
+    `_normalise_aligned`, which needs a piecewise normalisation to recover source offsets."""
+    if deva:
         from indic_transliteration import sanscript
         from indic_transliteration.sanscript import transliterate
         text = transliterate(text, sanscript.DEVANAGARI, sanscript.IAST)
@@ -93,6 +115,82 @@ def normalise(text):
         else:
             out.append(c)                 # keep macron / dot-below / the ś acute
     return unicodedata.normalize("NFC", "".join(out))
+
+
+# --------------------------------------------------------------------------------------------
+# SOURCE OFFSETS. `normalise` is not length-preserving (Devanagari -> IAST is many-to-many, an
+# accent mark vanishes), so an index into its output is not an index into the input. Aligning it
+# character by character would mean tracking the transliterator's akshara arithmetic — but nothing
+# needs that resolution: EVERY token boundary this tokeniser can produce falls on a character that
+# `normalise` maps 1:1 anyway. `norm.split()` cuts at whitespace, `_SPLIT` cuts at `_PUNCT`, and
+# `_HYPH` cuts at `-`; so if the input is segmented at exactly those three classes of character
+# ("anchors"), no token ever straddles a segment and a per-SEGMENT alignment is already exact. A
+# maximal run of non-anchor characters is at most one token (a Devanagari word has no interior cut
+# point), so per-segment == per-token there.
+#
+# Anchors are tested on the STRAIGHTENED text, since `_STRAIGHTEN` maps the curly quotes — which
+# are in `_PUNCT`, hence anchors — onto ' and ", which are not. That translate is 1:1, so it does
+# not disturb indices. The Indic daṇḍas ।/॥ are anchors too and so are transliterated on their own
+# (।->| 1:1, ॥->|| 1:2), each mapping wholly to its one source character.
+#
+# The piecewise result is CHECKED against `normalise(text)` and the offsets are abandoned (all
+# None) if the two disagree, so an exotic input can cost the spans but can never change the tokens.
+def _segments(s):
+    """Split `s` at anchors: each whitespace / '-' / `_PUNCT` character is its own segment, and a
+    maximal run of everything else is one segment. Returns a list of (start, end) into `s`."""
+    segs, i, n = [], 0, len(s)
+    while i < n:
+        if s[i].isspace() or s[i] == "-" or s[i] in _PUNCT:
+            segs.append((i, i + 1))
+            i += 1
+        else:
+            j = i + 1
+            while j < n and not (s[j].isspace() or s[j] == "-" or s[j] in _PUNCT):
+                j += 1
+            segs.append((i, j))
+            i = j
+    return segs
+
+
+def _normalise_aligned(text):
+    """Return (norm, start_of, end_of) where `norm` is exactly `normalise(text)` and the two dicts
+    map a boundary position in `norm` to the corresponding boundary position in `text`
+    (`start_of[a]` = where the segment starting at `a` starts in the source; `end_of[b]` = where
+    the segment ending at `b` ends). A token's normalised range [a, b) is convertible iff BOTH
+    boundaries are present — which is the honest test, since a range that begins or ends inside a
+    segment has no exact source counterpart. `start_of`/`end_of` are None when the piecewise
+    normalisation fails to reproduce `norm` (then no token gets a span)."""
+    norm = normalise(text)
+    s0 = text.translate(_STRAIGHTEN)                    # 1:1, so indices into s0 == indices into text
+    deva = _has_devanagari(s0)
+    pieces, start_of, end_of, pos = [], {}, {}, 0
+    for a, b in _segments(s0):
+        out = _normalise_body(s0[a:b], deva)
+        pieces.append(out)
+        # First writer wins for a start and last writer wins for an end, so a segment that
+        # normalises to nothing (a lone accent mark) is absorbed into its neighbour's span
+        # rather than dropped out of every span.
+        start_of.setdefault(pos, a)
+        end_of[pos + len(out)] = b
+        pos += len(out)
+    if "".join(pieces) != norm:                          # exotic input: keep the tokens, drop the spans
+        return norm, None, None
+    return norm, start_of, end_of
+
+
+def _iter_chunks(s):
+    """`s.split()` with the offset of each chunk — same `str.isspace()` test `split()` itself uses,
+    so the chunk sequence is identical to the one the tokeniser used before offsets existed."""
+    i, n = 0, len(s)
+    while i < n:
+        while i < n and s[i].isspace():
+            i += 1
+        j = i
+        while j < n and not s[j].isspace():
+            j += 1
+        if j > i:
+            yield i, s[i:j]
+        i = j
 
 
 # --------------------------------------------------------------------------------------------
@@ -526,6 +624,20 @@ def desandhi_csl(words):
     return out
 
 
+# Source-offset extensions. Registered at import (this module is the wheel's `--code` payload, so
+# importing the model registers them) and guarded, because loading two models in one process — or
+# reloading one — imports it twice and `set_extension` raises on a duplicate.
+# `force=` is deliberately NOT used: it would silently stomp on a caller's own extension.
+if not Doc.has_extension("src_text"):
+    Doc.set_extension("src_text", default=None)          # the raw string handed to the tokeniser
+if not Doc.has_extension("src_spans"):
+    Doc.set_extension("src_spans", default=None)         # per token: (start, end) into src_text, or None
+if not Token.has_extension("src_span"):
+    Token.set_extension("src_span", getter=lambda t: (
+        (t.doc._.src_spans[t.i] if t.i < len(t.doc._.src_spans) else None)
+        if t.doc._.src_spans is not None else None))
+
+
 @registry.tokenizers("sa.SanskritInputTokenizer.v1")
 def make_sanskrit_input_tokenizer():
     def create(nlp):
@@ -538,22 +650,36 @@ class SanskritInputTokenizer:
         self.vocab = vocab
 
     def __call__(self, text):
-        norm = _PIPE.sub("-", normalise(text))       # CSL compound | -> hyphen (not the daṇḍa |)
-        words, spaces = [], []
-        for chunk in norm.split():
+        # `norm` is what gets tokenised; `start_of`/`end_of` translate a boundary in it back to the
+        # raw input (None/None when that could not be done — see `_normalise_aligned`). `_PIPE.sub`
+        # is a 1:1 character substitution, so it leaves those boundaries where they are.
+        norm, start_of, end_of = _normalise_aligned(text)
+        norm = _PIPE.sub("-", norm)                  # CSL compound | -> hyphen (not the daṇḍa |)
+        words, spaces, at = [], [], []               # `at`: each token's [start, end) within `norm`
+        for c0, chunk in _iter_chunks(norm):
             toks = []
             for m in _SPLIT.finditer(chunk):
                 if m.group(1) is not None:                # a punctuation run (||, |, , ? …)
-                    toks.append(m.group(0))
+                    toks.append((m.group(0), c0 + m.start()))
                 else:                                      # a word run: split internal hyphens
-                    toks.extend(_HYPH.findall(m.group(0)))
-            for j, tk in enumerate(toks):
+                    p = c0 + m.start()
+                    for piece in _HYPH.findall(m.group(0)):   # the pieces tile the run exactly,
+                        toks.append((piece, p))               # so their lengths give the offsets
+                        p += len(piece)
+            for j, (tk, off) in enumerate(toks):
                 words.append(tk)
                 spaces.append(j == len(toks) - 1)          # space only after a chunk's last token
+                at.append((off, off + len(tk)))
         if spaces:
             spaces[-1] = False
-        if not words:
-            words, spaces = [norm or text], [False]
+        if not words and (norm or text):
+            # Nothing but whitespace: one token standing for the whole input. (Empty input falls
+            # through to an empty Doc — spaCy rejects a '' token with E031, so the old
+            # `words = [norm or text]` raised on it.)
+            words, spaces, at = [norm or text], [False], [(0, len(norm))]
+        # The two transforms below both preserve the token COUNT (`desandhi_csl` rewrites in place;
+        # the join-marker strip is a per-token edit), which is what lets the spans stay aligned even
+        # though the forms change out from under them.
         words = desandhi_csl(words)                    # reverse CSL-marked sandhi (vowel/avagraha)
         # Drop the compound-join marker so members are clean wordforms, matching the training
         # data: internally a compound member is split with a trailing '-' (from _HYPH), which is
@@ -561,7 +687,15 @@ class SanskritInputTokenizer:
         # (samāsa members) plus token adjacency (no SpaceAfter between members). A lone dash (the
         # '-' PUNCT, length 1) is a genuine dash — left as is.
         words = [w[:-1] if len(w) > 1 and w.endswith("-") else w for w in words]
-        return Doc(self.vocab, words=words, spaces=spaces)
+        doc = Doc(self.vocab, words=words, spaces=spaces)
+        doc._.src_text = text
+        # A span is emitted only when BOTH ends of the token's normalised range land on a segment
+        # boundary; anything else would be a guess, and a caller can live with a hole but not with
+        # a wrong span.
+        doc._.src_spans = [None] * len(words) if start_of is None else [
+            None if (a not in start_of or b not in end_of) else (start_of[a], end_of[b])
+            for a, b in at]
+        return doc
 
     def to_bytes(self, **kwargs):
         return b""

@@ -311,4 +311,12 @@ class ClauseParser:
                   spaces=[bool(t.whitespace_) for t in doc],
                   heads=heads, deps=deps, tags=tags, pos=poss,
                   lemmas=lemmas, morphs=morphs)
+        # Rebuilding the doc drops its extension data, so carry the Sanskrit tokeniser's source
+        # offsets (`sa_tokenizer`: doc._.src_text / src_spans, the raw-input character span of each
+        # token) across the copy — the rebuild is token-for-token, so the spans stay aligned.
+        # Guarded on the extension existing at all, since the lzh wheel bundles this module without
+        # `sa_tokenizer`, and on the value being set, so nothing is invented for other callers.
+        for attr in ("src_text", "src_spans"):
+            if Doc.has_extension(attr) and getattr(doc._, attr) is not None:
+                setattr(out._, attr, getattr(doc._, attr))
         return out

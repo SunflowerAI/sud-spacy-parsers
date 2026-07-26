@@ -486,6 +486,32 @@ training and inference. Representation, built once and shared by both treebanks:
   the compound-join marker** (a trailing internal `-` on a len>1 token is removed) so members are clean
   wordforms matching the training data, with membership carried by `SpaceAfter=No` adjacency. A lone
   dash stays `-`.
+- **Source offsets (`doc._.src_spans` / `token._.src_span` / `doc._.src_text`).** This tokeniser is the
+  only one in the project that *rewrites* what it reads, so `doc.text` is NOT the input and a token
+  form generally is not a substring of it (`śaśa-bhṛto` → `śaśa` + `bhṛtaḥ`) — `token.idx` indexes the
+  reconstructed string and is useless to a caller wanting to decorate the input. Every token therefore
+  also carries the **half-open character span of the raw input it came from**, as spaCy extensions
+  registered at import of the `--code` module (guarded with `has_extension`, since loading two models
+  in one process imports it twice). It is **purely additive: the token list is byte-identical**, which
+  is what let the wheel be repackaged with no retrain (verified over 27 420 corpus `# text` lines,
+  0 differences; and the rebuilt wheel differs from the previous asset in exactly `sa_tokenizer.py`,
+  `clause_parser.py` and the dist-info `RECORD`). Mechanism: `normalise` is not length-preserving
+  (Devanagari→IAST is many-to-many, an accent mark vanishes), but **every token boundary this tokeniser
+  can produce falls on a character that `normalise` maps 1:1** — `split()` cuts at whitespace, `_SPLIT`
+  at `_PUNCT`, `_HYPH` at `-` — so `_normalise_aligned` segments the input at exactly those three
+  classes ("anchors"), normalises each segment on its own, and aligns segment-to-segment; a maximal run
+  of non-anchors is at most one token (a Devanagari word has no interior cut point), so per-segment IS
+  per-token. Anchors are tested AFTER `_STRAIGHTEN` (which maps the curly quotes — themselves in
+  `_PUNCT` — onto `'`/`"`, which are not) and the Indic daṇḍas are anchors, so each is transliterated
+  alone (`।`→`|`, `॥`→`||`). The piecewise result is **checked** against `normalise(text)` and all spans
+  are dropped (None) if they disagree, so an exotic input can cost the offsets but can never change the
+  tokens. Downstream the spans survive because `desandhi_csl` and the join-marker strip both preserve
+  the token COUNT (the forms change under the spans, which is the point), and because `clause_parser`
+  copies them onto the doc it rebuilds. A token gets `None` rather than a guess whenever its normalised
+  range does not land on segment boundaries at both ends; in practice that is never (208 567/208 567
+  corpus tokens spanned), and the spans **tile the input exactly** — the only characters in no span are
+  the spaces between tokens, and a compound member owns its join hyphen (`śaśa` ← `śaśa-`). Empty input
+  now yields an empty `Doc`; it used to raise `E031` on the `words = [norm or text]` fallback.
 - **`desandhi_csl` (`scripts/sa_tokenizer.py`) + `scripts/revert_csl_sandhi.py`** — normalises each
   word toward its **pre-pausal (pausa) form**, so the parser sees ONE canonical wordform regardless
   of the following context (less surface sparsity). `desandhi_csl(tokens)` walks the ordered token
@@ -591,7 +617,10 @@ training and inference. Representation, built once and shared by both treebanks:
   tokens. Wheel repackaged (`package_lemma.sh sa`) and re-uploaded to the v0.1.0 release with `--clobber`
   (12 020 101 bytes, sha256 `e66317f3…`). Useful check when a release is meant to be **code-only**: diff
   the wheel against the previous asset file by file — the intermediate code-only wheel differed in exactly
-  two of 29 files (`sa_tokenizer.py` + dist-info `RECORD`), proving the weights were untouched.
+  two of 29 files (`sa_tokenizer.py` + dist-info `RECORD`), proving the weights were untouched. The
+  **source-offset** release (see the `src_spans` bullet above) is the same shape: code-only, three of 29
+  files differing (`sa_tokenizer.py`, `clause_parser.py`, `RECORD`), 12 023 374 bytes, sha256
+  `967bfe31…`, re-clobbered over v0.1.0.
 - Trained on **CSL-reverted Vedic-train + UFAL** (`corpus_sa_csl_rev/`, `config_sa.cfg`, `--code
   scripts/sa_tokenizer.py`) → `training_sa_csl_rev/`. Gold-preproc on the pre-pausal-normalised Vedic
   test (after the yaṇ + t-assimilation (c/j/l) + law-of-finals + daṇḍa-norm + hidden-vowel glide-follower

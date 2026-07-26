@@ -112,7 +112,10 @@ consonant/visarga sandhi (visarga → -o/-r, m → ṃ, t/n assimilation) on the
 it ambiguously and it cannot be reversed without a lexicon. The parser is trained on those same
 CSL-reverted forms, which beats training on the sandhied surface (LAS 54.8 vs 53.5). The CSL representation is built by `scripts/external_sandhi.py` +
 `apply_vedic_sandhi.py` (Vedic) and `sa_csl_prep.py` (UFAL), then reverted by `revert_csl_sandhi.py`
-(sharing the tokeniser's `desandhi_csl`). Classical Chinese ships the
+(sharing the tokeniser's `desandhi_csl`). Because the tokeniser rewrites what it reads, no token
+form need be a substring of the input — so every token also carries **the character span of the raw
+input it came from**, as `token._.src_span` (with `doc._.src_spans` and `doc._.src_text`), for a
+caller that wants to map the analysis back onto the text as typed. Classical Chinese ships the
 **extended-scope** parser: its disambiguation signal does not live on the plain `udep` adpositions
 (those are mostly modifiers — the near-vacuous pattern seen at Korean's verb-ADP scope) but on the
 treebank's locative/temporal coverb subtypes (`udep@lmod`/`@tmod`), which the extended scope
