@@ -36,20 +36,20 @@ def coarsen(comments, toks, mwts):
                     or g_of[idx_of[int(toks[k].head)]] != gi), cov[0])
         rt = toks[rep]
         heads.append(0 if rt.head == "0" else g_of[idx_of[int(rt.head)]] + 1)
-        # the merged token's lemma is the representative (host) token's lemma — the enclitic
+        # the merged token's lemma/feats are the representative (host) token's — the enclitic
         # (-nya/-lah/…) is a clitic, not part of the lemma (penghuninya -> penghuni).
-        meta.append((form, rt.lemma, rt.upos, rt.xpos, rt.deprel, misc))
+        meta.append((form, rt.lemma, rt.upos, rt.xpos, rt.feats, rt.deprel, misc))
 
     repair_tree(heads)
     rows = []
-    for gi, (form, lemma, up, xp, dep, misc) in enumerate(meta):
+    for gi, (form, lemma, up, xp, feats, dep, misc) in enumerate(meta):
         h = heads[gi]
         if h == 0 and dep != "root":
             dep = "root"
         elif h != 0 and dep == "root":
             dep = "parataxis"
         sa = "SpaceAfter=No" if "SpaceAfter=No" in misc.split("|") else "_"
-        rows.append([str(gi + 1), form, lemma or "_", up, xp, "_", str(h), dep, "_", sa])
+        rows.append([str(gi + 1), form, lemma or "_", up, xp, feats or "_", str(h), dep, "_", sa])
     return comments, rows
 
 def main():

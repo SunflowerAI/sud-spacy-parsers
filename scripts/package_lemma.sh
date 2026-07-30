@@ -2,8 +2,11 @@
 # Package the lemmatiser-equipped wheels (v0.1.0, to clobber the existing release). Each arm is
 # training_<lang>_lemma/model-best = [tok2vec, tagger, parser, morphologizer, lemmatizer]. lzh/sa
 # get clause_parser re-appended first (it runs AFTER the lemmatizer and now carries lemma/morph
-# through its per-clause re-parse); yue gets the pkuseg tokenizer swapped in. zh/la/sa also carry
-# the renamed package names (sud_gsd_simp_trad / sud_ittb_proiel_perseus / sud_vedic_ufal_csl).
+# through its per-clause re-parse); yue gets the pkuseg tokenizer swapped in; id gets
+# id_lemma_case_fix re-appended (safety-net override for the trainable_lemmatizer's
+# sentence-initial-capitalisation gap on hyphenated forms, see scripts/id_lemma_case_fix.py).
+# zh/la/sa also carry the renamed package names (sud_gsd_simp_trad / sud_ittb_proiel_perseus /
+# sud_vedic_ufal_csl).
 # Usage: bash scripts/package_lemma.sh en ar fa ja id ko la zh yue lzh sa
 cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
 export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
@@ -26,7 +29,10 @@ case $lang in
   ar)  pkg ar  training_ar_lemma/model-best  sud_padt                "--code scripts/ar_tokenizer.py" ;;
   fa)  pkg fa  training_fa_lemma/model-best  sud_perdt               "" ;;
   ja)  pkg ja  training_ja_lemma/model-best  sud_gsd                 "" ;;
-  id)  pkg id  training_id_lemma/model-best  sud_gsd                 "" ;;
+  id)  $PY scripts/add_id_lemma_case_fix.py training_id_lemma/model-best training_id_lemma/model-final \
+            >/dev/null 2>&1
+       pkg id  training_id_lemma/model-final sud_gsd \
+            "--code scripts/id_lemma_case_fix.py" ;;
   ko)  pkg ko  training_ko_lemma/model-best  sud_gsd                 "" ;;
   la)  pkg la  training_la_lemma/model-best  sud_ittb_proiel_perseus "" ;;
   zh)  pkg zh  training_zh_lemma/model-best  sud_gsd_simp_trad       "" ;;

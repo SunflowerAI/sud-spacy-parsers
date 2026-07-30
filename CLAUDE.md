@@ -145,6 +145,45 @@ notes above; their corpora had been 100 % `_`, which would have made those two l
 ~+1 MB; re-released over v0.1.0 (clobber). NB the lemmatiser is a purely additive layer — the frozen
 tok2vec/tagger/parser/morphologizer stay byte-identical, so parsing/UPOS metrics are unchanged.
 
+### Indonesian FEATS bug + lemma sentence-initial-casing fix (`coarsen_id.py`, `id_lemma_case_fix.py`)
+
+`coarsen_id.py` hardcoded the merged token's FEATS column to `_` (same bug the lemma column had
+before it was fixed to use `rt.lemma`), so `corpus_id_coarse_rl` — what the id `morphologizer` and
+`lemmatizer` train on — had **0 %** non-empty FEATS despite the source treebank carrying real
+morphology (`Number`, `Voice`, `PronType`, `NumType`, …) on ~42 % of tokens; the trained
+morphologizer accordingly predicted empty morph on every live token, while `spacy train`'s own
+dev-set `MORPH_ACC` misleadingly read 100.00 (trivially correct against an all-empty gold). Fixed
+by using `rt.feats` (the `Tok` class already carried it, `retokenize.py:29`, just never read);
+rebuilt `assets_id_coarse_rl`/`corpus_id_coarse_rl` and retrained `training_id_morph`/
+`training_id_lemma` — now a real **`morph_acc` 0.909** (`Number=Plur` on reduplicated nouns,
+`Voice=Act`/`Voice=Pass` on active/passive verbs, `PronType=Dem`/`NumType=Card` etc. all predicted
+correctly on raw text).
+
+Separately (unrelated root cause): the `trainable_lemmatizer` mis-lemmatised sentence-initial
+capitalised **hyphenated** forms (`Anggota-anggota`→`Anggota-anggota` instead of `anggota`) even
+though the exact same word lemmatises correctly lowercase, and even when the capitalised instance
+*was* in the training data. Diagnosed via `EditTrees.add`: edit trees are literal-content
+substitutions (the leaf stores the exact characters to delete/insert), so a capitalised token and
+its lowercase counterpart get two **different** trees; sentence-initial capitalisation makes the
+capitalised tree a near-singleton (one training instance per distinct word) that the classifier
+can't reliably learn to select — confirmed the correct tree already existed in the trained model
+(`trees.apply` produces the right answer), the classifier just doesn't predict it at inference.
+Plain (non-hyphenated) capitalised words are unaffected (`Buku`→`buku`, `Jakarta`→`jakarta` already
+generalise fine — they share trees with hundreds of other simple downcasings). Fixed with a small
+deterministic safety-net component, **`id_lemma_case_fix`** (`scripts/id_lemma_case_fix.py`,
+appended after the lemmatizer like `clause_parser`): overrides the lemma from a
+`FORM.lower()`→`LEMMA` table harvested from the training treebank by `build_id_lemma_lut.py`
+(scoped to hyphenated forms only, 398 entries, embedded as a dict literal in the module — a couple
+of GSD gold rows with a stray XPOS/Morf fragment leaked into LEMMA were filtered out), but **only**
+when the lemmatizer's prediction equals the raw surface form (the observed failure signature) and
+the token is simple initial-cap (`text[1:] == text[1:].lower()`) — so it never touches an
+already-correct prediction. `package_lemma.sh id` now runs `add_id_lemma_case_fix.py` before
+packaging (mirrors `add_clause_parser.py` for lzh/sa); verified in the built wheel
+(`id_sud_gsd-0.1.0`) via a clean venv install, not just the loose `training_id_lemma` dir.
+Separately noticed but **not fixed** (out of scope, pre-existing): the raw-text tokeniser
+inconsistently splits some capitalised hyphenated reduplications (`Argumen-argumen` → 3 tokens)
+that lowercase forms tokenise as one — a tokeniser-boundary issue, not a lemma/morph one.
+
 ### SUD-relation conformance (`normalise_reparandum.py`)
 
 Two SUD-relation audits against the guidelines: (1) `conj` is correctly **chained** (each conjunct →
