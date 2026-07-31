@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""Compare the trained `sud_tagger` against `sud_reported_rule`, end to end.
+
+Both are run over gold TOKENS with everything else predicted, so the comparison is on the same
+footing -- the rule reads the parser's deprels and the morphologiser's VerbForm/Mood, the trained
+pipe reads only surface forms through its own encoder.
+
+CAVEAT, and it is a large one: there is NO independent gold for `Reported`. The treebanks annotate
+it nowhere, so the target here is the bootstrapped file, which is itself these rules plus an LLM
+pass over the residue. The rule therefore scores high substantially BY CONSTRUCTION. What the
+comparison shows is which component reproduces the intended annotation at inference, not which
+annotation is correct.
+
+    scripts/eval_sud_reported.py --lang la
+"""
+import argparse
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+import spacy  # noqa: E402
+from spacy.tokens import Doc  # noqa: E402
+
+import seg_code  # noqa: E402,F401
+import sud_reported_rule  # noqa: E402,F401
+from sud_misc import get_misc  # noqa: E402
+
+TEST = {
+    "en": "assets/en_ewt-sud-{split}.relabeled_ext.reported.conllu",
+    "ar": "assets_ar/SUD_Arabic-PADT/ar_padt-sud-{split}.relabeled_ext.reported.conllu",
+    "fa": "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-{split}.relabeled_ext.reported.conllu",
+    "la": "assets_la/la_ittbproiel-sud-{split}.relabeled_ext.reported.conllu",
+    "sa": "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{split}.csl_rev.reported.conllu",
+}
+LEMMA_ARM = {"sa": "training_sa_lemma3_noannot/model-best"}
+
+
+def sentences(path):
+    block = []
+    for line in open(path, encoding="utf-8"):
+        line = line.rstrip("\n")
+        if not line:
+            if block:
+                yield block
+            block = []
+            continue
+        if line.startswith("#"):
+            continue
+        f = line.split("\t")
+        if "-" in f[0] or "." in f[0]:
+            continue
+        block.append(f)
+    if block:
+        yield block
+
+
+def score(nlp, rows_iter):
+    tp = fp = fn = skipped = 0
+    for rows in rows_iter:
+        doc = Doc(nlp.vocab, words=[f[1] or "_" for f in rows])
+        doc = nlp(doc)
+        if len(doc) != len(rows):
+            skipped += 1
+            continue
+        for tok, f in zip(doc, rows):
+            pred = get_misc(tok, "Reported") == "Yes"
+            gold = "Reported=Yes" in f[9]
+            tp += pred and gold
+            fp += pred and not gold
+            fn += gold and not pred
+    P = tp / (tp + fp) if tp + fp else 0.0
+    R = tp / (tp + fn) if tp + fn else 0.0
+    F = 2 * P * R / (P + R) if P + R else 0.0
+    return P, R, F, tp + fn, skipped
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--lang", required=True, choices=sorted(TEST))
+    ap.add_argument("--split", default="test")
+    ap.add_argument("--trained", default=None,
+                    help="override the trained arm dir (e.g. training_ar_sudrep/model-best)")
+    args = ap.parse_args()
+
+    path = TEST[args.lang].format(split=args.split)
+    if not pathlib.Path(path).exists():
+        sys.exit(f"missing {path}")
+    rows = list(sentences(path))
+    print(f"{args.lang} {args.split}   (gold tokens, everything else predicted)")
+
+    trained = args.trained or f"training_{args.lang}_sud/model-best"
+    if pathlib.Path(trained).exists():
+        nlp = spacy.load(trained)
+        if "sud_reported" in nlp.pipe_names:
+            P, R, F, n, sk = score(nlp, rows)
+            print(f"  sud_tagger (trained)  gold={n:5}  P={P:7.2%} R={R:7.2%} F={F:7.2%}")
+        else:
+            print(f"  sud_tagger (trained)  -- no sud_reported pipe in {trained}")
+    else:
+        print(f"  sud_tagger (trained)  -- {trained} missing")
+
+    lemma = LEMMA_ARM.get(args.lang, f"training_{args.lang}_lemma/model-best")
+    if pathlib.Path(lemma).exists():
+        nlp = spacy.load(lemma)
+        if "sud_reported_rule" in nlp.pipe_names:
+            nlp.remove_pipe("sud_reported_rule")
+        nlp.add_pipe("sud_reported_rule", last=True, config={"lang": args.lang})
+        P, R, F, n, sk = score(nlp, rows)
+        print(f"  sud_reported_rule     gold={n:5}  P={P:7.2%} R={R:7.2%} F={F:7.2%}")
+    else:
+        print(f"  sud_reported_rule     -- {lemma} missing")
+
+
+if __name__ == "__main__":
+    main()

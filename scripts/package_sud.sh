@@ -1,0 +1,110 @@
+#!/bin/bash
+# Package the SUD-MISC-equipped wheels: the lemma arms plus SUD's own MISC layer
+# (Idiom / InIdiom / Subject / Reported) on Token._.sud_misc.
+#
+# WHICH ARM PER LANGUAGE IS AN EMPIRICAL CHOICE, not a uniform recipe. Measured end-to-end on
+# test (scripts/eval_sud_subject.py; gold tokens, everything else predicted), `Subject` F is:
+#
+#     lang   trained   rule     ships      n(test)
+#     en      80.0     63.9     trained      266
+#     fa      89.5     71.6     trained       38
+#     la      66.3     53.0     trained      674
+#     yue     66.7     36.4     trained        6   (n=6 -- not meaningful either way)
+#     lzh     59.0     80.7     RULE         174
+#     zh      27.7     31.6     rule          302  (both weak; see CLAUDE.md)
+#     sa      10.5     12.5     NEITHER        14  (142 train instances -- too sparse to ship)
+#
+# The split is not arbitrary: Classical Chinese raising rides on a handful of verbs (可/能/欲), which
+# a 7-entry frame table captures and a small neural encoder cannot beat; English, Persian and Latin
+# raising has a long lexical tail, where the table's recall is fine but its precision collapses.
+#
+# The idiom layer is deterministic everywhere and needs no training -- it is added to the seven arms
+# whose treebanks annotate idioms (en/lzh/ja/fa/ar/la/sa). zh/yue/ko/id carry none.
+#
+# ORDERING: sud_* pipes go LAST, after clause_parser on lzh/sa. clause_parser reassigns every head
+# and deprel, so sud_idiom (which reads `unk`) has to see the tree it leaves behind.
+#
+# Usage: bash scripts/package_sud.sh en ar fa ja id ko la zh yue lzh sa
+cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+PY=.venv/bin/python
+CODE_BASE="scripts/sud_misc.py,scripts/sud_idiom.py"
+# arms that also ship the Reported rule (en/ar/sa -- see the table below)
+CODE_REP="$CODE_BASE,scripts/sud_reported_data.py,scripts/sud_reported_rule.py"
+
+pkg() {  # $1=lang  $2=src model dir  $3=--name value  $4=comma-separated --code files (no flag)
+  local lang=$1 src=$2 name=$3 code=""
+  [ -n "$4" ] && code="--code $4"
+  if [ ! -d "$src" ]; then echo "  $lang: SRC $src missing — skip"; return; fi
+  rm -rf build_sud/$lang && mkdir -p build_sud/$lang
+  $PY -m spacy package "$src" build_sud/$lang --name "$name" --version 0.1.0 $code \
+    --build wheel --force >build_sud/$lang.log 2>&1
+  local whl=$(find build_sud/$lang -name '*.whl')
+  echo "  $lang -> ${whl:-FAILED}"
+  [ -z "$whl" ] && tail -8 build_sud/$lang.log
+}
+
+# add_idiom <in> <out> -- deterministic Idiom=Yes / InIdiom=Yes, last in the pipeline
+add_idiom() { $PY scripts/add_sud_idiom.py "$1" "$2" >/dev/null 2>&1; }
+
+for lang in "$@"; do
+  # Base arm: the trained SUD arm where it won, else the released lemma arm.
+  case $lang in
+    en|fa|la|yue) base=training_${lang}_sud/model-best ;;
+    sa)           base=training_sa_lemma3_noannot/model-best ;;
+    *)            base=training_${lang}_lemma/model-best ;;
+  esac
+  work=build_sud/work_$lang
+  rm -rf "$work" && mkdir -p build_sud
+
+case $lang in
+  en)  $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang en >/dev/null 2>&1
+       add_idiom "$work.rep" "$work"
+       pkg en  "$work" sud_ewt   "$CODE_REP,scripts/sud_tagger.py" ;;
+       # fa/la ship NO Reported layer. fa's structural arm does beat its rule (F 40.0 vs 23.5,
+       # because fa's gold is 87% LLM-decided and the rule can only reach recall 0.13) -- but at
+       # P 0.50 half of what it emits is wrong, which is not worth shipping. la is worse still:
+       # F 17.7 by rule, 0.0 trained, a four-deep chain of predicted lemma/deprel/VerbForm/Mood.
+       # Both keep the Subject layer and the idiom layer.
+  fa)  $PY scripts/add_sud_idiom.py "$base" "$work" --drop sud_reported >/dev/null 2>&1
+       pkg fa  "$work" sud_perdt "$CODE_BASE,scripts/sud_tagger.py" ;;
+  la)  $PY scripts/add_sud_idiom.py "$base" "$work" --drop sud_reported >/dev/null 2>&1
+       pkg la  "$work" sud_ittb_proiel_perseus "$CODE_BASE,scripts/sud_tagger.py" ;;
+  ar)  $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang ar >/dev/null 2>&1
+       add_idiom "$work.rep" "$work"
+       pkg ar  "$work" sud_padt  "$CODE_REP,scripts/ar_tokenizer.py" ;;
+  ja)  add_idiom "$base" "$work"
+       pkg ja  "$work" sud_gsd   "$CODE_BASE" ;;
+       # zh ships NO Subject layer: trained F 27.7 / rule 31.6 on test, both too weak to be worth
+       # emitting -- an annotation wrong two times in three is worse than none. Chinese raising is
+       # marked by 是/被/了 constructions the frame table cannot separate from ordinary comp:obj.
+       # (zh also annotates no idioms, so it gets no SUD MISC layer at all.)
+  zh)  pkg zh  "$base" sud_gsd_simp_trad "" ;;
+       # lzh DOES ship the frame rule (F 80.7 vs 59.0 trained -- 可/能/欲 carry it).
+  lzh) $PY scripts/add_clause_parser.py "$base" "$work.seg" >/dev/null 2>&1
+       $PY scripts/add_sud_subject_rule.py "$work.seg" "$work.rule" --lang lzh >/dev/null 2>&1
+       add_idiom "$work.rule" "$work"
+       pkg lzh "$work" sud_kyoto \
+            "$CODE_BASE,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py" ;;
+       # sa: Subject is too sparse to ship (142 train / 14 test); the idiom layer still applies.
+       # sa_compound must stay FIRST (the encoder reads MORPH); clause_parser before sud_idiom.
+  sa)  $PY scripts/add_sa_compound.py "$base" "$work.compound" >/dev/null 2>&1
+       $PY scripts/add_clause_parser.py "$work.compound" "$work.seg" \
+            --punct-tag PUNCT --sent-scheme danda >/dev/null 2>&1
+       $PY scripts/add_sud_reported_rule.py "$work.seg" "$work.rep" --lang sa >/dev/null 2>&1
+       add_idiom "$work.rep" "$work"
+       pkg sa  "$work" sud_vedic_ufal_csl \
+            "$CODE_REP,scripts/sa_tokenizer.py,scripts/clause_parser.py" ;;
+  yue) $PY scripts/bundle_yue_pkuseg.py --src "$base" --out "$work.pkuseg" >/dev/null 2>&1
+       pkg yue "$work.pkuseg" sud_hk \
+            "$CODE_BASE,scripts/yue_tokenizer.py,scripts/sud_tagger.py" ;;
+       # id/ko annotate none of the four keys, so they are unchanged from package_lemma.sh.
+  id)  $PY scripts/add_id_lemma_case_fix.py "$base" "$work" >/dev/null 2>&1
+       pkg id  "$work" sud_gsd "scripts/id_lemma_case_fix.py" ;;
+  # (ko takes no --code at all)
+  ko)  pkg ko  "$base" sud_gsd "" ;;
+  *) echo "  unknown lang: $lang" ;;
+esac
+done
+echo "Wheels in build_sud/*/dist/. Upload with:"
+echo "  gh release upload v0.1.0 \$(find build_sud -name '*.whl') --clobber"

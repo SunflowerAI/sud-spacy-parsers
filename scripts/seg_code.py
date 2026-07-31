@@ -30,5 +30,10 @@ def _load(fname):
 
 
 for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
-           "sa_tokenizer.py", "clause_parser.py"):
+           "sa_tokenizer.py", "clause_parser.py",
+           # registers sud.MultiHashEmbedAffix.v1 (per-component affix windows; sa morph/lemma)
+           "sud_affix_embed.py",
+           # sud_misc first: sud_tagger imports it. (sud_idiom is packaging-time only and needs
+           # no registration here, as with id_lemma_case_fix.)
+           "sud_misc.py", "sud_tagger.py"):
     _load(_f)

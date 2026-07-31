@@ -16,7 +16,17 @@ Then package + release:
   gh release upload v0.1.0 build_yue/yue_sud_hk-0.1.0/dist/yue_sud_hk-0.1.0-py3-none-any.whl --clobber
 (remember to add spacy-pkuseg to training_yue_ext_pkuseg/meta.json "requirements" first.)
 """
-import argparse, importlib.util, json, spacy
+import argparse, importlib.util, json, pathlib as _pl, sys as _sys
+
+# The source arm may carry custom pipes (e.g. sud_tagger on the SUD MISC arm); spacy.load needs
+# their factories registered or it fails with E002.
+_sys.path.insert(0, str(_pl.Path(__file__).resolve().parent))
+try:
+    import seg_code  # noqa: F401
+except Exception as _e:
+    print(f"bundle_yue_pkuseg: seg_code not loaded ({type(_e).__name__}: {_e})")
+
+import spacy
 
 SRC = "training_yue_ext/model-best"
 PKUSEG = "models/yue_hk_pkuseg_scratch"

@@ -851,24 +851,40 @@ expectation that other morphology-heavy languages (ar/la/fa/ko) will follow.
   tokeniser ran (`doc._.compound_flags` set) it defers, else it re-derives the feat from token
   adjacency (no intervening space, minus `_NON_COMPOUND_JOIN` and punctuation junctions). **On real
   text it is exact — 19 584/19 584 tokens agree with the tokeniser, precision 1.0000.**
-- **CAVEAT — a PARTIAL `Compound` is worse than none, so do NOT evaluate through the fallback.**
-  The one thing adjacency cannot see is an **elided** compound member: the treebank writes those
-  FORM `_` with a trailing space (282 in test; every unrecoverable token is a `_`). They cannot
-  occur in real input, but on the treebank the gap is actively harmful — token input scores **LAS
-  0.5169 (no feat) / 0.4826 (fallback) / 0.5601 (full feat)**. Training always had the feat on every
-  compound member, so an *unmarked* member reads as positive evidence of "not a compound", which is
-  worse than uniform absence. Marking every `_` is not a fix (only 81 % are compounds; it would
-  destroy the precision-1.0 property). **Evaluate with `scripts/eval_sa_compound.py`** (supplies the
-  feat from the reference via `CompoundCorpus`), NOT `spacy evaluate` and NOT via the fallback;
-  `--plain` reproduces the broken measurement for comparison.
+- **An UNSET MORPH and an EMPTY one are different inputs (bug, fixed 2026-07-31, worth 6.8 LAS).**
+  `sud.CompoundCorpus.v1` builds each training doc blank and calls `set_morph("Compound=Yes")` on the
+  compound members only, so every other token's MORPH stays **unset** (key `0`). The tokeniser built
+  its doc the other way — `Doc(..., morphs=["Compound=Yes" if c else "", ...])` — and an **empty**
+  morph is a *different* key (`456`), so at inference the encoder got a MORPH value it had never seen
+  in training on ~94 % of tokens. Both render as `''`, so no string-level check could catch it, and
+  there is no warning. On the Vedic test it cost the entire raw-text path **LAS 0.5629 → 0.4948**.
+  The fix (`sa_tokenizer.py`, both `SanskritInputTokenizer.__call__` and `SaCompound.__call__` —
+  never `set_morph("")` on an already-unset token) makes raw gold-CSL input score **bit-identical to
+  gold-preproc on every metric**. The token list and `src_spans` are untouched (209 455/209 455
+  spanned over 27 532 corpus `# text` lines). **Any future component that stamps MORPH must set it
+  only where it has a value.**
+- **The fallback IS better than nothing** — the earlier "a partial `Compound` is worse than none"
+  claim was itself an artifact of the bug above and is now **withdrawn**. Adjacency cannot see an
+  **elided** compound member (the treebank writes those FORM `_` with a trailing space; 282 in test,
+  and every unrecoverable token is a `_`), so the fallback supplies 737 of 1 019. Corrected token-input
+  numbers: **LAS 0.5169 (no feat) / 0.5478 (fallback) / 0.5601 (full feat)** — monotonic, so the
+  fallback recovers about 72 % of the feature's value. Marking every `_` is still not a fix (only
+  81 % are compounds; it would destroy the precision-1.0 property). Elided tokens cannot occur in
+  real input, so on real text the fallback is exact. Still **evaluate with
+  `scripts/eval_sa_compound.py`** (supplies the feat from the reference via `CompoundCorpus`) rather
+  than `spacy evaluate`, and do **not** add `sa_compound` to an eval pipeline that already gets the
+  feat from the reference — it re-derives and overwrites the reference's 1 019 with its own 737
+  (LAS 0.5601 → 0.5519).
 
 ### NEGATIVE RESULT: do NOT widen sa PREFIX/SUFFIX (costs 2.9 LAS)
 
 `PREFIX`/`SUFFIX` are plain entries in `lex_attr_getters` (`spacy/lang/lex_attrs.py`, `string[0]` and
-`string[-3:]`), so a language may widen them — `sa_tokenizer` does it on `Sanskrit.Defaults`, which
-affects **sa only** (verified: la/ar/fa/ko/en keep 1/3). `SA_PREFIX_LEN`/`SA_SUFFIX_LEN` override them
-for ablations; they are NOT a runtime knob (a model trained at one width and loaded at another
-degrades silently, with nothing in the config to catch it). **The shipped arm uses spaCy's 1/3.**
+`string[-3:]`), so a language *may* widen them by overriding `Sanskrit.Defaults` — that is what the
+ablation below did, and it affects **sa only** (la/ar/fa/ko/en keep 1/3). It is NOT a runtime knob: a
+model trained at one width and loaded at another degrades silently, with nothing in the config to
+catch it. **The shipped arm uses spaCy's 1/3, and `scripts/sa_tokenizer.py` no longer contains the
+override or the `SA_PREFIX_LEN`/`SA_SUFFIX_LEN` knobs at all** — only the warning comment that
+records why (L628-632). Reinstating them means re-adding the `Defaults` patch, not flipping a flag.
 
 Widening to PREFIX 3 / SUFFIX 6 was tried and **regressed everything but the tagger**: vs the Compound
 arm, LAS −2.9, morph_acc −3.8, lemma −3.7 (tag +0.16). Why the reasoning that motivated it was wrong:
@@ -887,3 +903,262 @@ Also ruled out: **`annotating_components = ["morphologizer"]`** on the lemma con
 conditions on predicted FEATS instead of nothing) is **not** worth it — lemma_acc 0.8627 with vs
 0.8645 without. Predicted `Case` at F 0.856 adds about as much noise as signal to an edit-tree
 classifier that already has the whole form in `NORM`. Left at `[]`, matching the other ten arms.
+
+## SUD's own MISC layer: `Idiom`/`InIdiom`, `Subject`, `Reported` (`sud_misc.py`, `sud_idiom.py`, `sud_tagger.py`)
+
+The released pipelines emit XPOS, UPOS+FEATS, deprel and lemma — everything that lives in the FEATS
+column of the training CoNLL-U. SUD's own **MISC** layer was invisible, and not merely unscored:
+`spacy convert --converter conllu` reads field 10 for exactly two things (`SpaceAfter=No` and the
+NER pattern) and **discards the rest** (`spacy/training/converters/conllu_to_docs.py`), so
+`Subject=`, `Idiom=`, `InIdiom=` never reached the `.spacy` corpora at all.
+
+**Output slot: `Token._.sud_misc`** (a dict; `scripts/sud_misc.py` owns it, with `set_misc`/
+`get_misc`/`misc_string` and a `has_extension` guard). `token.morph` is deliberately **not** touched,
+so the morphologiser's FEATS output is unchanged and a MISC feature never masquerades as a
+morphological one. All four keys go to MISC, following the treebanks — note SUD's guidelines list
+`Subject` among the morpho-syntactic (FEATS) features, so data and prose disagree; we follow the data.
+
+**Gold transport (training only).** Since `spacy convert` drops MISC, `scripts/hoist_sud_gold.py`
+copies the keys into FEATS under a **`Sud` prefix** (`SudSubject=SubjRaising`) so a hoisted key can
+never be confused with a real feature; `sud_tagger` reads only prefixed keys. Verified byte-identical
+except the FEATS cell on exactly the affected rows. Side effect: the frozen morphologiser is then
+scored against gold FEATS carrying keys it was never trained to predict, so **`morph_acc` in these
+arms' logs reads artificially low** — cosmetic (frozen, score weight 0).
+
+### `Idiom`/`InIdiom` — exactly deterministic, no training (`sud_idiom.py`)
+
+SUD marks idioms with features rather than a `fixed` relation: the head carries `Idiom=Yes` + an
+`ExtPos`, the other members `InIdiom=Yes`, and unanalysable members attach by `unk`. That is a
+recipe, and an exact one — measured over train in all seven treebanks that annotate idioms:
+
+    Idiom=Yes    <=> has ExtPos AND has an `unk` dependent                    P = R = 100 %
+    InIdiom=Yes  <=> attaches by `unk`, and walking up through consecutive
+                     `unk` links reaches a head with ExtPos                   P = R = 100 % (la 99.9)
+
+Both conjuncts are needed: `unk` alone gives `InIdiom` precision fa 6.5 / ar 53 / en 75 %, and
+`ExtPos` alone over-predicts `Idiom` in English (702 ExtPos vs 477 Idiom). Both inputs are already
+predicted by the released pipeline, so this needs **no training, no corpus rebuild, no retrain** —
+appended at packaging time like `id_lemma_case_fix`, via `add_sud_idiom.py`.
+
+**End-to-end it is much lower**, because it inherits the morphologiser's `ExtPos` and the parser's
+`unk` errors — `scripts/eval_sud_idiom.py` reports both numbers, and the gap is the honest measure.
+Test, gold trees → end-to-end **F**: ja 100→96.8/95.7, en 100→84.6/82.1, sa 99.6→77.7/81.3,
+fa 100→72.7 (n=6), ar 100→67.3/68.4, lzh 100→66.0/68.8, **la 100→35.3/50.0** (la has only 489 train
+`ExtPos` in 586k tokens, so the morphologiser almost never predicts it). Precision holds up
+(78–98 %); **recall is the limiter** everywhere.
+
+### `Subject` — trained, but the rule wins in two languages (`sud_tagger.py`, `sud_subject_rule.py`)
+
+The **value** is not in doubt: given (deprel, head UPOS) it is determined at 100 % (zh 91 %), over
+3–10 contexts per language. The **presence** is the hard part and is genuinely lexical.
+
+`sud_tagger` is a custom `TrainablePipe`: spaCy ships no generic token classifier (`Tagger` hardcodes
+`doc.c[j].tag` and `get_aligned("TAG")`; a second `morphologizer` would wipe the first's morph;
+`Token._.` is unreachable by `get_aligned`, `E983`). It subclasses `Tagger`, keeps `spacy.Tagger.v2`
+unchanged, and overrides the output slot, the gold source in `get_loss`/`initialize`, and the scorer.
+**`O` is an explicit negative class** — `Tagger` maps a `""` label to *missing* (no gradient), which
+would be wrong for a majority class that must be learned. Trained by the usual freeze recipe one
+storey above the lemmatiser (`make_sud_config.py`, `train_sud.sh`); the five sourced components stay
+**byte-identical** (verified with `cmp`).
+
+Because neither approach dominates, `sud_subject_rule.py` implements the lexical alternative — a
+(head lemma, deprel, head UPOS) frame table harvested by `build_sud_subject_frames.py`. Compared
+**end-to-end on test** by `scripts/eval_sud_subject.py` (gold tokens, everything else predicted):
+
+    lang   trained F   rule F   ships     n(test)
+    en       80.0       63.9    trained     266
+    fa       89.5       71.6    trained      38
+    la       66.3       53.0    trained     674
+    yue      66.7       36.4    trained       6   (n=6 — not meaningful either way)
+    lzh      59.0       80.7    RULE        174
+    zh       27.7       31.6    rule        302   (both weak)
+    sa       10.5       12.5    NEITHER      14   (142 train instances — too sparse to ship)
+
+The split is principled: Classical Chinese raising rides on a handful of verbs (可/能/欲), which a
+7-entry table captures and a small neural encoder cannot beat; en/fa/la raising has a long lexical
+tail, where the table's recall is fine but its precision collapses (en rule P 51 % vs trained 82 %).
+
+**zh and sa ship no `Subject` layer at all.** zh scores 27.7 trained / 31.6 by rule — an annotation
+wrong two times in three is worse than none, and Chinese raising is marked by 是/被/了 constructions
+the frame table cannot separate from ordinary `comp:obj`. sa has 142 train / 14 test instances, too
+sparse to ship or even to tell the two approaches apart. Since zh annotates no idioms either, the
+zh wheel carries **no SUD MISC layer**.
+
+### `Reported` — bootstrapped from scratch (`sud_reported_gold.py`)
+
+`Reported=Yes` occurs **zero** times in every treebank here (the deprel form `@reported`/`@rep` is 8
+Latin tokens), so the class is synthesised, as ja's `comp:obl` was (F 0→0.72). It supersedes an older
+`parataxis:obj` analysis, and that history fixes the target: the paratactic analysis existed for
+**direct** speech, so `Reported=Yes` marks a complement of a speech/writing verb that is quoted
+verbatim.
+
+**Two independent direct-speech signals, and which one works is a property of the language's
+punctuation habits, not of the phenomenon:**
+- **quotation marks** in the complement's subtree — the obvious test, and the only one that fires in
+  ar (712/2297 candidates) and fa (99/1606);
+- **a `discourse` dependent** inside the complement. This is *not* a quotative marker; it is the
+  direct-vs-indirect discriminator, because only verbatim speech can host the speaker's own
+  interjections — an indirect clause is recast from the narrator's viewpoint and cannot. It is what
+  makes la and sa tractable at all: **both have 0 quoted candidates**, and the markers found are
+  exactly right — en `no`/`well`/`yes`/`yep`, la `autem`/`quidem`/`uero` under `dico`/`inquit`,
+  sa `vai`/`eva`/`hi`. sa additionally has **`iti`**, the quotative particle closing a quote (908).
+- **Indirect** evidence commits the negative: an overt complementiser (en `that`, fa `که`, ar `أنّ`)
+  or Latin's accusative-and-infinitive. NB the test is on the **complement token itself**, not its
+  subtree — SUD makes the subordinator the head of the clause it introduces, so a complementiser
+  anywhere else belongs to an embedded clause, which inside a verbatim quote proves nothing.
+
+**Latin needs almost no LLM at all** (`la_finite_direct`). Latin reports statements indirectly with
+the accusative-and-infinitive, and every finite indirect clause — indirect question, `quod`/`ut`
+clause — carries an overt subordinator, which under the functional-head analysis IS the complement
+token. So **a finite complement of a speech verb that is not itself a subordinator has no way to be
+indirect**: it is direct speech. 219 such cases in train, governed by `dico` (148), `scribo` (17),
+`loquor` (13), `interrogo` (9), and unmistakable on inspection — `dicit , meditatus sum in omnibus
+operibus tuis`, `dixit , fiat lux`. The one exception is the indirect question, finite and
+subordinator-less because the interrogative word is not the clause head — but it requires the
+SUBJUNCTIVE, so mood separates it: an *indicative* clause containing `qui` has a relative pronoun,
+not an interrogative (75 cases), and a subjunctive with no interrogative is a jussive inside a quote
+(`fiat lux`, 6). Only subjunctive + interrogative (39) is withheld, and withheld **to the model**,
+not committed as indirect, since `qui` is ambiguous enough that some are relatives too.
+
+**Reported speech is a CLAUSE.** A speech verb also takes ordinary nominal and prepositional objects
+(`dicit hoc` "says this", `loquor de X`), which are not reported speech and must never reach the
+model — in Latin they were 4427 of a 4724-case residue. Candidates carry a `clausal` flag (complement
+is VERB/AUX/SCONJ or has a `VerbForm`); a non-clausal residue case is dropped unannotated.
+
+Rule commits / model residue after all three refinements (train+dev+test): **sa 1321 / 39, ar 997 /
+1350, la 285 / 346, en 204 / 394, fa 110 / 487** — 2616 queries, down from ~11 240. The Latin ratio in
+particular went from 34-vs-5578 (a class that would have been ~99 % LLM-decided with nothing to
+validate it) to 285-vs-346. Residue goes to `disambiguate_pp.query` (static-prefix prompt, resumable
+`relabel_cache_reported_<lang>.jsonl`), en/fa/sa → qwen3:8b, ar/la → gemma4. LLM verdicts on the
+residue: sa 81 % direct, fa 50 %, en 21 %, la 8 %, ar 4 % — Arabic and Latin come out mostly indirect
+because the rules had already claimed the verbatim cases, which is the expected shape.
+
+### The `--structural` encoder: input features matter more than the architecture
+
+The first `Reported` arms used the project's standard added-layer encoder — a dedicated
+`HashEmbedCNN` over NORM/PREFIX/SUFFIX/SHAPE, window 1 / depth 3, a ±3 receptive field — and scored
+F 0.12–0.40, recall-limited throughout. That is the right encoder for `Subject`, where the raising
+complement sits **next to** its control verb (F 0.72–0.92), and the wrong one here: every cue for
+reported speech is non-local. The governing speech verb can be far from the clause head, quotation
+marks sit at the clause EDGES, and Latin's diagnostic is the complement's own VerbForm/Mood plus the
+ABSENCE of a subordinator.
+
+`make_sud_config.py --structural` swaps in the explicit `MultiHashEmbed` + `MaxoutWindowEncoder`
+pair so the embed can read what actually carries that evidence — **`DEP`** (the parser's relation),
+**`LEMMA`** (collapses inflection, so a speech verb is one symbol across its paradigm — decisive for
+la/ar/sa where `dico`/`قَال`/`vac` inflect heavily), **`POS`/`MORPH`** (VerbForm and Mood, i.e. the
+whole Latin finite-vs-infinitive diagnostic), **`IS_QUOTE`** (quotation marks as a first-class
+feature rather than a shape accident) — plus window 3 / depth 4, a ±12 receptive field that reaches
+the clause edges. Every one of `DEP`/`POS`/`MORPH`/`LEMMA`/`IS_QUOTE` is a legal `MultiHashEmbed`
+attr; the full list is in `spacy.attrs.IDS`.
+
+This **requires `annotating_components`**: the corpus readers build the predicted doc from gold words
+and nothing else, so DEP/POS/MORPH/LEMMA would be absent in training and present at inference — the
+model would learn to ignore inputs that then appear from nowhere. Listing the frozen components there
+runs them over the predicted docs, so the pipe trains on exactly the predictions it meets at runtime
+(same reasoning as the `Compound=Yes` input feature). **Result: ar test F 37.4 → 46.7** (recall
+26.7 → 45.4); dev ar 0.36→0.51, fa 0.20→0.40, sa 0.40→0.56, en 0.36→0.32, la broke (0.0004).
+
+### NEGATIVE RESULT: the tree-aware encoder is well-behaved but unproductive
+
+A convolution mixes over LINEAR neighbours, but the rule's evidence is tree-shaped — is my HEAD a
+speech verb, and what hangs off me. `sud.HeadDepsTagger.v1` (`sud_tagger.py`, behind
+`make_sud_config.py --tree --pool <mode>`) concatenates `[ own | head | pooled dependents ]` to give
+the model that neighbourhood directly.
+
+**The `pool = none` diagnostic is what makes this readable.** It sets head-to-self and pools nothing,
+so the layer carries no tree information and must reproduce the plain encoder. It scores 0.4505
+against `--structural`'s 0.51 — so **the wrapper trains fine**, and every deficit below comes from
+the pooled information itself, not from the plumbing. (An earlier note in this file blamed the
+wrapper; that was wrong, and this diagnostic is why. Always run it before reading the ablation.)
+
+Ar dev F, `--structural` = 0.51 for reference:
+
+    pool=none    (no tree info, diagnostic)   0.4505
+    pool=closed  + detach                     0.4106   P 0.478  R 0.360
+    pool=closed2 + detach                     0.4041   P 0.416  R 0.393
+    pool=deps    + detach                     0.2023
+    pool=deps2   + detach                     0.0948   P 0.053  R 0.460
+    pool=deps    (gradients propagated)       0.0940
+    whole subtree, propagated                 0.0950   (peaked 9.5 at step 200, decayed to ~4)
+    whole subtree, stop-gradient              0.0770
+
+Two things fall out, and the ordering is monotonic in how much noise the pool admits:
+
+* **Restricting the pool to CLOSED-CLASS dependents is decisive** — 0.41 against 0.20 for all
+  dependents and 0.095 for two levels of all dependents. Quotation marks (PUNCT) and discourse
+  markers (INTJ/PART/ADV — en `well`/`no`, la `autem`/`enim`, sa `vai`/`eva`) are exactly what the
+  rule reads; averaging in the open-class content of the clause drowns them.
+* **A second level is free when closed-class-restricted and catastrophic without it** (0.404 vs
+  0.095). So depth was never the problem — `deps2`'s precision collapses to 0.053 while recall rises
+  to 0.46, i.e. it fires almost everywhere. The two-level pool is motivated (SUD is functional-head,
+  so where there IS an overt complementiser the clause's quotes and markers hang a level below the
+  complement token) but on this data it buys recall and loses as much precision.
+
+**`detach` matters but is not the whole story.** Propagating gradients through the pooled slices
+costs 0.20 → 0.094 for `deps`, because a token that heads many dependents accumulates one gradient
+per dependent. Detaching removes that. But even as read-only context the pool still costs 0.45 →
+0.41, so the residual explanation is capacity, not gradients: Arabic has **811 positive training
+instances**, and tripling the Softmax input to 192 dims dilutes them faster than the structural
+signal repays.
+
+Bottom line: no tree variant beats `pool=none`, and none beats plain `--structural`. The layer is
+correct and the ablation is coherent; the task is simply too data-poor to pay for the extra width.
+Worth revisiting on a language with far more positives, where `pool=closed` is the variant to try.
+Nothing ships with it.
+
+### Which `Reported` component wins, and the rule that predicts it
+
+End-to-end on test (gold tokens, everything else predicted; `scripts/eval_sud_reported.py`), against
+the share of that language's gold that the RULES committed rather than the LLM:
+
+    lang   plain   structural   rule    ships       gold rule-derived
+    ar     37.4      46.7       73.5    rule            95 %   (997 / 1047)
+    la      0.0       0.0       17.7    neither         91 %   (285 / 314)
+    sa     39.6      58.0       68.8    rule            73 %   (1321 / 1814)
+    en     27.6      35.0       66.7    rule            45 %   (204 / 456)
+    fa     20.0      40.0       23.5    STRUCTURAL      13 %   (110 / 836)
+
+**The winner is predicted by where the gold came from.** A rule reproduces the rule-committed portion
+almost by definition and cannot touch the LLM-decided remainder; a trained model can learn either.
+So the rule wins wherever the gold is mostly rule-derived (ar 95 %, sa 73 %, en 45 %) and loses in
+Persian, whose gold is 87 % LLM-decided — there the rule is precision-1.00 but recall-0.13, because
+it only ever fires on the 110 cases it committed itself. This is a property of how the class was
+built, not a fact about the languages, and it is the main reason to treat these figures as measuring
+reproducibility rather than correctness.
+
+So **ar/sa/en ship the rule; fa and la ship no `Reported` layer**. Persian's structural arm does beat
+its own rule (40.0 vs 23.5) — but at **P 0.50** half of what it emits is wrong, and "better than the
+alternative" is not the same as good enough to publish, so it is withheld. Latin is worse again:
+F 17.7 by rule, 0.0 trained, needing a four-deep chain of predicted lemma/deprel/VerbForm/Mood that
+compounds too badly despite 91 % rule-derived gold. Both keep their `Subject` and idiom layers.
+
+`add_sud_reported_rule.py` removes the trained `sud_reported` pipe when it adds the rule, so no dead
+weights ship. Lexicons live in `sud_reported_data.py`, imported by BOTH the gold builder and the
+runtime component so they cannot drift.
+
+**Read those numbers with care.** There is no independent gold for `Reported` — the target is itself
+these rules plus an LLM pass — so the rule scores well substantially *by construction*. The figure
+says the annotation is reproducible at inference, not that it is correct.
+
+### Packaging
+
+`scripts/package_sud.sh` picks the winning arm per language, adds `sud_idiom` to the seven
+idiom-annotating arms (en/lzh/ja/fa/ar/la/sa), and keeps the existing per-arm surgery. **The `sud_*`
+pipes go LAST, after `clause_parser`** on lzh/sa — `clause_parser` reassigns every head and deprel,
+so a rule reading `unk` must see the tree it leaves behind, and running last also means the Doc
+rebuild cannot drop the annotation (no extension needs carrying across it).
+
+**Packaging gotcha:** `spacy package` loads each `--code` file **standalone** via
+`spec_from_file_location`, so neither `from . import sud_misc` (no package) nor `import sud_misc`
+(scripts/ not on `sys.path`) works — only a file-path fallback does. Each module therefore carries a
+`_sibling()` helper covering all three load contexts (wheel / `seg_code.py` / `spacy package`).
+Verified: the `en_sud_ewt` wheel installs into a clean venv and emits `Subject`, `Idiom` and
+`InIdiom` on raw text.
+
+### Noted, not fixed
+
+`assets_ko_retok_rl/ko_gsd-retok-train.relabeled.conllu` has an **entirely empty FEATS column**
+(0/100 889 tokens) although the un-retokenised `assets_ko/SUD_Korean-GSD` source has 2689 non-empty
+FEATS rows — `retokenize.py` drops them, the same class of bug as the `coarsen_id.py` FEATS blanking
+already fixed. `training_ko_morph` is therefore learning UPOS only and its `morph_acc` is vacuous.
