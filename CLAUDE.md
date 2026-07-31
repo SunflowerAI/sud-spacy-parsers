@@ -472,10 +472,10 @@ visible in some treebanks). Numerals can be `det` (round-trips to UD `nummod:det
   to resolve.
 - **Subject raising** (`Subject=SubjRaising`/`ObjRaising` in MISC) is likewise already
   gold-annotated wherever the source treebank carries it (2000–7500+ instances in en/zh/id/fa/la;
-  **zero** in ar/ko/ja) — not ambiguous. Also moot right now regardless: no `config_*.cfg` has a
-  `morphologizer`, so MISC/FEATS aren't trained or evaluated at all currently (`spacy convert`
-  preserves them into the `Doc`, but nothing scores them) — exploiting this would mean new
-  plumbing, not LLM annotation.
+  **zero** in ar/ko/ja) — not ambiguous, so not an *LLM* target. It IS a good target for a trained
+  output layer, which is what the SUD MISC section below builds. (Two claims in the original note
+  were wrong and are corrected there: `spacy convert` does **not** preserve MISC into the `Doc`, and
+  every `_morph`/`_lemma` config now does have a `morphologizer`.)
 - **Reported speech** (`Reported=Yes`, `@reported`/`@rep`) is real but vanishingly sparse in this
   project's actual treebanks — only 33 Latin `@reported`/`@rep` instances total (ITTB patristic
   scriptural citations, e.g. `dicit` governing a `comp:obj@reported` quoted clause). GUM has a
@@ -531,6 +531,51 @@ sent_ids): **ITTB + PROIEL + Perseus**. `scripts/add_perseus_la.sh` is the repro
   macroniser, `transfer_macrons.py` composes the FORM transform onto the ext deprels).
 - **Licence: CC BY-NC-SA (NonCommercial).** All three sources are NC (ITTB BY-NC-SA 3.0, PROIEL
   BY-NC-SA, Perseus BY-NC-SA 2.5) — the only NonCommercial released model. See `NOTICE.md`.
+
+### Macronised OUTPUT: the `la_macronise` opt-in component
+
+The Latin arm can emit macronised text alongside the parse. This is the *inverse* of the macron
+work above (which macronises the treebank to make the parser robust to macronised INPUT).
+
+- **Why it is cheap.** Alatius = RFTagger + a Morpheus-derived lexicon. Our pipeline already does
+  the tagging half, with a tagger trained on the same treebank the lexicon is keyed to. Only the
+  lookup remains. `build_la_macron_lut.py` harvests it from the plain/macron treebank pair (token-
+  aligned by construction), keyed at `L1 (form,upos,feats)` / `L2 (form,upos)` / `L3 (form)` plus
+  suffix levels `S4`/`S3` indexed from the right. **Backoff pruning** (store a level only where it
+  differs from the one below) collapses 152 443 entries to 42 817, 0.55 MB gzipped.
+- **Purely additive.** spaCy tokens are immutable, so it sets `token._.macron` / `doc._.macron`
+  and never touches `token.text`. `la_parse_macronised.py` joins parse + macrons into CoNLL-U (FORM
+  macronised) or a table; `--mode reparse` re-parses the macronised string so `token.text` itself
+  carries macrons — measured free (`eval_la_reparse.py`: LAS 70.30 plain / 70.33 ours / 70.31
+  Alatius over 4300 sents), but `attach` is the default for being one pass and parse-identical.
+- **Accuracy (agreement with Alatius, held-out test): 94.09 % whole-token / 97.13 % per-vowel**
+  with predicted morphology, 94.32/97.34 with gold. NB these are *agreement*, not gold vowel
+  length — Alatius is itself ~98–99 %, and its errors count as our successes.
+- **The bound is VOCABULARY, not morphology.** Error budget: OOV levels (S4/S3/bare) = **71 % of
+  all errors from 8 % of tokens**; the morphology-keyed levels only 9 %. Endings are 94.3 % right
+  from FEATS alone on unseen forms, stems only 75.4 %. Perfect morphology would buy just +0.23, so
+  improving the morphologiser would NOT meaningfully help; only a real stem lexicon (Morpheus) would.
+- **`_PARADIGM` override** (user-driven). The table memorises pairs and cannot express a paradigm
+  rule, so an unseen `(form,morph)` falls through to the morphology-BLIND `L3` and can contradict
+  correctly-predicted morphology — nominative `Gallia` came out `Galliā` because the treebank only
+  attests the ablative. Fixed with a small exceptionless table keyed on
+  `(InflClass, Case, Number, final letter)` (a-stem Nom/Voc sg `-a` short, Abl sg `-ā` long; o-stem
+  Dat/Abl sg `-ō`; e-stem Abl sg `-ē`), plus `_LEMMA_CLASS`, since **PROPN carries no `InflClass`**
+  in ITTB/PROIEL and the declension must come from the lemma's ending. **The harvested data is
+  WRONG on these cells** (`IndEurA/Nom/Sing/-a` marked long 12.9 % of 8063; `Abl` long only 89.0 %)
+  — Alatius's RFTagger contradicting gold morphology — so the rule *lowers* measured agreement
+  (−0.03) while raising real accuracy: on gold morph it overrides Alatius on 45 test tokens, all
+  grammatically correct (`differentia`→`differentiā`, `modo`→`modō`, `mēnsūrā`→`mēnsūra`). It also
+  faithfully transmits Case ERRORS (`Roma caput mundi` → `Rōmā`), so it is on by default but
+  `config={"paradigm": False}` disables it. Case F is 0.899 in-domain / 0.732 on Perseus.
+- **Shipped opt-in, table NOT bundled (licensing).** Morpheus is CC BY-SA 3.0, which forbids adding
+  restrictions; the la wheel is CC BY-**NC**-SA (its three treebanks are all NC), so bundling
+  Morpheus-derived data would add exactly the restriction BY-SA rules out. `package_lemma.sh la`
+  therefore passes `--code scripts/la_macronise.py` (which registers the factory — verified: the
+  module IS imported on `spacy.load` even with the pipe absent) but ships no table. Users run
+  `bash scripts/build_la_macron.sh`, then `nlp.add_pipe("la_macronise", config={"lut": ...})`.
+  Table-less it RAISES rather than silently returning unmacronised text. RFTagger (non-commercial
+  only) is used solely to label the treebank offline and is not a runtime dependency. See NOTICE.md.
 
 ## Sanskrit sandhied-CSL representation (`sa_sud_vedic_ufal_csl`)
 

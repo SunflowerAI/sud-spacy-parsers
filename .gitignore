@@ -65,3 +65,9 @@ assets_ja/SUD_Japanese-GSD/
 assets_yue/SUD_Cantonese-HK/
 # derived init_tok2vec weights (extracted from the zh_gsdboth model; regenerate via scripts/train_yue.sh notes)
 zh_both_tok2vec.bin
+
+# Macron lookup table: DERIVED FROM MORPHEUS (CC BY-SA 3.0) via the Alatius macroniser.
+# Never committed and never shipped in a wheel -- build it locally with scripts/build_la_macron.sh.
+# See NOTICE.md, "Latin macronisation".
+scripts/la_macron_lut.json.gz
+build_la_macron/

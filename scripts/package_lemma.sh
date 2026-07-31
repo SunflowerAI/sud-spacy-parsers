@@ -34,7 +34,13 @@ case $lang in
        pkg id  training_id_lemma/model-final sud_gsd \
             "--code scripts/id_lemma_case_fix.py" ;;
   ko)  pkg ko  training_ko_lemma/model-best  sud_gsd                 "" ;;
-  la)  pkg la  training_la_lemma/model-best  sud_ittb_proiel_perseus "" ;;
+       # la ships la_macronise as an OPT-IN component: --code registers the factory (verified: it
+       # is imported on spacy.load even though the pipe is absent from the pipeline), so a caller
+       # can nlp.add_pipe("la_macronise", config={"lut": ...}). The lookup TABLE is deliberately
+       # NOT bundled -- it is Morpheus-derived (CC BY-SA 3.0) and this wheel is CC BY-NC-SA; see
+       # NOTICE.md. Build it with scripts/build_la_macron.sh. Without a table the component raises.
+  la)  pkg la  training_la_lemma/model-best  sud_ittb_proiel_perseus \
+            "--code scripts/la_macronise.py" ;;
   zh)  pkg zh  training_zh_lemma/model-best  sud_gsd_simp_trad       "" ;;
   yue) $PY scripts/bundle_yue_pkuseg.py --src training_yue_lemma/model-best \
             --out training_yue_lemma_pkuseg >/dev/null 2>&1

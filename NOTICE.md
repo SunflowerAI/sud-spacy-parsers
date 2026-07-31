@@ -32,6 +32,42 @@ the other models — which are kept free of NonCommercial sources to stay commer
 Latin model and its derived data (`assets_la/la_ittbproiel-sud-*.conllu` and the released wheel)
 are therefore licensed **CC BY-NC-SA (NonCommercial)**. Use it for non-commercial purposes only.
 
+## Latin macronisation — builder shipped, lookup table NOT shipped
+
+`scripts/la_macronise.py` restores vowel-length macrons (`token._.macron` / `doc._.macron`) by
+looking each word up in a table keyed on the form plus this project's own predicted UPOS/FEATS.
+**That table is never committed and never included in a wheel.** Its vowel-length data originates
+in **Morpheus** (Perseus Project, **CC BY-SA 3.0 US**), reached via Johan Winge's
+**latin-macronizer** (**GPL-3.0**).
+
+CC BY-SA permits commercial use but forbids imposing further restrictions on the work. The Latin
+model is CC BY-**NC**-SA (forced by its three NonCommercial treebanks, above), so bundling
+Morpheus-derived content into that wheel would add precisely the restriction BY-SA rules out.
+Rather than resolve that tension by guesswork, the repository ships only the **builder**, which is
+our own code (MIT):
+
+```bash
+bash scripts/build_la_macron.sh     # macronise locally -> harvest table -> attach to a local model
+```
+
+The released wheel **does** ship the component's code (ours, MIT) via `spacy package --code`, so the
+factory is registered and the component is opt-in — but it ships **no table**:
+
+```python
+nlp = spacy.load("la_sud_ittb_proiel_perseus")          # 5 pipes, no macroniser
+nlp.add_pipe("la_macronise", config={"lut": "scripts/la_macron_lut.json.gz"})
+nlp("Gallia est omnis divisa in partes tres.")._.macron
+# -> 'Gallia est omnis dīvīsa in partēs trēs.'
+```
+
+`scripts/la_macron_lut.json.gz` and `build_la_macron/` are gitignored; the component raises rather
+than silently returning unmacronised text if loaded without a table. A model you build this way
+contains Morpheus-derived data — **keep it local and do not redistribute it**.
+
+The macroniser's own tagger, **RFTagger** (Schmid & Laws), is licensed for education, research and
+other **non-commercial** use only. It is used solely to label your treebank offline; the component
+uses this project's morphologiser at inference, so RFTagger is not a runtime dependency.
+
 ## NonCommercial exclusion — SUD_English-GUM
 
 The English EWT+GUM development setup used **SUD_English-GUM**, which is **CC BY-NC-SA 4.0
@@ -44,5 +80,9 @@ EWT+GUM figures quoted in the docs are reported for method context only.
 
 - Surface-Syntactic Universal Dependencies — https://surfacesyntacticud.github.io/
 - Universal Dependencies — https://universaldependencies.org/
+- Morpheus (Perseus Project, CC BY-SA 3.0 US) — https://github.com/PerseusDL/morpheus
+- latin-macronizer, Johan Winge (GPL-3.0) — https://github.com/Alatius/latin-macronizer
+- RFTagger, Helmut Schmid & Florian Laws (non-commercial) —
+  https://www.cis.uni-muenchen.de/~schmid/tools/RFTagger/
 - Please cite the individual UD/SUD treebanks when using these models; their authors are credited
   in each treebank's `LICENSE.txt`.
