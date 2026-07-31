@@ -440,6 +440,71 @@ gold-preproc and raw end-to-end evaluations.
     0.93). Released v0.1.0 = ext arm + pkuseg, packaged from `training_yue_ext_pkuseg` (swap via
     `bundle_yue_pkuseg.py`; meta requires `spacy-pkuseg`; no clause_parser — sentence-segmented).
 
+## SUD-vs-UD feature survey (what else might be disambiguable like `udep`)
+
+A survey of SUD phenomena beyond `udep` — what's genuinely SUD-specific, what's plain UD, and
+which residues are actually worth a few-shot-LLM disambiguation pass like the comp/mod work above.
+
+**Overall architecture.** SUD favours **functional heads** (adposition/complementizer/auxiliary as
+head) over UD's content-word heads, and collapses UD's category-driven relation inventory
+(`nsubj/csubj/obj/iobj/obl/xcomp/ccomp/amod/nmod/nummod/advmod/acl/advcl/aux/cop/case/mark`) into 3
+macro-relations refined by function, not POS: `subj`, `mod`, and `comp` (`comp:obj/obl/pred/aux/
+cleft`), plus the noncommittal `udep` (hypernym of mod/comp) and `unk` (root of the whole taxonomy,
+completely unclear relations). `conj` uses a **string analysis** (each conjunct depends on the
+*previous* one, not the first) and splits into `conj:coord` / `conj:appos` (paradigmatic-list
+apposition; tighter apposition is `mod:appos`) / **`conj:dicto`** (repetition/repair — this project
+already converts leftover upstream `reparandum` to `conj:dicto`, see `normalise_reparandum.py`;
+SUD's `conj:dicto` makes the *first* element head, unlike UD's `reparandum`, which makes the repair
+the head). Raising/control is handled by decoupling the surface relation from a separate
+**`@`-suffixed deep-feature layer**: `@x` (shared/raised subject, implied by `comp:pred`/`comp:aux`),
+`@y` (object-raising), `@pass` (passive), `@caus` (causative), `@agent` (demoted agent), `@expl`
+(expletive `subj`, replacing UD's dedicated `expl` relation), `@scrap` (spoken disfluency/
+incomplete constructions — not typos). Reported speech's current recommendation is a `Reported=Yes`
+MISC feature + ordinary `comp:obj` (an older `parataxis:obj`/`parataxis@rep` is superseded but still
+visible in some treebanks). Numerals can be `det` (round-trips to UD `nummod:det`); `orphan`,
+`punct`, `goeswith` are carried over from UD unchanged.
+
+**Why the three user-suggested candidates aren't good LLM-disambiguation targets here:**
+- **Typo correction** (`Typo=Yes`/`CorrectForm=`, plus `CorrectSpaceAfter/Number/Tense/VerbForm=`)
+  is a **plain UD convention, not SUD** — SUD's conversion leaves it untouched. Confirmed in this
+  repo's own data (en EWT/GUM, small amounts in id/fa/la; zero in zh/ko/ar/ja/la-ITTB/PROIEL/lzh/
+  sa/yue) — and wherever it appears it's already fully gold-annotated, so there's nothing ambiguous
+  to resolve.
+- **Subject raising** (`Subject=SubjRaising`/`ObjRaising` in MISC) is likewise already
+  gold-annotated wherever the source treebank carries it (2000–7500+ instances in en/zh/id/fa/la;
+  **zero** in ar/ko/ja) — not ambiguous. Also moot right now regardless: no `config_*.cfg` has a
+  `morphologizer`, so MISC/FEATS aren't trained or evaluated at all currently (`spacy convert`
+  preserves them into the `Doc`, but nothing scores them) — exploiting this would mean new
+  plumbing, not LLM annotation.
+- **Reported speech** (`Reported=Yes`, `@reported`/`@rep`) is real but vanishingly sparse in this
+  project's actual treebanks — only 33 Latin `@reported`/`@rep` instances total (ITTB patristic
+  scriptural citations, e.g. `dicit` governing a `comp:obj@reported` quoted clause). GUM has a
+  richer `Discourse=attribution-positive/negative` layer (1650 instances) but GUM isn't part of the
+  training pipeline (`en` trains on EWT only).
+
+**What turned out to be good targets instead** (same shape as `udep`: SUD-specific, genuinely
+ambiguous, and either already exploited productively for one language or clearly analogous):
+- **Sanskrit's `udep@<subtype>` semantic-role tags** — see the Sanskrit section below (Track A,
+  implemented: `comp:obl` F 0.352→0.396 over the case-only ext arm, still short of un-relabelled
+  base).
+- **`unk` audited and ruled out (negative finding).** `unk` is a second noncommittal relation,
+  distinct from `udep`, largest in Japanese (7519 train tokens) and Arabic (4111). Systematic
+  audit of the whole train split: **99.2%** of Japanese `unk` tokens are the bound continuation of
+  an `Idiom=Yes`/`InIdiom=Yes` periphrastic copula/auxiliary chain (である "de-aru", てくれる
+  "te-kureru", てくる "te-kuru"...) — the token is always adjacent to its head (99.4%, `id ==
+  head_id+1`), and the real syntactic relation (root/mod/udep/comp:aux/...) is carried entirely by
+  the FIRST idiom token; some chains are 3+ tokens (1600 cases where the head is *itself* `unk`).
+  Arabic splits: **53%** the same idiom-chain pattern (e.g. `باسم` "in the name of", a complex
+  preposition — the second morpheme is `InIdiom=Yes`), **47%** newswire dateline/formatting
+  artifacts (date/wire-agency-abbreviation tokens attached to a placename root with no real
+  relation, e.g. `برلين 15-7 (اف ب)`). In both languages `unk` correctly marks "this token carries
+  no independent grammatical relation of its own" (structurally like UD's `fixed` for non-first
+  MWE members, but broader) — there is no comp:obl/mod-style choice being deferred, so **it is not
+  a good target for the udep-style few-shot pipeline**: nothing would be gained by relabelling it,
+  since these tokens don't semantically have an oblique/modifier relation to assign in the first
+  place. This mirrors the lzh plain-`udep`-residue precedent: a negative result reached by an
+  audit-first approach, avoiding a wasted gold/bench/relabel build.
+
 ## Latin (`la_sud_ittb_proiel_perseus`): three treebanks, macrons, XPOS blanking
 
 The released Latin model trains on a plain `cat` of three SUD Latin treebanks (each keeps its own
@@ -679,7 +744,101 @@ training and inference. Representation, built once and shared by both treebanks:
 - **comp/mod stays un-relabelled.** `scripts/ufal_compmod_probe.py` confirmed on classical UFAL
   that the LLM is at chance on the case-marked Ins/Acc/Gen residue (0.43 vs 0.82 majority), same as
   Vedic — structural (Sanskrit is case-based, not prepositional).
+- **`udep@<subtype>` extension is a real (partial) fix, still not enough to release.** Beyond the
+  bare-Case `sa_case` bucket (`relabel_ext.py`), the Vedic annotators separately tag `udep` with
+  ten semantic-role subtypes (`@instr/@goal/@lmod/@tmod/@source/@manner/@soc/@benef/@grad/@path`,
+  ~8850 tokens total) that the pipeline previously never touched at all (the bucket only fired on
+  bare `udep`). `scripts/sa_subtype_audit.py` found only `@manner` has in-treebank commit evidence
+  (626 `mod@manner` / 0 `comp:obl@manner`); the rest were classified from Case-distribution +
+  governing-verb evidence: 7 subtypes (`instr/lmod/tmod/source/manner/benef/grad`) are dominated by
+  cases/semantics already established as circumstantial (`SA_MOD_CASES`, Dat/Gen-of-purpose,
+  Abl-of-comparison) → **mod**; `goal`/`path` are >85% headed by motion/placement/ritual-offering
+  verbs (i, gam, āgam, praviś, āruh, dhā, nidhā, hu, nī...) taking an Acc/Loc goal-of-motion or
+  path-traversed argument, the paradigm selected oblique → **comp:obl**, no verb-class gating
+  needed; `@soc` sampled as a genuine mix (ingredient-mixing instrumentals vs. true accompaniment)
+  → left for the LLM (515 instances, ~54%/46% comp/mod — a real split, not a default). Retraining
+  `training_sa_ext` on this (`sa_subtype_label` in `relabel_ext.py`) moved test-gp **comp:obl F
+  0.352→0.396** over the prior case-only ext arm, LAS flat (0.557→0.562) — a genuine improvement
+  demonstrating the annotator subtypes carry real signal the Case-only view missed, but still below
+  the un-relabelled base's 0.404 (comp:obl F has a moving denominator across relabels, per the usual
+  caveat) — **not enough to change the released (un-relabelled) model.**
 - **Bundles `clause_parser`** (`punct_tag="PUNCT"`; `DEFAULT_PUNCT` already covers the daṇḍa
   ।॥ `|` `||` / . ? !), like the former `sa_sud_vedic`, for raw multi-clause inference; packaged
   with `spacy package … --code scripts/sa_tokenizer.py,scripts/clause_parser.py`. The shipped
   pipeline is `[tok2vec, tagger, parser, clause_parser]`.
+
+### `Compound=Yes` as a tokeniser-supplied INPUT feature (sa only; +1.30 LAS)
+
+The sa arm is the first to **read morphology as an input feature** rather than only predict it. The
+tokeniser sets `Compound=Yes` deterministically and every component's embed lists **`MORPH`** among
+its attrs. This is a deliberate divergence from the other ten arms' recipe (user decision), on the
+expectation that other morphology-heavy languages (ar/la/fa/ko) will follow.
+
+- **Why it exists.** Stripping the compound-join marker to leave clean wordforms (`strip_pipe_sa.py`,
+  above) cost ~0.5 LAS, because the join marker had been *visible* to the parser inside the token
+  form. This puts the cue back as a feature instead of as text: `sa_tokenizer.__call__` records which
+  tokens carried a join marker before it strips them, and stamps the feat.
+- **Deriving it (`_NON_COMPOUND_JOIN`, 23 types).** The CSL hyphen joins THREE things: samāsa members
+  (`Compound=Yes`), verb preverbs (upasarga, ADV), and the privative `a-/an-` (PART). Only the first
+  is `Compound=Yes`. The bare join marker predicts the feat at only **P 0.775 / R 0.713**; excluding
+  the closed upasarga+privative list (harvested as the join-member types predominantly NOT Compound)
+  lifts it to **P 0.9998 / R 0.9997** (TP 6463, FP 1, FN 2), with zero false exclusions in dev/test.
+  `sam`/`su` each lose one genuine compound occurrence — the entire cost. The 2 598 gold
+  `Compound=Yes` tokens the rule misses all have FORM `_` (elided; they exist only in the treebank).
+- **Making it an input needs three pieces, and omitting any one breaks it silently.**
+  (1) **`sud.CompoundCorpus.v1`** (`scripts/gold_tok_corpus.py`) — under `gold_preproc` the predicted
+  doc is built from gold words and the tokeniser **never runs**, so the feature would be absent in
+  training and present at inference. The reader copies **only** `Compound` from the reference;
+  copying any other feat would be leakage, and this one is not, precisely because the tokeniser
+  supplies the identical value at runtime. (2) **`clause_parser`** re-imposes the tokeniser's verdict
+  (the morphologizer overwrites `token.morph`) and carries it into the sub-doc it builds for the
+  per-clause re-parse, else the parser re-runs on input it never saw in training. (3) The configs
+  swap `HashEmbedCNN` (which hard-codes NORM/PREFIX/SUFFIX/SHAPE) for the equivalent explicit
+  `MultiHashEmbed` + `MaxoutWindowEncoder`, so `MORPH` can be listed at all.
+- **Result (test gold-preproc, baseline → Compound arm; `training_sa_lemma3_noannot`):**
+  **LAS 0.5471→0.5601 (+1.30), UAS 0.6763→0.6928 (+1.64), morph_acc 0.7957→0.8050, pos 0.8849→0.8896,
+  tag 0.8952→0.8976, lemma 0.8660→0.8645 (−0.15, flat)**; `Compound` F **0.889→0.999**, and the gain
+  propagates to Mood +0.009 / Tense +0.008 / Person +0.007 / Case +0.005 (Voice −0.081, smallest class).
+- **Token input: the `sa_compound` fallback component** (`scripts/sa_tokenizer.py`, added FIRST in
+  the pipeline). A `Doc` built WITHOUT the tokeniser (`Doc(vocab, words=...)`, pre-tokenised input,
+  `spacy evaluate`) has no `Compound`, and the model then runs with one of its inputs deleted —
+  measured **LAS 0.5601→0.5169** on token input, with no warning. `sa_compound` closes that: if the
+  tokeniser ran (`doc._.compound_flags` set) it defers, else it re-derives the feat from token
+  adjacency (no intervening space, minus `_NON_COMPOUND_JOIN` and punctuation junctions). **On real
+  text it is exact — 19 584/19 584 tokens agree with the tokeniser, precision 1.0000.**
+- **CAVEAT — a PARTIAL `Compound` is worse than none, so do NOT evaluate through the fallback.**
+  The one thing adjacency cannot see is an **elided** compound member: the treebank writes those
+  FORM `_` with a trailing space (282 in test; every unrecoverable token is a `_`). They cannot
+  occur in real input, but on the treebank the gap is actively harmful — token input scores **LAS
+  0.5169 (no feat) / 0.4826 (fallback) / 0.5601 (full feat)**. Training always had the feat on every
+  compound member, so an *unmarked* member reads as positive evidence of "not a compound", which is
+  worse than uniform absence. Marking every `_` is not a fix (only 81 % are compounds; it would
+  destroy the precision-1.0 property). **Evaluate with `scripts/eval_sa_compound.py`** (supplies the
+  feat from the reference via `CompoundCorpus`), NOT `spacy evaluate` and NOT via the fallback;
+  `--plain` reproduces the broken measurement for comparison.
+
+### NEGATIVE RESULT: do NOT widen sa PREFIX/SUFFIX (costs 2.9 LAS)
+
+`PREFIX`/`SUFFIX` are plain entries in `lex_attr_getters` (`spacy/lang/lex_attrs.py`, `string[0]` and
+`string[-3:]`), so a language may widen them — `sa_tokenizer` does it on `Sanskrit.Defaults`, which
+affects **sa only** (verified: la/ar/fa/ko/en keep 1/3). `SA_PREFIX_LEN`/`SA_SUFFIX_LEN` override them
+for ablations; they are NOT a runtime knob (a model trained at one width and loaded at another
+degrades silently, with nothing in the config to catch it). **The shipped arm uses spaCy's 1/3.**
+
+Widening to PREFIX 3 / SUFFIX 6 was tried and **regressed everything but the tagger**: vs the Compound
+arm, LAS −2.9, morph_acc −3.8, lemma −3.7 (tag +0.16). Why the reasoning that motivated it was wrong:
+the width was sized from the **form→lemma edit** (SUFFIX 6 covers 96.9 % of it, vs 80.8 % at 3), which
+describes what a **lemmatiser** needs — but three of the four components want the short, widely-SHARED
+inflectional ending, and at 6 characters, in a language whose median word is 5–6, the suffix is close
+to word-identity (23 433 types vs NORM's 32 854; 64 % of tokens have the whole word as their
+"suffix"), so it memorises instead of generalising. Sizing compounded it: 2000 rows for 23 433 types
+in the small encoders = 11.7× collision, against 1.9× at length 3. **Affix width is a lexeme
+attribute, so all four components in a language must share one value** — it cannot be tuned per
+component without a custom embed layer that hashes `token.text[-k:]` at forward time.
+NB the two arms differed in BOTH widths, so prefix vs suffix blame is **not** separated; a
+single-variable run (suffix 4, prefix 1) is the informative one if this is ever revisited.
+
+Also ruled out: **`annotating_components = ["morphologizer"]`** on the lemma config (so the lemmatizer
+conditions on predicted FEATS instead of nothing) is **not** worth it — lemma_acc 0.8627 with vs
+0.8645 without. Predicted `Case` at F 0.856 adds about as much noise as signal to an edit-tree
+classifier that already has the whole form in `NORM`. Left at `[]`, matching the other ten arms.

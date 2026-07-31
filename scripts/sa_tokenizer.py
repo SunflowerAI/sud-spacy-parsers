@@ -35,6 +35,7 @@ than a guess (see `_normalise_aligned`).
 import re
 import unicodedata
 
+from spacy.language import Language
 from spacy.tokens import Doc, Token
 from spacy.util import registry
 
@@ -624,6 +625,29 @@ def desandhi_csl(words):
     return out
 
 
+# NB the lexeme affix windows are spaCy's defaults (PREFIX = form[:1], SUFFIX = form[-3:]) and are
+# deliberately NOT overridden here. Widening them for Sanskrit was tried (PREFIX 3 / SUFFIX 6) and
+# regressed everything but the tagger — see the "do NOT widen sa PREFIX/SUFFIX" negative result in
+# CLAUDE.md. They are overridable per language via `Sanskrit.Defaults.lex_attr_getters`, but any
+# change requires retraining every component, since the models read them as input features.
+
+# Join members that are NOT samāsa members, so they must not be stamped Compound=Yes. The CSL
+# representation hyphen-joins three different things: compound (samāsa) members, verb preverbs
+# (upasarga), and the privative a-/an-. Only the first is Compound=Yes in the treebank; the other
+# two are separate ADV/PART/ADP tokens carrying no Compound feat. They are a closed class, and this
+# is it — the classical upasarga inventory plus the privative, harvested from the training treebank
+# as the join-member types that are predominantly NOT Compound=Yes. With this exclusion the rule
+# "carried a join marker and is not in this set" predicts the treebank's Compound=Yes at precision
+# 0.9998 / recall 0.9997 over non-elided tokens (TP 6463, FP 1, FN 2); the bare join marker alone
+# scores only 0.775/0.713. `sam` and `su` each occur once as a genuine compound member and are lost,
+# which is the whole cost. (The 2 598 remaining gold Compound=Yes tokens the rule misses all have
+# FORM `_` — elided tokens that exist only in the treebank, never in raw input.) `‖` is here because
+# a handful of double daṇḍas pick up a join marker in the source; punctuation is never a compound.
+_NON_COMPOUND_JOIN = frozenset(
+    "a abhi adhi an anu apa apā ati ava ni niḥ pari parā pra prati "
+    "sam saṃ su upa ut vi ā ‖".split()
+)
+
 # Source-offset extensions. Registered at import (this module is the wheel's `--code` payload, so
 # importing the model registers them) and guarded, because loading two models in one process — or
 # reloading one — imports it twice and `set_extension` raises on a duplicate.
@@ -636,6 +660,78 @@ if not Token.has_extension("src_span"):
     Token.set_extension("src_span", getter=lambda t: (
         (t.doc._.src_spans[t.i] if t.i < len(t.doc._.src_spans) else None)
         if t.doc._.src_spans is not None else None))
+if not Doc.has_extension("compound_flags"):
+    # Per token: did the tokeniser stamp Compound=Yes? The morphologizer overwrites token.morph
+    # with its own prediction, and clause_parser rebuilds the doc for its re-parse, so the
+    # tokeniser's decision has to survive somewhere neither of them touches.
+    Doc.set_extension("compound_flags", default=None)
+
+
+def _is_punct_text(w):
+    return bool(w) and all(c in _PUNCT or c == "-" for c in w)
+
+
+def _add_compound(morph, flag):
+    """Set/clear Compound=Yes in a FEATS string, leaving every other feature alone."""
+    feats = [f for f in str(morph).split("|") if f and not f.startswith("Compound=")]
+    if flag:
+        feats.append("Compound=Yes")
+    return "|".join(sorted(feats))
+
+
+@Language.factory("sa_compound")
+def make_sa_compound(nlp, name):
+    return SaCompound()
+
+
+class SaCompound:
+    """Guarantee the `Compound=Yes` INPUT feature is present however the Doc was built.
+
+    The models read MORPH as an input feature (worth +1.30 LAS — see CLAUDE.md), and normally the
+    tokeniser supplies it from the CSL join marker. But a caller who hands the pipeline TOKENS
+    rather than raw text never invokes the tokeniser — `Doc(vocab, words=[...])`, pre-tokenised
+    input, `spacy evaluate` — and the feature is then silently absent, costing ~6.8 LAS with no
+    error. This component runs FIRST and closes that hole.
+
+    When the tokeniser did run it defers to it (`doc._.compound_flags` is already set). Otherwise it
+    re-derives the feature from token adjacency: a token bound to the next one with no intervening
+    space is a samāsa member, unless it is one of the upasarga/privative join types
+    (`_NON_COMPOUND_JOIN`) or either side of the junction is punctuation.
+
+    On real text it is EXACT: over 300 test documents it reproduces the tokeniser's decision on
+    19 584 / 19 584 tokens, zero disagreements. Precision against the treebank is 1.0000 — it never
+    marks a non-compound.
+
+    KNOWN LIMIT, and it bites harder than it looks. It cannot see a compound member that is
+    **elided** — the treebank writes those with FORM `_` and a trailing space, so there is no
+    adjacency to read (282 in the test split, and every single unrecoverable token is a `_`). Such
+    tokens cannot occur in real input, so this is a treebank-only gap. But a PARTIALLY supplied
+    feature turns out to be worse for the parser than none at all — on the Vedic test set, token
+    input scores LAS 0.5169 with no Compound, 0.4826 with this fallback, 0.5601 with the full
+    feature — because training always had the feature on every compound member, so an unmarked one
+    is positive evidence of "not a compound" rather than absence of evidence. Hence: **evaluate on a
+    treebank with `scripts/eval_sa_compound.py` (which supplies the feature from the reference), NOT
+    with this component.** Marking every `_` token is not a fix: only 81 % of them are compounds, so
+    the rule would trade the precision-1.0 property for a worse error.
+
+    Only the Compound feature is touched; any other FEATS already on the token are preserved.
+    """
+
+    def __call__(self, doc):
+        if doc._.compound_flags is not None:
+            return doc                      # the tokeniser already decided; do not second-guess it
+        n = len(doc)
+        flags = [
+            bool(tok.whitespace_ == "" and i + 1 < n
+                 and tok.text not in _NON_COMPOUND_JOIN
+                 and not _is_punct_text(tok.text)
+                 and not _is_punct_text(doc[i + 1].text))
+            for i, tok in enumerate(doc)
+        ]
+        for tok, flag in zip(doc, flags):
+            tok.set_morph(_add_compound(tok.morph, flag))
+        doc._.compound_flags = flags
+        return doc
 
 
 @registry.tokenizers("sa.SanskritInputTokenizer.v1")
@@ -686,8 +782,17 @@ class SanskritInputTokenizer:
         # removed here (śuka- -> śuka). The grouping is recoverable from the Compound=Yes FEAT
         # (samāsa members) plus token adjacency (no SpaceAfter between members). A lone dash (the
         # '-' PUNCT, length 1) is a genuine dash — left as is.
-        words = [w[:-1] if len(w) > 1 and w.endswith("-") else w for w in words]
-        doc = Doc(self.vocab, words=words, spaces=spaces)
+        joined = [len(w) > 1 and w.endswith("-") for w in words]
+        words = [w[:-1] if j else w for w, j in zip(words, joined)]
+        # A join marker means "bound to the token on the right", which is a samāsa member EXCEPT for
+        # the preverbs and the privative (see _NON_COMPOUND_JOIN). Stamping the feat here makes it
+        # deterministic instead of predicted — the morphologizer scored only F 0.889 on Compound —
+        # and, because the training corpora carry the same feat on the predicted doc (via
+        # `sud.CompoundCorpus.v1`), it is also an INPUT feature for every component downstream.
+        compound = [j and w not in _NON_COMPOUND_JOIN for w, j in zip(words, joined)]
+        doc = Doc(self.vocab, words=words, spaces=spaces,
+                  morphs=["Compound=Yes" if c else "" for c in compound])
+        doc._.compound_flags = compound
         doc._.src_text = text
         # A span is emitted only when BOTH ends of the token's normalised range land on a segment
         # boundary; anything else would be a guess, and a caller can live with a hole but not with

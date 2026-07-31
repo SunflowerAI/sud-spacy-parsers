@@ -39,9 +39,16 @@ case $lang in
   yue) $PY scripts/bundle_yue_pkuseg.py --src training_yue_lemma/model-best \
             --out training_yue_lemma_pkuseg >/dev/null 2>&1
        pkg yue training_yue_lemma_pkuseg     sud_hk                  "--code scripts/yue_tokenizer.py" ;;
-  sa)  $PY scripts/add_clause_parser.py training_sa_lemma/model-best training_sa_lemma/model-seg \
+       # sa source arm is training_sa_lemma3_noannot — the Compound-feature arm (MORPH read as an
+       # INPUT feature; +1.30 LAS over the previous training_sa_lemma, which is kept as the
+       # pre-Compound baseline). TWO pipes are added post-training: sa_compound FIRST (before
+       # tok2vec, so the shared encoder can see the feat) and clause_parser LAST.
+  sa)  $PY scripts/add_sa_compound.py training_sa_lemma3_noannot/model-best \
+            training_sa_lemma3_noannot/model-compound >/dev/null 2>&1
+       $PY scripts/add_clause_parser.py training_sa_lemma3_noannot/model-compound \
+            training_sa_lemma3_noannot/model-seg \
             --punct-tag PUNCT --sent-scheme danda >/dev/null 2>&1
-       pkg sa  training_sa_lemma/model-seg   sud_vedic_ufal_csl \
+       pkg sa  training_sa_lemma3_noannot/model-seg   sud_vedic_ufal_csl \
             "--code scripts/sa_tokenizer.py,scripts/clause_parser.py" ;;
   lzh) $PY scripts/add_clause_parser.py training_lzh_lemma/model-best training_lzh_lemma/model-seg \
             >/dev/null 2>&1

@@ -138,6 +138,14 @@ def _is_period(doc, i):
     return not (prev_d and next_d)
 
 
+def _force_compound(morph, flag):
+    """Set/clear Compound=Yes in a FEATS string, leaving every other feature alone."""
+    feats = [f for f in morph.split("|") if f and not f.startswith("Compound=")]
+    if flag:
+        feats.append("Compound=Yes")
+    return "|".join(sorted(feats))
+
+
 def make_clause_parser(nlp, name, punct, punct_tag, sent_punct, sent_scheme):
     return ClauseParser(nlp, punct, punct_tag, sent_punct, sent_scheme)
 
@@ -257,6 +265,18 @@ class ClauseParser:
         # through unchanged rather than dropping them when the doc is rebuilt below.
         lemmas = [doc[i].lemma_ for i in range(n)]
         morphs = [str(doc[i].morph) for i in range(n)]
+        # The Sanskrit tokeniser decides Compound=Yes deterministically from the CSL join marker
+        # (precision/recall 0.9998 against the treebank, vs the morphologizer's predicted F 0.889),
+        # so its verdict is authoritative in BOTH directions and has to be reimposed here: the
+        # morphologizer has already overwritten token.morph with its own prediction, and the
+        # re-parse below rebuilds the doc from scratch. Guarded on the extension, because the lzh
+        # wheel bundles this module without `sa_tokenizer`.
+        cflags = (doc._.compound_flags
+                  if Doc.has_extension("compound_flags") else None)
+        if cflags is not None and len(cflags) == n:
+            morphs = [_force_compound(morphs[i], cflags[i]) for i in range(n)]
+        else:
+            cflags = None
         pipes = self._subpipes()
         sent_roots = []                 # doc-index root of each sentence (aligned with `sentences`)
 
@@ -267,8 +287,15 @@ class ClauseParser:
                 continue
             # Parse the sentence's content as ONE doc (medial marks removed), so the parser itself
             # decides how the comma-separated units relate — no fabricated join.
+            # Compound=Yes is an input feature of the parser's embed (configs/config_sa.cfg reads
+            # MORPH), and the whole-doc pass got it from the tokeniser — so the sub-doc must carry
+            # it too, or the re-parse runs on an input the parser never saw in training. Only the
+            # Compound feat is carried: that is all the tokeniser supplies, and it is all the
+            # corpus reader stamps on the predicted doc at training time.
             sub = Doc(self.nlp.vocab, words=[doc[i].text for i in content],
-                      spaces=[bool(doc[i].whitespace_) for i in content])
+                      spaces=[bool(doc[i].whitespace_) for i in content],
+                      morphs=(None if cflags is None else
+                              ["Compound=Yes" if cflags[i] else "" for i in content]))
             for p in pipes:
                 sub = p(sub)
             root = None
@@ -316,7 +343,7 @@ class ClauseParser:
         # token) across the copy — the rebuild is token-for-token, so the spans stay aligned.
         # Guarded on the extension existing at all, since the lzh wheel bundles this module without
         # `sa_tokenizer`, and on the value being set, so nothing is invented for other callers.
-        for attr in ("src_text", "src_spans"):
+        for attr in ("src_text", "src_spans", "compound_flags"):
             if Doc.has_extension(attr) and getattr(doc._, attr) is not None:
                 setattr(out._, attr, getattr(doc._, attr))
         return out
