@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Input front-end for the Sanskrit model (`sa_sud_vedic_ufal_csl`).
+"""Input front-end for the Sanskrit model (`sa_sud_vedic_ufal_dcs`).
 
 The model is trained on **CSL-reverted** wordforms: sandhied Clay-Sanskrit-Library text with the
 *notation-marked* sandhi undone (vowel coalescence and avagraha) but the unmarked consonant/visarga
@@ -173,10 +173,54 @@ def _normalise_aligned(text):
         # rather than dropped out of every span.
         start_of.setdefault(pos, a)
         end_of[pos + len(out)] = b
+        # Anchors alone are not enough once the CSLiser is in play: it inserts word boundaries
+        # INSIDE a segment (`kukavayo` -> `kuka vayaḥ`, `rājovāca` -> `rājā uvāca`), and those had
+        # no entry here, so every such token lost its span. Align within the segment too.
+        _align_inside(s0, a, b, out, pos, deva, start_of, end_of)
         pos += len(out)
     if "".join(pieces) != norm:                          # exotic input: keep the tokens, drop the spans
         return norm, None, None
     return norm, start_of, end_of
+
+
+def _align_inside(s0, a, b, out, pos, deva, start_of, end_of):
+    """Add per-character boundaries within one segment, when they can be established exactly.
+
+    Two cases. If the segment normalises length-preservingly (pure IAST — accent stripping aside)
+    the mapping is the identity and needs no work. Otherwise — Devanagari, where one akshara yields
+    one to three IAST characters — the boundaries are recovered by transliterating successive
+    PREFIXES and reading off their lengths, which is monotone by construction.
+
+    The prefix map is then CHECKED: it must be non-decreasing and must land exactly on the segment's
+    own normalised length. If it does not, nothing is added and the affected tokens simply report no
+    span — this module never emits a guessed offset.
+    """
+    src = s0[a:b]
+    if len(src) < 2:
+        return
+    if len(out) == len(src):                              # length-preserving: identity within
+        for k in range(1, len(src)):
+            start_of.setdefault(pos + k, a + k)
+            end_of[pos + k] = a + k
+        return
+    if not deva:
+        return
+    # Devanagari: one akshara yields one to three IAST characters, so recover the boundaries by
+    # transliterating successive PREFIXES. A prefix is only usable when its transliteration is a
+    # genuine prefix of the segment's — which is exactly the test that rejects the IMPLICIT A.
+    # `श` alone romanises to `śa` (the inherent vowel) but `श्` to `ś`, so a prefix cut mid-akshara
+    # produces a vowel the full string does not have; `śa` is not a prefix of `śrīśāradā…`, so it is
+    # dropped, while every true akshara boundary passes. Self-verifying, so no Unicode-category
+    # table of dependent signs is needed, and a boundary that cannot be established is simply
+    # absent — this module never emits a guessed offset.
+    last = 0
+    for k in range(1, len(src)):
+        p = _normalise_body(src[:k], deva)
+        if len(p) < last or not out.startswith(p):
+            continue
+        last = len(p)
+        start_of.setdefault(pos + last, a + k)
+        end_of[pos + last] = a + k
 
 
 def _iter_chunks(s):
@@ -660,6 +704,9 @@ if not Token.has_extension("src_span"):
     Token.set_extension("src_span", getter=lambda t: (
         (t.doc._.src_spans[t.i] if t.i < len(t.doc._.src_spans) else None)
         if t.doc._.src_spans is not None else None))
+if not Token.has_extension("unsandhied"):
+    # the padapāṭha (unsandhied) form; set by the tokeniser's stage B, also by `sud_unsandhi`
+    Token.set_extension("unsandhied", default="")
 if not Doc.has_extension("compound_flags"):
     # Per token: did the tokeniser stamp Compound=Yes? The morphologizer overwrites token.morph
     # with its own prediction, and clause_parser rebuilds the doc for its re-parse, so the
@@ -702,17 +749,20 @@ class SaCompound:
     19 584 / 19 584 tokens, zero disagreements. Precision against the treebank is 1.0000 — it never
     marks a non-compound.
 
-    KNOWN LIMIT, and it bites harder than it looks. It cannot see a compound member that is
-    **elided** — the treebank writes those with FORM `_` and a trailing space, so there is no
-    adjacency to read (282 in the test split, and every single unrecoverable token is a `_`). Such
-    tokens cannot occur in real input, so this is a treebank-only gap. But a PARTIALLY supplied
-    feature turns out to be worse for the parser than none at all — on the Vedic test set, token
-    input scores LAS 0.5169 with no Compound, 0.4826 with this fallback, 0.5601 with the full
-    feature — because training always had the feature on every compound member, so an unmarked one
-    is positive evidence of "not a compound" rather than absence of evidence. Hence: **evaluate on a
-    treebank with `scripts/eval_sa_compound.py` (which supplies the feature from the reference), NOT
-    with this component.** Marking every `_` token is not a fix: only 81 % of them are compounds, so
-    the rule would trade the precision-1.0 property for a worse error.
+    KNOWN LIMIT. It cannot see a compound member that is **elided** — the treebank writes those with
+    FORM `_` and a trailing space, so there is no adjacency to read (282 in the test split, and every
+    single unrecoverable token is a `_`). Such tokens cannot occur in real input, so this is a
+    treebank-only gap, and on real text the component is exact. On the treebank it supplies 737 of
+    1 019, which still helps: token input scores LAS 0.5169 with no Compound, 0.5478 with this
+    fallback, 0.5601 with the full feature. (An earlier measurement put the fallback at 0.4826 —
+    below the no-feature case — and concluded that a partial feature was worse than none. That was
+    an artifact of the unset-vs-empty MORPH bug fixed in `__call__` above, and the conclusion is
+    withdrawn.) Marking every `_` token is still not a fix: only 81 % of them are compounds, so the
+    rule would trade the precision-1.0 property for a worse error.
+
+    Do NOT add this component to an eval pipeline whose reader already supplies the feature from the
+    reference — it re-derives and overwrites the reference's 1 019 with its own 737 (LAS 0.5601 ->
+    0.5519). Evaluate a treebank with `scripts/eval_sa_compound.py` instead.
 
     Only the Compound feature is touched; any other FEATS already on the token are preserved.
     """
@@ -729,9 +779,35 @@ class SaCompound:
             for i, tok in enumerate(doc)
         ]
         for tok, flag in zip(doc, flags):
-            tok.set_morph(_add_compound(tok.morph, flag))
+            new = _add_compound(tok.morph, flag)
+            if new or str(tok.morph):
+                # Never set_morph("") on an already-unset token: that stores the *empty* morph
+                # key rather than leaving it unset, which is a different input to the encoder
+                # (see the note in SanskritInputTokenizer.__call__).
+                tok.set_morph(new)
         doc._.compound_flags = flags
         return doc
+
+
+def _mwt_membership(words):
+    """Per token: is it inside a multiword (orthographic) token?
+
+    MUST agree with `restructure_sa_csl.orthographic_groups`, which defines the same grouping for
+    the training data — if they disagree, the tokeniser de-sandhis a different set of tokens than
+    the corpus did. A junction fuses when the left token carries the CSL join marker (compound
+    member / preverb / privative) or when it ends in the elision marker `'`/`"` AND the right token
+    opens with a coalescence mark. An avagraha (right token opening with `'`, left carrying no
+    marker) does NOT fuse — DCS writes `ko 'nasūyakaḥ` with a space.
+    """
+    n = len(words)
+    inside = [False] * n
+    for i in range(n - 1):
+        L, R = words[i], words[i + 1]
+        bound = L.endswith("-") and len(L) > 1
+        coal = bool(L) and L[-1] in ("'", '"') and any(R.startswith(m) for m in _MARKS_SORTED)
+        if bound or coal:
+            inside[i] = inside[i + 1] = True
+    return inside
 
 
 @registry.tokenizers("sa.SanskritInputTokenizer.v1")
@@ -741,15 +817,174 @@ def make_sanskrit_input_tokenizer():
     return create
 
 
+@registry.tokenizers("sa.SanskritInputTokenizer.v2")
+def make_sanskrit_input_tokenizer_v2():
+    """Split only: whitespace / hyphen / word-internal pipe, plus the `Compound` feature.
+
+    v1 reverses CSL-marked sandhi as part of tokenisation, which mixes two jobs: deciding where the
+    tokens are, and deciding what their underlying forms are. The second is a LEXICAL question — the
+    treebank wants `saṃ`->`sam`, `udag`->`udak`, `nir`->`niḥ` but `prāc`->`prāc`, `catur`->`catur`,
+    `ahar`->`ahar`, i.e. identical surface shapes with opposite answers — so no rule can settle it,
+    and `desandhi_csl` tops out around 94.5 %.
+
+    v2 therefore does none of it. Each token is a verbatim piece of the normalised input, so the
+    tokenisation is exactly reproducible, cannot drift from the training data, and needs no
+    accuracy figure at all. Sandhi reversal moves to `sud_unsandhi`, a trained edit-tree component
+    that writes `Token._.unsandhied` (0.9788 on Vedic test) and can be improved independently.
+
+    Devanagari->IAST normalisation, accent stripping and daṇḍa normalisation are kept: they are
+    input normalisation, not sandhi.
+    """
+    def create(nlp):
+        return SanskritInputTokenizer(nlp.vocab, split_only=True)
+    return create
+
+
+@registry.tokenizers("sa.SanskritInputTokenizer.v3")
+def make_sanskrit_input_tokenizer_v3():
+    """Full front end: raw IAST or Devanagari in, parser-ready tokens out.
+
+    CSL notation is an INTERNAL representation only. The caller never sees it and never has to
+    produce it — which is the whole point of this version. Three stages:
+
+        0. CSLise    raw text -> CSL          (`sa_presegment`, a trained character tagger)
+        1. de-CSLise CSL -> tokens + Compound (split on whitespace / hyphen / word-internal pipe)
+        2. de-sandhi MWT members -> unsandhied (`sud_unsandhi`, a trained edit-tree transducer)
+
+    Devanagari is romanised by `normalise()` (indic-transliteration, MIT). Aksharamukha was
+    evaluated for this and rejected: on the 230 Devanagari lines in UFAL it produces IDENTICAL IAST
+    on 229 once the daṇḍa is mapped back, its one systematic difference (। -> '.') would silently
+    break `clause_parser`'s `sent_scheme="danda"`, it adds ~75 MB of transitive dependencies, and it
+    is AGPL 3.0 against this project's MIT. It remains the right tool if input in scripts beyond
+    Devanagari is ever wanted.
+
+    Falls back to v2 behaviour (expects CSL input) when no CSLiser has been loaded.
+    """
+    def create(nlp):
+        return SanskritInputTokenizer(nlp.vocab, split_only=True, cslise=True)
+    return create
+
+
 class SanskritInputTokenizer:
-    def __init__(self, vocab):
+    def __init__(self, vocab, split_only=False, cslise=False):
         self.vocab = vocab
+        self.split_only = split_only
+        self.cslise = cslise            # run the CSLiser first (v3); needs `load_csliser`
+        self.desandhi_model = None      # stage B; None => fall back to the rule
+        self.desandhi_cfg = None
+        self.csliser = None             # stage 0; None => input is assumed to be CSL already
+
+    def load_csliser(self, path):
+        """Attach a trained saṃhitā -> CSL character tagger (scripts/sa_presegment.py)."""
+        import sa_presegment
+        self.csliser = sa_presegment.Presegmenter.from_disk(path)
+        self.cslise = True
+        return self
+
+    # ---- STAGE B -------------------------------------------------------------------------------
+    def _cslise_aligned(self, norm, start_of, end_of):
+        """Run the CSLiser over `norm` and carry the source-offset map through it.
+
+        The tagger rewrites the string, so `start_of`/`end_of` (which are keyed on boundaries in
+        `norm`) stop applying — but it is a per-CHARACTER tagger, so every input character's
+        expansion is known and the map IS recoverable. Each input character `i` occupying output
+        range [p, p+L) gives:
+
+            a token STARTING anywhere in [p, p+L)  starts at input boundary i
+            a token ENDING   anywhere in (p, p+L]  ends   at input boundary i+1
+
+        First-writer-wins for starts and last-writer-wins for ends, matching `_normalise_aligned`,
+        so a zero-length expansion (the absorbed second half of `ai`/`au`) is attributed to the
+        character that produced it rather than dropped.
+
+        CONSEQUENCE, and it is a real change: at a coalescence the boundary falls INSIDE one
+        character's expansion (`o` -> `' ô`), because the fused vowel genuinely belongs to both
+        words. The left token's span therefore ENDS one character after the right token's span
+        BEGINS — spans overlap by one character instead of tiling. That is the truth about the
+        source text, and more useful to a caller highlighting it than a hole would be, but it means
+        the "spans tile the input exactly" invariant holds only when the CSLiser is off.
+        """
+        pieces, cs, ce = [], {}, {}
+        out_pos = in_pos = 0
+        chunks = norm.split(" ")
+        labels_per_chunk = self.csliser.predict([c for c in chunks])
+        for k, (chunk, labels) in enumerate(zip(chunks, labels_per_chunk)):
+            if k:                                          # the joining space is 1:1
+                cs.setdefault(out_pos, in_pos)
+                ce[out_pos + 1] = in_pos + 1
+                pieces.append(" ")
+                out_pos += 1
+                in_pos += 1
+            for ch, lab in zip(chunk, labels):
+                exp = ch + lab[1:] if lab.startswith("=") else lab
+                for q in range(out_pos, out_pos + len(exp)):
+                    cs.setdefault(q, in_pos)
+                for q in range(out_pos + 1, out_pos + len(exp) + 1):
+                    ce[q] = in_pos + 1
+                if not exp:                                # absorbed: keep the position anchored
+                    cs.setdefault(out_pos, in_pos)
+                pieces.append(exp)
+                out_pos += len(exp)
+                in_pos += 1
+        cs.setdefault(out_pos, in_pos)
+        ce.setdefault(0, 0)
+        if start_of is None or end_of is None:
+            return "".join(pieces), None, None
+        # compose CSL-boundary -> norm-boundary -> raw-input-boundary
+        return ("".join(pieces),
+                {q: start_of[i] for q, i in cs.items() if i in start_of},
+                {q: end_of[i] for q, i in ce.items() if i in end_of})
+
+    _last_unsandhied = None
+
+    def _desandhi(self, pieces, inside, compound):
+        """Reverse sandhi on the tokens inside a multiword token; leave the rest verbatim.
+
+        Uses the trained transducer when one has been loaded (`load_desandhi`), else the rule. The
+        trained one is worth having: on the same task it scores 0.9788 against `desandhi_csl`'s
+        0.9446, because the residue is lexical — the treebank wants `saṃ`->`sam`, `udag`->`udak`,
+        `nir`->`niḥ` but `prāc`->`prāc`, `catur`->`catur`, `ahar`->`ahar`, i.e. identical surface
+        shapes with opposite answers, which no rule can settle.
+        """
+        # NB no early return when nothing is inside an MWT: the transducer still has to run, because
+        # `Token._.unsandhied` is published for EVERY token, not just the ones whose FORM changes.
+        if self.desandhi_model is not None:
+            probe = Doc(self.vocab, words=list(pieces))
+            for tok, c in zip(probe, compound):
+                if c:
+                    tok.set_morph("Compound=Yes")      # the transducer's encoder reads MORPH
+            self.desandhi_model(probe)
+            # The transducer predicts the unsandhied form of EVERY token, but stage B only rewrites
+            # the FORM of those inside an MWT (DCS leaves a standalone token sandhied). Keep the
+            # full prediction so `__call__` can publish it on `Token._.unsandhied` — the padapāṭha
+            # analysis is useful for every token, and this way the model runs once, not twice.
+            self._last_unsandhied = [tok._.unsandhied or p for tok, p in zip(probe, pieces)]
+            return [u if ins else p
+                    for u, p, ins in zip(self._last_unsandhied, pieces, inside)]
+        rev = desandhi_csl(list(pieces))
+        self._last_unsandhied = list(rev)
+        return [r if ins else p for r, p, ins in zip(rev, pieces, inside)]
+
+    def load_desandhi(self, path, model_cfg):
+        """Attach a trained stage-B transducer from a component directory + its model config."""
+        from spacy.util import registry as _registry
+        import sud_unsandhi
+        model = _registry.resolve({"model": model_cfg}, validate=True)["model"]
+        comp = sud_unsandhi.SudUnsandhi(self.vocab, model, name="desandhi")
+        comp.from_disk(path)
+        self.desandhi_model = comp
+        self.desandhi_cfg = model_cfg
+        return self
 
     def __call__(self, text):
         # `norm` is what gets tokenised; `start_of`/`end_of` translate a boundary in it back to the
         # raw input (None/None when that could not be done — see `_normalise_aligned`). `_PIPE.sub`
         # is a 1:1 character substitution, so it leaves those boundaries where they are.
         norm, start_of, end_of = _normalise_aligned(text)
+        if self.cslise and self.csliser is not None:
+            # STAGE 0. The input is raw IAST/Devanagari, not CSL: run the character tagger to
+            # insert the word / compound / coalescence notation the rest of this method expects.
+            norm, start_of, end_of = self._cslise_aligned(norm, start_of, end_of)
         norm = _PIPE.sub("-", norm)                  # CSL compound | -> hyphen (not the daṇḍa |)
         words, spaces, at = [], [], []               # `at`: each token's [start, end) within `norm`
         for c0, chunk in _iter_chunks(norm):
@@ -773,26 +1008,55 @@ class SanskritInputTokenizer:
             # through to an empty Doc — spaCy rejects a '' token with E031, so the old
             # `words = [norm or text]` raised on it.)
             words, spaces, at = [norm or text], [False], [(0, len(norm))]
-        # The two transforms below both preserve the token COUNT (`desandhi_csl` rewrites in place;
-        # the join-marker strip is a per-token edit), which is what lets the spans stay aligned even
-        # though the forms change out from under them.
-        words = desandhi_csl(words)                    # reverse CSL-marked sandhi (vowel/avagraha)
-        # Drop the compound-join marker so members are clean wordforms, matching the training
-        # data: internally a compound member is split with a trailing '-' (from _HYPH), which is
-        # removed here (śuka- -> śuka). The grouping is recoverable from the Compound=Yes FEAT
-        # (samāsa members) plus token adjacency (no SpaceAfter between members). A lone dash (the
-        # '-' PUNCT, length 1) is a genuine dash — left as is.
-        joined = [len(w) > 1 and w.endswith("-") for w in words]
-        words = [w[:-1] if j else w for w, j in zip(words, joined)]
+        # Every transform below preserves the token COUNT, which is what lets the source spans stay
+        # aligned even though the forms change out from under them.
+        #
         # A join marker means "bound to the token on the right", which is a samāsa member EXCEPT for
         # the preverbs and the privative (see _NON_COMPOUND_JOIN). Stamping the feat here makes it
         # deterministic instead of predicted — the morphologizer scored only F 0.889 on Compound —
         # and, because the training corpora carry the same feat on the predicted doc (via
         # `sud.CompoundCorpus.v1`), it is also an INPUT feature for every component downstream.
-        compound = [j and w not in _NON_COMPOUND_JOIN for w, j in zip(words, joined)]
-        doc = Doc(self.vocab, words=words, spaces=spaces,
-                  morphs=["Compound=Yes" if c else "" for c in compound])
+        # A lone dash (the '-' PUNCT, length 1) is a genuine dash and is left alone.
+        if self.split_only:
+            # ---- STAGE A: de-CSLize --------------------------------------------------------
+            # Split on whitespace / hyphen / word-internal pipe, normalise the daṇḍa, stamp
+            # Compound. NO sandhi reversal: each piece is verbatim input.
+            words = [unicodedata.normalize("NFC", w) for w in words]
+            _normalise_danda(words)
+            joined = [len(w) > 1 and w.endswith("-") for w in words]
+            inside = _mwt_membership(words)          # computed BEFORE the join markers go
+            pieces = [w[:-1] if j else w for w, j in zip(words, joined)]
+            # `_NON_COMPOUND_JOIN` lists CSL surface forms (`saṃ`, `ā`, …), so the lookup has to
+            # happen on the de-CSLized piece, before stage B rewrites it (`saṃ` -> `sam`).
+            compound = [j and w not in _NON_COMPOUND_JOIN for w, j in zip(pieces, joined)]
+            # ---- STAGE B: de-sandhi --------------------------------------------------------
+            # Applied to the tokens INSIDE a multiword token only. DCS writes those unsandhied and
+            # leaves a token that is its own orthographic word sandhied, and the training corpus
+            # follows suit (`restructure_sa_csl.py --forms dcs`).
+            words = self._desandhi(pieces, inside, compound)
+        else:
+            words = desandhi_csl(words)                 # v1: reverse CSL-marked sandhi everywhere
+            joined = [len(w) > 1 and w.endswith("-") for w in words]
+            words = [w[:-1] if j else w for w, j in zip(words, joined)]
+            compound = [j and w not in _NON_COMPOUND_JOIN for w, j in zip(words, joined)]
+        # Set the feat ONLY on the compound members, leaving every other token's MORPH *unset*.
+        # Passing morphs=["Compound=Yes" if c else "", ...] to the constructor looks equivalent —
+        # both render as '' — but an empty morph is a distinct MORPH key (456) from an unset one
+        # (0), and `sud.CompoundCorpus.v1` builds the training docs the second way. Getting this
+        # wrong hands the encoder a MORPH value it never saw in training on every non-compound
+        # token, i.e. ~94 % of them, and costs 6.8 LAS with nothing to show for it in any
+        # string-level comparison.
+        doc = Doc(self.vocab, words=words, spaces=spaces)
+        for tok, c in zip(doc, compound):
+            if c:
+                tok.set_morph("Compound=Yes")
         doc._.compound_flags = compound
+        # publish the transducer's padapāṭha analysis for EVERY token (stage B only rewrote the
+        # FORM of the MWT members); `sud_unsandhi` as a pipeline component is then unnecessary.
+        if self.split_only and self._last_unsandhied and len(self._last_unsandhied) == len(doc):
+            for tok, u in zip(doc, self._last_unsandhied):
+                tok._.unsandhied = u
+        self._last_unsandhied = None
         doc._.src_text = text
         # A span is emitted only when BOTH ends of the token's normalised range land on a segment
         # boundary; anything else would be a guess, and a caller can live with a hole but not with
@@ -808,8 +1072,29 @@ class SanskritInputTokenizer:
     def from_bytes(self, _bytes, **kwargs):
         return self
 
-    def to_disk(self, _path, **kwargs):
+    def to_disk(self, path, **kwargs):
+        # spaCy hands a FILE path here; with a stage-B model we need a directory beside it. When
+        # there is no model this stays a no-op, so every already-released wheel (which has no
+        # `tokenizer` entry at all) keeps loading unchanged.
+        if self.desandhi_model is None and self.csliser is None:
+            return None
+        import pathlib
+        import srsly
+        path = pathlib.Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        if self.desandhi_model is not None:
+            self.desandhi_model.to_disk(path / "desandhi")
+            srsly.write_json(path / "desandhi_cfg.json", self.desandhi_cfg)
+        if self.csliser is not None:
+            self.csliser.to_disk(path / "csliser")
         return None
 
-    def from_disk(self, _path, **kwargs):
+    def from_disk(self, path, **kwargs):
+        import pathlib
+        import srsly
+        p = pathlib.Path(path)
+        if p.is_dir() and (p / "desandhi").exists():
+            self.load_desandhi(p / "desandhi", srsly.read_json(p / "desandhi_cfg.json"))
+        if p.is_dir() and (p / "csliser").exists():
+            self.load_csliser(p / "csliser")
         return self

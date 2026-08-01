@@ -19,8 +19,9 @@ import pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import spacy  # noqa: E402
-import sa_tokenizer  # noqa: E402,F401  (registers the tokenizer + widened lex attrs)
+import sa_tokenizer  # noqa: E402,F401  (registers sa.SanskritInputTokenizer.v1 + sa_compound)
 import clause_parser  # noqa: E402,F401
+import sud_affix_embed  # noqa: E402,F401  (registers sud.MultiHashEmbedAffix.v1 — affix arms)
 from gold_tok_corpus import CompoundCorpus  # noqa: E402
 from spacy.training.corpus import Corpus  # noqa: E402
 
@@ -42,9 +43,13 @@ for k in keys:
     if isinstance(v, float):
         print(f"  {k:10s} {v:.4f}")
 per = scores.get("morph_per_feat") or {}
-for f in ("Compound", "Case", "Number", "Gender", "Tense"):
-    if f in per:
-        print(f"    {f:9s} F {per[f]['f']:.3f}")
+# every feature, commonest first — Voice / VerbForm / Mood used to be omitted, and they are exactly
+# where a longer suffix window is predicted to move things (passive -yate, -mānaḥ, future -ṣyati).
+for f in sorted(per, key=lambda k: -per[k].get("f", 0)):
+    d = per[f]
+    print(f"    {f:9s} P {d['p']:.3f}  R {d['r']:.3f}  F {d['f']:.3f}")
+if "morph_micro_f" in scores:
+    print(f"  morph_micro_f {scores['morph_micro_f']:.4f}")
 if out:
     pathlib.Path(out).write_text(json.dumps(
         {k: v for k, v in scores.items() if not callable(v)}, ensure_ascii=False, default=str))

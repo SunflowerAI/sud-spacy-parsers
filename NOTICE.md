@@ -24,6 +24,21 @@ the underlying treebanks. You must give attribution and share derivatives alike.
 
 Each source treebank's own `LICENSE.txt` is retained alongside its data.
 
+## Digital Corpus of Sanskrit (DCS) — CC BY 4.0
+
+The Sanskrit **CSLiser** (`models/sa_presegment*`, the saṃhitā → CSL pre-tokeniser) is trained on
+classical and epic text from the **Digital Corpus of Sanskrit**, Oliver Hellwig et al.,
+<https://github.com/OliverHellwig/sanskrit> (`dcs/data/conllu`), licensed **CC BY 4.0**.
+
+| Component | Source | Licence |
+|-----------|--------|---------|
+| `models/sa_presegment_dcs`, `data_samhita/dcs.jsonl`, `models/sa_lexicon` | DCS — Rāmāyaṇa, Mahābhārata, Kathāsaritsāgara, Bhāgavatapurāṇa, Bṛhatkathāślokasaṃgraha, Hitopadeśa, Daśakumāracarita, Harṣacarita, Kumārasaṃbhava | CC BY 4.0 |
+
+CC BY 4.0 requires attribution but not share-alike, so it composes with the CC BY-SA 4.0 above
+(the combined work stays CC BY-SA 4.0). The DCS checkout itself (`assets_dcs/`) is a sparse clone
+and is not redistributed here. Cite DCS as: Oliver Hellwig, *The Digital Corpus of Sanskrit (DCS)*,
+2010–2026.
+
 ## NonCommercial — the Latin model (`la_sud_ittb_proiel_perseus`)
 
 The Latin model is trained on the union of three SUD Latin treebanks, **all NonCommercial**:

@@ -13,8 +13,13 @@ Loads/saves with interpolation OFF so ``${paths.train}`` survives (CLAUDE.md got
     make_morph_config.py configs/config_id_seg.cfg training_id_seg/model-best
 """
 import argparse
+import os
+import sys
 
 from thinc.api import Config
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from config_guard import guard_overwrite                     # noqa: E402
 
 
 def main():
@@ -25,7 +30,12 @@ def main():
     ap.add_argument("--width", type=int, default=64)
     ap.add_argument("--depth", type=int, default=3)
     ap.add_argument("--embed-size", type=int, default=2000)
+    ap.add_argument("--force", action="store_true",
+                    help="overwrite a hand-maintained --out (see scripts/config_guard.py)")
     args = ap.parse_args()
+
+    out = args.out or args.base_config.replace(".cfg", "_morph.cfg")
+    guard_overwrite(out, "morphologizer", "spacy.HashEmbedCNN.v2", args.force)
 
     cfg = Config().from_disk(args.base_config, interpolate=False)
 
@@ -84,7 +94,6 @@ def main():
     sw["pos_acc"] = 0.8
     sw["morph_acc"] = 0.2
 
-    out = args.out or args.base_config.replace(".cfg", "_morph.cfg")
     cfg.to_disk(out)
     print(f"wrote {out}  (frozen: {frozen})")
 

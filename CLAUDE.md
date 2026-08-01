@@ -135,7 +135,7 @@ from the arm's `_morph` config (inheriting its reader + train/dev data), sources
 appends the lemmatiser, and sets `lemma_acc` as the only score weight. The frozen components are
 **byte-identical** to the morph arm (verified per-arm with `cmp`), so parse/seg/morph/UPOS metrics are
 unchanged — lemma is a purely added layer. `train_lemma.sh` trains all 11 arms; `package_lemma.sh`
-packages each with the **new names** (`sud_gsd_simp_trad`/`sud_ittb_proiel_perseus`/`sud_vedic_ufal_csl`),
+packages each with the **new names** (`sud_gsd_simp_trad`/`sud_ittb_proiel_perseus`/`sud_vedic_ufal_dcs`),
 re-appending `clause_parser` for lzh/sa and swapping pkuseg for yue. **`clause_parser` now also carries
 `lemma`/`morph`** through its per-clause re-parse (it rebuilt the doc with only tag/pos/head/dep before,
 which would have dropped lemmas on raw lzh/sa input). **`lemma_acc`:** en 0.949, ar 0.907, fa 0.981,
@@ -400,7 +400,7 @@ gold-preproc and raw end-to-end evaluations.
     not stamped with Japanese-tagset notation). gold-preproc eval bypasses clause_parser, so metrics
     are unaffected — this is purely a raw-inference fix. Repackage the lzh/sa wheels to ship it.
   - **Released (v0.1.0), all 6 + the original 4:** `fa_sud_perdt` (ext), `ja_sud_gsd` (ext),
-    `ar_sud_padt` (ext), `la_sud_ittb_proiel_perseus` (ext), `sa_sud_vedic_ufal_csl` (base, **CSL-reverted** —
+    `ar_sud_padt` (ext), `la_sud_ittb_proiel_perseus` (ext), `sa_sud_vedic_ufal_dcs` (base, **CSL-reverted** —
     accepts sandhied CSL, de-sandhies to clean wordforms; see below; re-clobbered at 0.1.0),
     `lzh_sud_kyoto` (**ext** —
     bundles `training_lzh_ext` + `clause_parser` with the punctuation-morphology fix; replaced the
@@ -577,7 +577,7 @@ work above (which macronises the treebank to make the parser robust to macronise
   Table-less it RAISES rather than silently returning unmacronised text. RFTagger (non-commercial
   only) is used solely to label the treebank offline and is not a runtime dependency. See NOTICE.md.
 
-## Sanskrit sandhied-CSL representation (`sa_sud_vedic_ufal_csl`)
+## Sanskrit sandhied-CSL representation (`sa_sud_vedic_ufal_dcs`)
 
 The released Sanskrit model **replaces `sa_sud_vedic`**. It **accepts sandhied text in
 Clay-Sanskrit-Library (CSL) conventions** (the Vedic treebank is natively *pausa*/unsandhied; UFAL
@@ -899,10 +899,353 @@ component without a custom embed layer that hashes `token.text[-k:]` at forward 
 NB the two arms differed in BOTH widths, so prefix vs suffix blame is **not** separated; a
 single-variable run (suffix 4, prefix 1) is the informative one if this is ever revisited.
 
+### …but a PER-COMPONENT affix window is a clear win (`sud.MultiHashEmbedAffix.v1`, +1.19 morph_acc)
+
+The paragraph above ends by naming the missing piece — "a custom embed layer that hashes
+`token.text[-k:]` at forward time" — and `scripts/sud_affix_embed.py` is it. It registers
+**`sud.MultiHashEmbedAffix.v1`**, which is `spacy.MultiHashEmbed.v2` plus one hash-embedded table
+per configured affix length, computed from the token string in the forward pass. It is **exactly
+equivalent to the stock layer when no affix is configured** (verified byte-for-byte in
+`scripts/check_affix_embed.py`), so switching an arm over stays single-variable. The lexeme-level
+`SUFFIX` stays at spaCy's default 3 — the frozen components were trained on that and must stay in
+distribution. Wired into `scripts/seg_code.py`; `scripts/make_sa_morph_arms.py` generates the arms
+and asserts each differs from the baseline **only** inside `morphologizer.model.tok2vec`;
+`scripts/train_sa_morph_arms.sh` runs and scores them.
+
+Why this is safe where the lexeme-level widening was not: the morph recipe FREEZES
+tok2vec/tagger/parser, so only the morphologiser's own dedicated encoder sees the feature. Verified,
+not assumed — all three frozen components are byte-identical to the source arm (`cmp`) in every arm,
+and `dep_las` 0.5471 / `dep_uas` 0.6763 / `tag_acc` 0.8952 are identical across all eight.
+
+**Results (Vedic test, `eval_sa_compound.py`; Δ in percentage points vs the baseline):**
+
+| arm | morph_acc | Δ | Voice | VerbForm | Tense | Case | table cost |
+|---|---|---|---|---|---|---|---|
+| baseline | 0.8050 | — | .578 | .766 | .869 | .856 | — |
+| **w96 (capacity control)** | **0.8094** | **+0.44** | **+2.9** | **+0.4** | **−0.0** | **+0.6** | — |
+| prefix 2, 1 000 rows | 0.8105 | +0.55 | +8.5 | +3.4 | +0.9 | +0.4 | +0.3 MB |
+| prefix 3, 2 500 rows | 0.8157 | +1.07 | +5.4 | +4.6 | +1.4 | +0.8 | +0.6 MB |
+| suffix 4, 8 000 rows | 0.8186 | +1.35 | +10.8 | +5.3 | +2.6 | +1.2 | +2.0 MB |
+| **suffix 5, 8 000 rows** | **0.8208** | **+1.58** | **+17.4** | **+6.6** | **+2.5** | **+1.0** | **+2.0 MB** |
+| suffix 5, 16 000 rows | 0.8180 | +1.29 | +11.9 | +5.4 | +2.7 | +0.8 | +4.1 MB |
+| suffix 6, 24 000 rows | 0.8159 | +1.09 | +15.2 | +6.6 | +2.8 | +0.3 | +6.1 MB |
+
+**The capacity control is what makes this readable.** `w96` widens the dedicated encoder without
+adding the feature: it buys +0.44 overall and essentially nothing on the features the hypothesis
+named (Voice +2.9, VerbForm +0.4, Tense −0.0). The affix arms buy +1.1 to +1.6 with Voice +11 to
++17 and VerbForm +5 to +7. **The gain is the feature, not the parameters** — and the features that
+move are the ones predicted in advance from an information-theoretic probe, whose evidence sits
+outside a 3-character window (passive `-yate`, participial `-mānaḥ`/`-antaḥ`, future `-ṣyati`).
+
+**Replicated across seeds** (0/1/2): baseline 0.8050 / 0.8075 / 0.8087 (mean 0.8071) vs suffix-5
+0.8208 / 0.8169 / 0.8191 (mean 0.8189). **No overlap** — the worst affix seed beats the best
+baseline seed by 0.82 points, against a within-condition spread of 0.37. Mean gain **+1.19**.
+
+More rows and longer windows are both WORSE: suffix 5 at 8 000 rows beats the same window at 16 000,
+and beats suffix 6 at 24 000. The cheapest good configuration also wins, so **suffix 5 / 8 000 rows
+(+2.0 MB)** is the arm to adopt. Not yet adopted into the released model — the morph arms here source
+from `training_sa_csl_rev/model-seg` (`dep_las` 0.5471), whereas the released lemma arm's lineage
+runs through `training_sa_morph3` (`dep_las` 0.5601); re-point the lineage before repackaging.
+
+**The lemmatiser gains as much (+1.60).** Same freeze recipe, its own encoder, single variable —
+baseline reproduces the released 0.8645 exactly, `suffix 5 / 8 000` gives **0.8805**, `suffix 6`
+0.8802 (no better, so k=5 suffices even though the form→lemma edit needs 6 characters 96.9 % of the
+time). `morph_acc`/`pos_acc`/`dep_las` identical across all three arms — the frozen stack is
+untouched. NB these were measured on the pausa-normalised representation and need re-verifying
+against whichever representation ships.
+
+**But do NOT put it on the shared base `tok2vec` — the parser loses.** Single-variable run
+(suffix 5 / 8 000 rows added to `config_sa_mwt.cfg`'s base embed, lexeme `SUFFIX` left at 3):
+**tag_acc +0.36 but UAS −0.81 and LAS −0.49**. That is the original "widening regressed everything
+but the tagger" result reproducing in miniature — much milder (−0.49 vs −2.9) because this is
+per-component and suffix-only, but the same direction. The reading is consistent: a longer suffix
+window helps components predicting WORD-level properties (tagger, morphologiser, lemmatiser) and
+hurts the parser, which wants the short, widely-SHARED inflectional ending as a generalisation cue.
+This is the clean single-variable base experiment the negative-result note above asked for; it is
+now run, and the answer is no.
+
+**A curated inventory of real Sanskrit endings — the intuitive fix — was ruled out before building
+anything.** Simulated as a longest-match lookup: 92–243 entries score 47–55 % exact-bundle against
+plain `form[-3:]`'s 60.0 %, and ~630 entries are needed just to draw level (~12 000 to match
+`form[-5:]`). The signal is window LENGTH, not linguistic curation, because real surface forms carry
+stem-class and sandhi cues in the pre-desinential characters that a clean morpheme list discards.
+
 Also ruled out: **`annotating_components = ["morphologizer"]`** on the lemma config (so the lemmatizer
 conditions on predicted FEATS instead of nothing) is **not** worth it — lemma_acc 0.8627 with vs
 0.8645 without. Predicted `Case` at F 0.856 adds about as much noise as signal to an edit-tree
 classifier that already has the whole form in `NORM`. Left at `[]`, matching the other ten arms.
+
+### RELEASED: `sa_sud_vedic_ufal_dcs` — raw IAST/Devanagari in, CSL internal only
+
+The Sanskrit wheel was renamed from `sa_sud_vedic_ufal_csl` and now takes **raw sandhied text**;
+CSL notation is an internal representation no caller ever produces. Assembled by
+`scripts/add_sa_frontend.py`:
+
+    tokenizer  sa.SanskritInputTokenizer.v3, carrying TWO trained models
+                 stage 0  CSLise     raw text -> CSL   (`sa_presegment`, char tagger, 4.8 MB)
+                 stage 1  de-CSLise  CSL -> tokens + Compound  (mechanical, exact)
+                 stage 2  de-sandhi  MWT members -> unsandhied (`sud_unsandhi` transducer)
+    sa_compound   FIRST      Compound for callers who pass TOKENS rather than text
+    ... trained components ...
+    clause_parser            per-sentence re-parse, punctuation morphology
+    sa_deva       LAST       Devanagari FORM/LEMMA + Translit/LTranslit, iff input was Devanagari
+
+Per-token output: `token._.unsandhied` (padapāṭha), `token._.translit` / `_.ltranslit` (IAST when
+the input was Devanagari), `token._.src_span` (character span in the RAW input).
+
+**Accuracy on classical/epic (the target domain):** CSLiser sentence-PM 80.17 IAST / 78.63
+Devanagari; de-CSLizer exact; de-sandhifier 0.9885; morph 0.9259; pos 0.9597; lemma 0.9592. On
+Vedic the same arms score morph 0.7787 / lemma 0.8719 — the deliberate cost of DCS being 90 % of
+the morphology training data.
+
+Wheel is ~26 MB (was 12): the CSLiser and the transducer are the difference. Verified by installing
+into a clean venv, not just by loading the loose directory.
+
+**A bug this assembly caught, and the rule it confirms.** `_.unsandhied` came out blank on every
+token of the assembled model: `clause_parser` rebuilds the doc and carried only the Doc-level
+extensions, silently dropping the Token-level ones. It had already been bitten by exactly this once
+(dropping lemma and morph). **Anything that rebuilds a `Doc` owns carrying EVERY annotation** —
+`clause_parser` and `sa_deva` now both do.
+
+### DCS multiword-token representation (`restructure_sa_csl.py`, built and measured; NOT shipped)
+
+An alternative to the pausa-normalised `*.csl_rev.conllu`, following the **Digital Corpus of
+Sanskrit** rather than approximating. The DCS CoNLL-U readme defines the unit outright: "A single
+string (= sequence of letters bounded by spaces) can contain one or multiple words in Sanskrit. If
+it contains multiple words, the annotation follows the guidelines for multiword annotation." So an
+**MWT is an ORTHOGRAPHIC word**, not a compound. Measured directly on DCS (Rāmāyaṇa file, 162
+sentences / 1 080 tokens / 182 ranges):
+
+- **Fusion**: bound junctions (compound / preverb / privative) and **vowel coalescence** only
+  (`caitat` = `ca` + `etat`, `cāmantrya` = `ca` + `āmantrya`). NOT avagraha — `ko 'nasūyakaḥ`,
+  `samartho 'si`, `lakṣmaṇo 'nujagāma` all keep the space. NOT consonant-final + vowel-initial —
+  only 2 in the file, both the bound privative `an-`. **DCS is romanised and follows the IAST
+  convention**; the Devanagari treebanks differ (UFAL writes `वह्निरिद्रः` for `vahniḥ` + `idraḥ`
+  solid, because the script cannot render a bare consonant before a vowel, and `नमोऽस्तु` solid too).
+- **FORM**: every token INSIDE an MWT is unsandhied — **0/219 internal and 0/182 final** carry
+  sandhi — because the range line already holds the sandhied surface. A token that IS its own
+  orthographic word keeps its sandhied surface (36.2 % differ from unsandhied: `nāradaṃ`,
+  `vālmīkir`, `ko`, `nv`), including a leading avagraha (`'nasūyakaḥ`, `Unsandhied=anasūyakaḥ`).
+- `Unsandhied=` keeps its native treebank values throughout — gold for the FORMs above and
+  supervision for a learned reversal component. NB the native convention is NOT the pausa one
+  (`dakṣiṇatas`/`ahar`/`kenacid`, not `dakṣiṇataḥ`/`ahaḥ`/`kenacit`).
+
+`# text` stays the **CSL** line (what the tokeniser reads — CSL carries the syntactic word
+boundaries that let it split without solving segmentation first); the orthographic rendering is
+emitted alongside as `# text_ortho`. Vedic train becomes 124 433 single + **17 549 multiword**
+orthographic words, 37 526 tokens (23 %) inside an MWT.
+
+**`sa.SanskritInputTokenizer.v2` runs TWO EXPLICIT STAGES.** v1 fused "where are the tokens" with
+"what are their underlying forms" into one pass; v2 separates them, so each can be judged and
+improved on its own.
+
+- **Stage A — de-CSLize.** Split on whitespace / hyphen / word-internal pipe, normalise the daṇḍa,
+  stamp `Compound`. No sandhi reversal: each piece is verbatim input. A token that is its own
+  orthographic word passes through untouched, so those reproduce the corpus at **100.00 %** by
+  construction — nothing derived, nothing to be wrong about.
+- **Stage B — de-sandhi.** Applied to the tokens INSIDE a multiword token only, matching DCS (which
+  writes MWT members unsandhied and standalone tokens sandhied). Pluggable: the trained transducer
+  when one is loaded (`load_desandhi`), else the `desandhi_csl` rule. `_mwt_membership` must agree
+  with `restructure_sa_csl.orthographic_groups` or the two de-sandhi different token sets.
+
+Stage B accuracy on MWT members, Vedic test: **rule 95.77 % → trained transducer 97.60 %** (dev
+96.14 → 97.91), i.e. the error rate falls by 43 %. Whole-tokenisation agreement with the corpus:
+99.05 % → **99.46 %**. `to_disk`/`from_disk`, previously no-ops, now serialise the Stage B model —
+and stay no-ops when there is none, so already-released wheels (which have no `tokenizer` entry at
+all) keep loading unchanged.
+
+**Transducer accuracy on its own task** (de-CSLized piece → `Unsandhied`, ALL tokens, 46.7 % of
+which need a genuine edit): **0.9795**, against the rule's 0.9446.
+
+**DATA BUG worth remembering: spaCy keeps CoNLL-U `_` as a LITERAL lemma, not as "missing".**
+`make_unsandhi_corpus.py` originally wrote `_` for tokens with no gold, which taught the transducer
+`FORM -> "_"` on **5 043 tokens** — and it duly predicted a literal `_` for `siṃha` in tokeniser
+output. Fixed by falling back to identity (right for the elided `_` tokens) and dropping UFAL from
+this corpus entirely (1 843 tokens, 0 with gold, so it could only add noise). Any future component
+trained through the LEMMA column needs the same care.
+
+(v1 still de-sandhis everything, for the released `sa_sud_vedic_ufal_dcs`; the two coexist.)
+
+**COST — accepted by user decision (2026-07-31), this representation is the one to build on.**
+Apples-to-apples control (same `config_sa.cfg` recipe, only the representation differs), Vedic test
+gold-preproc:
+
+| | old (pausa-normalised) | new (DCS) | Δ |
+|---|---|---|---|
+| tag_acc | 0.8976 | 0.8862 | −1.14 |
+| dep_uas | 0.6928 | 0.6815 | −1.13 |
+| dep_las | 0.5601 | 0.5433 | **−1.68** |
+
+Vocabulary goes 32 318 → 38 123 types (+18 %) and hapax 58.3 → 61.3 %, because standalone tokens no
+longer collapse their sandhi variants — the loss lands exactly where that predicts. Adding the
+affix layer to the base encoder does NOT recover it (it costs a further 0.49 LAS; see above). The
+caveat that always applies here applies again — the test FORMs themselves differ between the two
+arms, so the comparison is not strictly like-for-like; the trees are identical, only the surface
+changes. What is bought: DCS consistency, gold `Unsandhied` kept as annotation, a 100 %-exact
+tokeniser contract on 77 % of tokens, and a well-defined target for the reversal component below.
+
+**Full chain on this representation** (`rebuild_sa_csl_mwt.sh`, then `config_sa_mwt*.cfg`); the
+affix layer replicates here, so the dedicated-encoder arms should ship with it:
+
+| arm | metric | baseline | + suffix 5 / 8 000 | Δ |
+|---|---|---|---|---|
+| base | dep_las | 0.5433 | (not used — costs 0.49) | — |
+| morph | morph_acc | 0.7842 | **0.7975** | +1.33 |
+| morph | pos_acc | 0.8714 | **0.8848** | +1.34 |
+| lemma | lemma_acc | 0.8368 | **0.8511** | +1.43 |
+
+### `sud_unsandhi`: a LEARNED sandhi reversal (97.88 % vs the rule's 94.46 %)
+
+Under the DCS representation a standalone token keeps its sandhied surface, so the padapāṭha form is
+no longer recoverable from FORM. The treebank records it as `Unsandhied=` on 100 % of Vedic tokens,
+so it can be **learned** instead of derived — and it should be, because the rule provably cannot get
+it right: the treebank wants `saṃ`→`sam`, `udag`→`udak`, `nir`→`niḥ` (the final reductions APPLY)
+but `prāc`→`prāc`, `catur`→`catur`, `ahar`→`ahar`, `tad`→`tad` (they do NOT). Identical surface
+shapes, opposite answers — the choice is lexical.
+
+- **Model**: spaCy's edit-tree lemmatiser, which is exactly the right tool (it learns FORM→TARGET
+  character edits and is script-agnostic), under the standard freeze recipe with its own encoder.
+- **Plumbing, and the reason for it**: `Unsandhied` lives in MISC and **does not survive
+  `spacy convert`** (only FORM/LEMMA/UPOS/XPOS/FEATS/HEAD/DEPREL do). Rather than write a custom
+  converter and reader, `make_unsandhi_corpus.py` copies the CoNLL-U with **LEMMA replaced by the
+  `Unsandhied` value** (tokens without gold get `_`, so they are skipped rather than taught an
+  identity), the component trains as a stock `trainable_lemmatizer`, and `add_sud_unsandhi.py`
+  re-homes the trained weights into `SudUnsandhi` (`scripts/sud_unsandhi.py`), which writes
+  **`Token._.unsandhied`** instead of `token.lemma_`. Both edit-tree components then coexist:
+  `lemmatizer` → lemmas, `sud_unsandhi` → padapāṭha forms. Verified through a save/load round-trip.
+- **Result (Vedic test)**: **0.9788**, against the rule baseline `desandhi_csl` at **0.9446**
+  (95.77 % inside MWTs / 94.08 % standalone) — a **62 % cut in the error rate**. 28.9 % of training
+  tokens need a genuine edit, so this is not a majority-class win.
+- **The affix layer HURTS here** (0.9748 vs 0.9788, −0.40) even though it helps the real lemmatiser
+  by +1.43. Consistent reading: sandhi reversal is a *final-character* alternation (-ṃ/-m, -ḥ/-s,
+  -o/-aḥ) already covered by the default 3-character suffix, whereas lemmatisation edits the stem
+  and wants more lexical identity. Ship `sud_unsandhi` WITHOUT the affix layer.
+- **Known limit**: the component predicts from the FORM the tokeniser produced, so it cannot repair
+  a token the tokeniser already de-sandhied wrongly (the ~4 % MWT-internal residue — `ahaḥ` for gold
+  `ahar` passes straight through). Standalone tokens, 77 % of the total, are exact by construction,
+  so the compounding is bounded.
+
+### WORK IN PROGRESS: a saṃhitā → CSL pre-tokeniser (`sa_presegment.py`, NOT wired in or shipped)
+
+`sa_tokenizer` requires input that is already word-segmented; continuous saṃhitā (real sandhied text
+with the word breaks unwritten) is out of scope, so the model cannot be pointed at an ordinary
+printed edition. A learned character tagger in front of it would close that, leaving everything
+downstream untouched. Built and measured; **not** wired into the tokeniser and **not** in any wheel.
+
+- **The oracle costs nothing.** Feeding gold CSL as raw text now scores **bit-identical to
+  gold-preproc on every metric** (LAS 0.5630, tokens F 1.0000, `Compound` F 1.0000) on the 2 546
+  test sentences with no elided `_`. So the entire end-to-end budget belongs to the segmenter's own
+  errors. (Reaching that took the unset-vs-empty MORPH fix above; before it the raw path lost 6.81
+  LAS despite *perfect* tokenisation.)
+- **Gold data is synthesised, not annotated.** CSL and the true sandhied surface differ at exactly
+  ONE class of junction — vowel coalescence, which CSL splits across the junction to stay reversible
+  (`rājā uvāca` → `rāj" ôvāca`) where a printed text writes the fused vowel (`rājovāca`). Everything
+  else in `join_pair` already emits the true surface. `external_sandhi.COALESCE_SURFACE` is that one
+  difference, **derived by iterating `_coalesce`** so it cannot drift from the engine; `join_pair`
+  itself is untouched. `scripts/make_samhita_pairs.py` writes 20 164 / 2 812 / 2 545 triples with
+  **zero round-trip failures**, and the rebuilt CSL reproduces the treebank FORMs through the
+  released tokeniser **2 545/2 545**.
+- **Labels are character-INDEPENDENT** (59 of them): `=` keep, `= ` keep + word break, `=-` keep +
+  compound break, `' ô ` replace (coalescence), `` absorbed. So the model learns "insert a break
+  here", not one class per character. The word-vs-compound distinction comes free from
+  `apply_vedic_sandhi`'s `bound[]` — Hellwig & Nehrdich 2018 deliberately conflate the two; we
+  cannot, because the compound divider is what makes `Compound=Yes`.
+- **The task is local.** A pure count model over character windows (`baseline_samhita.py`) plateaus
+  at ±3 characters: split-location F 36.07 (unigram) → 67.67 (±1) → 83.84 (±2) → **86.00 (±3)** →
+  86.10 (±5). So a small CNN suffices, and 86 F is the floor any model must beat.
+- **Model** (`sa_presegment.py`): `Embed` → depth × residual(`expand_window` + `Maxout`) → `Softmax`,
+  mirroring `spacy.MaxoutWindowEncoder.v2` one level down over characters. Pure Thinc, so nothing new
+  would ship. Trained by `train_samhita.py` (standalone loop; early-stops on dev **split-location F**,
+  because 84 % of characters are "keep" and character accuracy is meaningless here).
+
+  | model | size | split-loc F | split-type F | full-label F | sentence PM | end-to-end LAS |
+  |---|---|---|---|---|---|---|
+  | n-gram ±3 (baseline) | — | 86.00 | 84.17 | 82.12 | 32.73 | — |
+  | width 64 / depth 6, Vedic only | 0.92 MB | 91.76 | 89.82 | 88.29 | 45.66 | 0.4136 |
+  | width 128 / depth 8, Vedic only | 4.79 MB | 93.25 | 91.67 | 90.30 | 51.75 | 0.4442 |
+
+- **DCS transforms it on classical/epic (`models/sa_presegment_dcs`).** Trained on 193 130
+  sentences — 20 164 Vedic + 172 966 DCS, the latter every one verified to reproduce DCS's own
+  printed line (see below). Same 1.2 M-parameter model, greedy decoding:
+
+  | test set | split-loc F | split-type F | full-label F | sentence PM |
+  |---|---|---|---|---|
+  | **DCS — classical/epic, the target domain** | **97.91** | **96.64** | **96.18** | **74.87** |
+  | Vedic | 93.98 | 92.06 | 90.94 | 53.75 |
+  | Suśrutasaṃhitā — no overlap with training | 92.55 | 87.70 | 86.85 | 40.47 |
+
+  For scale, published systems on their own benchmarks: rcNN-SS 96.84 F / 87.08 PM, TransLIST
+  98.86 / 93.97. The F is now in that range; PM is not, and the unseen-text row is the honest
+  number for arbitrary input.
+
+- **NEGATIVE RESULT: lexicon reranking is NOT worth it — decoding is plain greedy argmax.** A beam
+  decoder scoring each completed word against a harvested lexicon (the in-house version of the
+  lattice rescoring TransLIST gets from the Sanskrit Heritage Reader) was built, tuned and removed.
+  On the *weak* Vedic-only model it looked good (+0.67 split-location F, +1.88 sentence PM), but
+  once the model was trained on Vedic + DCS the case collapsed:
+
+  | test condition | lexicon gain (sentence PM) |
+  |---|---|
+  | DCS, in-domain | +0.40 |
+  | Vedic (only 10 % of training) | +1.30 |
+  | **Suśrutasaṃhitā — genuinely unseen text** | **−0.32** |
+
+  So it never helped with *novel vocabulary* — the one thing a lexicon is supposed to be for. It
+  propped up an under-represented DOMAIN, which is better fixed with training data. Coverage was not
+  the problem (77.4 % of the unseen text's word tokens were in the lexicon, against 81 % in domain);
+  the model simply no longer needed the help. Costs avoided: a ~170 k-entry table in the wheel,
+  ~100× slower decoding, and three hyperparameters whose correct values track model strength —
+  weights tuned for the weak model cost the strong one **−3.80 PM** until retuned, a live footgun
+  for anyone who retrains.
+- **A morphological tier on top of that lexicon (stem + ending decomposition, 42 440 stems /
+  1 863 endings) added nothing** — +0.10 PM in domain, +0.04 on Vedic, +0.12 on unseen text, i.e.
+  noise. With 193 k training sentences the character model has already internalised the stem/ending
+  regularities the table encodes. (NB an early sweep appeared to show the tier was free because
+  `morph_frac` was never actually plumbed through `decode`, so the rows were duplicates; wire a
+  parameter through before believing an ablation of it.)
+- **End-to-end costs ~10 LAS and the CSLiser is unambiguously the bottleneck.**
+  `scripts/eval_sa_raw.py` scores span-matched — spaCy's `Example` aligner CANNOT be used, because a
+  wrong coalescence label emits different CHARACTERS, not just a different split, so the two texts
+  diverge. Anchoring on the shared saṃhitā input, through the full front-end (CSLiser → de-CSLizer →
+  trained de-sandhifier → parser):
+
+  | input | token F | LAS |
+  |---|---|---|
+  | gold tokens (gold-preproc floor) | — | 0.5457 |
+  | gold CSL (oracle) | 1.0000 | 0.5420 |
+  | raw saṃhitā, CSLiser output | 0.8699 | **0.4382** |
+
+  So stages A+B together cost only **0.4 LAS** (0.5457 → 0.5420), while the CSLiser costs **10.4**.
+  Token F 0.87 is the whole story: 13 % of tokens are wrong and the errors compound through the
+  parse. Any further effort belongs on the CSLiser, not on the tokeniser or the transducer.
+- **Where the loss is, and the lever.** The weakest frequent class is the **compound break `=-`
+  (F 60.2, recall 52.9)** — precisely the distinction that feeds `Compound=Yes`. The coalescence
+  classes behave as the literature predicts (the `" â` long-marker family sits at F ~49, the analogue
+  of the `ā-ā` class that is F 53–80 even for the state of the art). Published systems reach 96.8
+  (rcNN-SS) to 98.9 (TransLIST) split F, but on REAL editorial sandhi with 10–100× more data; the
+  gap from 93.3 to ~97 is what an end-to-end-usable version needs. TransLIST gets most of its margin
+  from a **lexicon** reranker (+7.9 PM), which is the obvious next lever and costs nothing at
+  training time. **Do not compare these numbers to the published ones as like-for-like.**
+- **Neither published system can simply be called from this pipeline.** TransLIST is a research tree
+  pinned to Python 3.7.3 / PyTorch 1.5.0 / CUDA 9.2 that requires patching fastNLP's own source, and
+  its lattice comes from scraping the Sanskrit Heritage Reader at inference time. ByT5-Sanskrit
+  (`chronbmm/sanskrit5-multitask`, ~555 MB safetensors) does run locally under `transformers`. But
+  **both emit a segmented word list, not CSL** — no elision markers, no coalescence marks, and
+  TransLIST works in SLP rather than IAST. They solve "where are the breaks", not "which two vowels
+  fused", so neither can drive `desandhi_csl`. The transferable idea is the lexicon reranker, and
+  that we can build in-house: 32 855 form types from the training corpus plus `join_pair` as a
+  junction validator.
+- **Not done:** the `sa.SanskritInputTokenizer.v2` wiring, `to_disk`/`from_disk` (still no-ops), and
+  the `src_spans` composition through the new stage. Note that at a coalescence junction one input
+  character produces material on BOTH sides of a break, so the left and right token spans would
+  **overlap by one character** — breaking today's "the spans tile the input exactly" invariant. That
+  is the truth (the fused vowel belongs to both words), but it must be gated on the flag.
+- **Also noted, not done:** DCS (Digital Corpus of Sanskrit, CC BY 4.0) carries REAL editorial
+  sandhied text aligned with per-token `Unsandhied=`, and the join is already in this treebank —
+  `# sent_id = 70280_1` is a DCS sentence id plus a clause index, and MISC carries DCS's
+  `LemmaId`/`OccId`. That is the only way to check whether `external_sandhi.py`'s rule-based
+  generation matches real sandhi, which the whole representation (released model included) currently
+  rests on unverified.
 
 ## SUD's own MISC layer: `Idiom`/`InIdiom`, `Subject`, `Reported` (`sud_misc.py`, `sud_idiom.py`, `sud_tagger.py`)
 

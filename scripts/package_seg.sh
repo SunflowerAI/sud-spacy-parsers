@@ -29,7 +29,7 @@ case $lang in
   yue) $PY scripts/bundle_yue_pkuseg.py --src training_yue_seg/model-best \
             --out training_yue_seg_pkuseg >/dev/null 2>&1
        pkg yue training_yue_seg_pkuseg     sud_hk                "--code scripts/yue_tokenizer.py" ;;
-  sa)  pkg sa  training_sa_csl_rev/model-seg   sud_vedic_ufal_csl \
+  sa)  pkg sa  training_sa_csl_rev/model-seg   sud_vedic_ufal_dcs \
             "--code scripts/sa_tokenizer.py,scripts/clause_parser.py" ;;
   lzh) pkg lzh training_lzh_both_ext/model-seg sud_kyoto \
             "--code scripts/lzh_tokenizer.py,scripts/clause_parser.py" ;;

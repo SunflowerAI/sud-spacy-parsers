@@ -51,7 +51,7 @@ for lang in "$@"; do
   # Base arm: the trained SUD arm where it won, else the released lemma arm.
   case $lang in
     en|fa|la|yue) base=training_${lang}_sud/model-best ;;
-    sa)           base=training_sa_lemma3_noannot/model-best ;;
+    sa)           base=training_sa_mwt_lemma_sfx5/model-best ;;
     *)            base=training_${lang}_lemma/model-best ;;
   esac
   work=build_sud/work_$lang
@@ -88,13 +88,17 @@ case $lang in
             "$CODE_BASE,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py" ;;
        # sa: Subject is too sparse to ship (142 train / 14 test); the idiom layer still applies.
        # sa_compound must stay FIRST (the encoder reads MORPH); clause_parser before sud_idiom.
-  sa)  $PY scripts/add_sa_compound.py "$base" "$work.compound" >/dev/null 2>&1
-       $PY scripts/add_clause_parser.py "$work.compound" "$work.seg" \
-            --punct-tag PUNCT --sent-scheme danda >/dev/null 2>&1
-       $PY scripts/add_sud_reported_rule.py "$work.seg" "$work.rep" --lang sa >/dev/null 2>&1
+       # sa: the whole front end (CSLiser + de-CSLizer + de-sandhifier + Devanagari rendering)
+       # is assembled by add_sa_frontend.py, which also inserts sa_compound / clause_parser /
+       # sa_deva in their required positions. CSL is an INTERNAL representation only — the wheel
+       # takes raw IAST or Devanagari.
+  sa)  $PY scripts/add_sa_frontend.py "$base" "$work.front" \
+            --csliser models/sa_presegment_ortho \
+            --unsandhi training_sa_mwt_unsandhi/model-best >/dev/null 2>&1
+       $PY scripts/add_sud_reported_rule.py "$work.front" "$work.rep" --lang sa >/dev/null 2>&1
        add_idiom "$work.rep" "$work"
-       pkg sa  "$work" sud_vedic_ufal_csl \
-            "$CODE_REP,scripts/sa_tokenizer.py,scripts/clause_parser.py" ;;
+       pkg sa  "$work" sud_vedic_ufal_dcs \
+            "$CODE_REP,scripts/sa_tokenizer.py,scripts/clause_parser.py,scripts/sa_presegment.py,scripts/sud_unsandhi.py,scripts/sud_affix_embed.py,scripts/sa_devanagari.py" ;;
   yue) $PY scripts/bundle_yue_pkuseg.py --src "$base" --out "$work.pkuseg" >/dev/null 2>&1
        pkg yue "$work.pkuseg" sud_hk \
             "$CODE_BASE,scripts/yue_tokenizer.py,scripts/sud_tagger.py" ;;

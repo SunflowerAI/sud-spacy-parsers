@@ -10,6 +10,8 @@ cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
 PY=.venv/bin/python
 export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
 CODE="--code scripts/seg_code.py"
+# Arms whose derived config is HAND-MAINTAINED and must not be regenerated — see train_morph.sh.
+HAND_CFG=" sa "
 
 train() {  # $1=lang $2=train $3=dev  (source is always training_<lang>_morph/model-best)
   local lang=$1 tr=$2 dv=$3
@@ -17,7 +19,12 @@ train() {  # $1=lang $2=train $3=dev  (source is always training_<lang>_morph/mo
   local src=training_${lang}_morph/model-best
   local cfg=configs/config_${lang}_lemma.cfg
   if [ ! -d "$src" ]; then echo "$lang: SRC $src missing — skip"; return 1; fi
-  $PY scripts/make_lemma_config.py "$morphcfg" "$src" --out "$cfg" || { echo "$lang: cfg FAIL"; return 1; }
+  if [[ "$HAND_CFG" == *" $lang "* ]]; then
+    [ -f "$cfg" ] || { echo "$lang: hand-maintained $cfg missing"; return 1; }
+    echo "  $lang: using hand-maintained $cfg (skipping make_lemma_config.py)"
+  else
+    $PY scripts/make_lemma_config.py "$morphcfg" "$src" --out "$cfg" || { echo "$lang: cfg FAIL"; return 1; }
+  fi
   echo "########## lemma $lang -> training_${lang}_lemma ##########"
   $PY -m spacy train "$cfg" $CODE --output training_${lang}_lemma/ \
     --paths.train "$tr" --paths.dev "$dv" > train_${lang}_lemma.log 2>&1

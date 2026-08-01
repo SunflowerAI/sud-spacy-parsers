@@ -58,6 +58,39 @@ def _coalesce(v1, v2):
     return None
 
 
+def _build_coalesce_surface():
+    """CSL right-initial mark -> the vowel a genuinely sandhied text would print there.
+
+    Derived by iterating `_coalesce` rather than written out, so it can never drift from the engine.
+    CSL splits a coalescence across the junction (the left word keeps `'`/`"`, the right word starts
+    with the mark) precisely so it stays reversible; continuous saṃhitā prints the single fused
+    vowel instead. This table is the difference between the two representations — and it is the ONLY
+    difference, because every other rule in `join_pair` (visarga, -m -> -ṃ, -t assimilation,
+    t + ś -> c ch, yaṇ, ayādi with its preserved glide, the avagraha) already emits the true surface,
+    which CSL keeps verbatim. That is what makes a saṃhitā <-> CSL character alignment exact.
+    """
+    import unicodedata
+    out = {}
+    for v1 in ("a", "ā", "i", "ī", "u", "ū"):
+        for v2 in ("a", "ā", "i", "ī", "u", "ū", "ṛ", "ṝ", "ḷ", "e", "o", "ai", "au"):
+            got = _coalesce(v1, v2)
+            if got:
+                surface, mark = got
+                out[unicodedata.normalize("NFC", mark)] = surface
+    return out
+
+
+COALESCE_SURFACE = _build_coalesce_surface()
+# longest first, so âi/âu/āu beat â/ā when matching a right word's initial mark
+COALESCE_MARKS = sorted(COALESCE_SURFACE, key=len, reverse=True)
+
+
+def mark_surface(mark):
+    """The surface vowel for a CSL coalescence mark, or None if `mark` is not one."""
+    import unicodedata
+    return COALESCE_SURFACE.get(unicodedata.normalize("NFC", mark))
+
+
 _YAN = {"i": "y", "ī": "y", "u": "v", "ū": "v", "ṛ": "r", "ṝ": "r"}
 # visarga before a voiceless consonant -> sibilant (else keep ḥ, incl. before k/kh/p/ph/sibilants)
 _VIS_BEFORE = {"c": "ś", "ch": "ś", "ṭ": "ṣ", "ṭh": "ṣ", "t": "s", "th": "s"}
@@ -71,6 +104,31 @@ def is_pragrhya(form, feats):
     if feats and "Number=Dual" in feats and form and form[-1] in ("ī", "ū", "e"):
         return True
     return form in ("amī", "o")            # common pragṛhya particles
+
+
+# Word-final stop neutralisation. Treebanks write these stems voiced or palatal (tad, kenacid,
+# samyag, yuj, vāc); Sanskrit neutralises them word-finally, after which the existing -t / -k/-ṭ/-p
+# rules cover every assimilation. The palatal -> velar mapping is the common case (yuj -> yuk,
+# vāc -> vāk); the lexical exceptions that go retroflex instead (rāj -> rāṭ, viś -> viṭ) live in
+# `sa_tokenizer._LAW_OF_FINALS`.
+_FINAL_NEUTRALISE = {"d": "t", "g": "k", "b": "p", "j": "k", "c": "k"}
+
+
+def pausa_form(w):
+    """The form a word takes at a PAUSE (avasāna) — sentence edge, or before a daṇḍa.
+
+    `generate` leaves the first and last word of a sentence unjoined, but "unjoined" is not the same
+    as "unchanged": at a pause the word still surfaces in its pausa form. Leaving a bare `-as`,
+    `-ar` or `-d` there is the single largest remaining disagreement with DCS's editorial text
+    (83 of 156 residual divergences before this was added).
+    """
+    if not w or w == "_":
+        return w
+    if len(w) >= 2 and w[-1] in ("s", "r") and w[-2] in VOW:
+        return w[:-1] + "ḥ"                                # tatas / punar -> tataḥ / punaḥ
+    if w[-1] in _FINAL_NEUTRALISE:
+        return w[:-1] + _FINAL_NEUTRALISE[w[-1]]           # tad -> tat, samyag -> samyak
+    return w
 
 
 def join_pair(L, R, feats_L="", internal=False):
@@ -128,7 +186,28 @@ def join_pair(L, R, feats_L="", internal=False):
             return L[:-1] + "r", R                         # iḥ/uḥ/… + voiced -> r
         if c2 in _VIS_BEFORE:
             return L[:-1] + _VIS_BEFORE[c2], R             # ḥ + c/ṭ/t… -> ś/ṣ/s
-        return L, R                                        # ḥ + k/p/sibilant/pause -> keep ḥ
+        return L[:-1] + "ḥ", R                             # ḥ + k/p/sibilant/pause -> visarga
+        #  ^ a treebank writes this stem-final as -s (tatas, dakṣiṇatas); where nothing assimilates
+        #    it SURFACES as visarga, so returning L unchanged left a bare -s that no edition prints.
+        #    Caught by validating against DCS's own sandhied text (`dcs_to_samhita.py --validate`).
+
+    # -------- final r: visarga's twin — kept before a vowel or a voiced sound, else visarga -----
+    # `punar`, `ahar`, `prātar` are r-stems whose pausa form is -ḥ (punar -> punaḥ). Handled apart
+    # from the visarga branch above because -ar must NOT lose its r before a vowel the way -aḥ does.
+    if L[-1] == "r" and len(L) >= 2 and L[-2] in VOW:
+        if v2 or (R and R[0] in VOICED_C):
+            return L, R                                    # punar iva / punar gacchati
+        c2 = R[:2] if R[:2] in ("ch", "th", "ṭh") else (R[:1] if R else "")
+        if c2 in _VIS_BEFORE:
+            return L[:-1] + _VIS_BEFORE[c2], R             # punar ca -> punaś ca
+        return L[:-1] + "ḥ", R                             # punar kṛtvā -> punaḥ kṛtvā
+
+    # -------- final voiced stop: neutralise, then fall through to the -t / -k/-ṭ/-p rules -------
+    # Treebanks write these stems voiced (tad, kenacid, samyag); word-finally Sanskrit neutralises
+    # them, and every assimilation is then already covered below (t + vowel -> d, t + m -> n,
+    # t + ś -> c ch, …). Without this the -d forms fell through untouched.
+    if L[-1] in _FINAL_NEUTRALISE:
+        L = L[:-1] + _FINAL_NEUTRALISE[L[-1]]
 
     # -------- final m --------
     if L[-1] == "m":

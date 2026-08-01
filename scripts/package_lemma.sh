@@ -6,7 +6,7 @@
 # id_lemma_case_fix re-appended (safety-net override for the trainable_lemmatizer's
 # sentence-initial-capitalisation gap on hyphenated forms, see scripts/id_lemma_case_fix.py).
 # zh/la/sa also carry the renamed package names (sud_gsd_simp_trad / sud_ittb_proiel_perseus /
-# sud_vedic_ufal_csl).
+# sud_vedic_ufal_dcs).
 # Usage: bash scripts/package_lemma.sh en ar fa ja id ko la zh yue lzh sa
 cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
 export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
@@ -54,7 +54,7 @@ case $lang in
        $PY scripts/add_clause_parser.py training_sa_lemma3_noannot/model-compound \
             training_sa_lemma3_noannot/model-seg \
             --punct-tag PUNCT --sent-scheme danda >/dev/null 2>&1
-       pkg sa  training_sa_lemma3_noannot/model-seg   sud_vedic_ufal_csl \
+       pkg sa  training_sa_lemma3_noannot/model-seg   sud_vedic_ufal_dcs \
             "--code scripts/sa_tokenizer.py,scripts/clause_parser.py" ;;
   lzh) $PY scripts/add_clause_parser.py training_lzh_lemma/model-best training_lzh_lemma/model-seg \
             >/dev/null 2>&1

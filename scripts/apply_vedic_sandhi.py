@@ -19,7 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from retokenize import read_conllu                       # noqa: E402
-from external_sandhi import join_pair                    # noqa: E402
+from external_sandhi import join_pair, pausa_form        # noqa: E402
 from sa_csl_prep import _emit_groups, rebuild_text        # noqa: E402
 
 
@@ -63,6 +63,11 @@ def generate(words, feats, internal):
         lout, rout = join_pair(L, R, fl, internal[i - 1])
         surf[-1] = lout
         surf.append(rout)
+    # The sentence edges take no junction, but they DO stand at a pause, so they surface in their
+    # pausa form (tatas -> tataḥ, tad -> tat). Only the last word can still be raw here — the first
+    # has already been through its right-hand junction.
+    if surf:
+        surf[-1] = pausa_form(surf[-1])
     return surf
 
 

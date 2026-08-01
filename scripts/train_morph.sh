@@ -13,11 +13,21 @@ cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
 PY=.venv/bin/python
 export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
 CODE="--code scripts/seg_code.py"
+# Arms whose derived config is HAND-MAINTAINED and must not be regenerated: sa's morphologiser uses
+# spacy.Tok2Vec.v2 + MultiHashEmbed so it can read MORPH (the tokeniser's Compound=Yes) as an INPUT
+# feature, which the generator's flat HashEmbedCNN cannot express. make_morph_config.py also refuses
+# to clobber these (scripts/config_guard.py); this list just skips the call instead of erroring.
+HAND_CFG=" sa "
 
 train() {  # $1=lang $2=base_cfg $3=src_model $4=train $5=dev
   local lang=$1 base=$2 src=$3 tr=$4 dv=$5
   local cfg=configs/config_${lang}_morph.cfg
-  $PY scripts/make_morph_config.py "$base" "$src" --out "$cfg" || { echo "$lang: cfg FAIL"; return 1; }
+  if [[ "$HAND_CFG" == *" $lang "* ]]; then
+    [ -f "$cfg" ] || { echo "$lang: hand-maintained $cfg missing"; return 1; }
+    echo "  $lang: using hand-maintained $cfg (skipping make_morph_config.py)"
+  else
+    $PY scripts/make_morph_config.py "$base" "$src" --out "$cfg" || { echo "$lang: cfg FAIL"; return 1; }
+  fi
   echo "########## morph $lang -> training_${lang}_morph ##########"
   $PY -m spacy train "$cfg" $CODE --output training_${lang}_morph/ \
     --paths.train "$tr" --paths.dev "$dv" > train_${lang}_morph.log 2>&1

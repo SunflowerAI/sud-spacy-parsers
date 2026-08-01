@@ -14,8 +14,13 @@ Loads/saves with interpolation OFF so ``${paths.train}`` survives (CLAUDE.md got
     make_lemma_config.py configs/config_id_morph.cfg training_id_morph/model-best
 """
 import argparse
+import os
+import sys
 
 from thinc.api import Config
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from config_guard import guard_overwrite                     # noqa: E402
 
 
 def main():
@@ -26,7 +31,13 @@ def main():
     ap.add_argument("--width", type=int, default=64)
     ap.add_argument("--depth", type=int, default=3)
     ap.add_argument("--embed-size", type=int, default=2000)
+    ap.add_argument("--force", action="store_true",
+                    help="overwrite a hand-maintained --out (see scripts/config_guard.py)")
     args = ap.parse_args()
+
+    out = (args.out or args.base_config.replace("_morph.cfg", "_lemma.cfg")
+                                       .replace(".cfg", "_lemma.cfg"))
+    guard_overwrite(out, "lemmatizer", "spacy.HashEmbedCNN.v2", args.force)
 
     cfg = Config().from_disk(args.base_config, interpolate=False)
 

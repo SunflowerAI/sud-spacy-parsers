@@ -34,7 +34,7 @@ case $lang in
        pkg yue training_yue_morph_pkuseg     sud_hk                "--code scripts/yue_tokenizer.py" ;;
   sa)  $PY scripts/add_clause_parser.py training_sa_morph/model-best training_sa_morph/model-seg \
             --punct-tag PUNCT --sent-scheme danda >/dev/null 2>&1
-       pkg sa  training_sa_morph/model-seg   sud_vedic_ufal_csl \
+       pkg sa  training_sa_morph/model-seg   sud_vedic_ufal_dcs \
             "--code scripts/sa_tokenizer.py,scripts/clause_parser.py" ;;
   lzh) $PY scripts/add_clause_parser.py training_lzh_morph/model-best training_lzh_morph/model-seg \
             >/dev/null 2>&1

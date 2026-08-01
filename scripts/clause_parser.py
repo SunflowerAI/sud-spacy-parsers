@@ -28,7 +28,7 @@ Added as the last pipe: the normal tok2vec/tagger/parser still run once over the
 import unicodedata
 
 from spacy.language import Language
-from spacy.tokens import Doc
+from spacy.tokens import Doc, Token
 
 # clause-boundary punctuation across the relevant scripts; each model overrides via its pipe
 # config (Classical Chinese 句讀 vs Sanskrit daṇḍa . ? ! | || / //).
@@ -346,4 +346,13 @@ class ClauseParser:
         for attr in ("src_text", "src_spans", "compound_flags"):
             if Doc.has_extension(attr) and getattr(doc._, attr) is not None:
                 setattr(out._, attr, getattr(doc._, attr))
+        # Same for the TOKEN-level extensions. `_.unsandhied` (the padapāṭha form, set by the
+        # tokeniser's stage B) was silently lost here until the full front end was assembled and
+        # every token came out blank — the standing rule for anything that rebuilds a Doc is that it
+        # owns carrying EVERY annotation, not the ones it happens to remember.
+        for attr in ("unsandhied", "translit", "ltranslit"):
+            if Token.has_extension(attr):
+                for old, new in zip(doc, out):
+                    if getattr(old._, attr):
+                        setattr(new._, attr, getattr(old._, attr))
         return out

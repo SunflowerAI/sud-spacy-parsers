@@ -71,3 +71,12 @@ zh_both_tok2vec.bin
 # See NOTICE.md, "Latin macronisation".
 scripts/la_macron_lut.json.gz
 build_la_macron/
+
+# DCS (Digital Corpus of Sanskrit, CC BY 4.0) — a 1.1 GB sparse clone used to train the sa
+# CSLiser / morphologiser / lemmatiser / unsandhi. Re-fetch with:
+#   git clone --filter=blob:none --no-checkout --depth 1 \
+#       https://github.com/OliverHellwig/sanskrit.git assets_dcs
+#   cd assets_dcs && git sparse-checkout set dcs/data/conllu/files && git checkout
+assets_dcs/
+# derived CSLiser training pairs (regenerate with make_samhita_pairs.py / dcs_to_samhita.py)
+data_samhita/
