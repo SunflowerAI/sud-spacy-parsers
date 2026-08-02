@@ -10,10 +10,12 @@ specificity:
     L2  (form, upos)
     L3  (form)                -- what a bare word list can do
 
-plus two suffix levels indexed from the RIGHT, which generalise to forms never seen in training:
-
-    S4  (form[-4:], upos, feats)
-    S3  (form[-3:], upos, feats)
+NO SUFFIX LEVELS. This used to emit two more, indexed from the RIGHT, "which generalise to forms
+never seen in training" -- S4 ``(form[-4:], upos, feats)`` and S3 ``(form[-3:], upos, feats)``. They
+have been removed because they are not worth their size: measured on the held-out ITTB+PROIEL test
+split, they agree with Alatius on **52.46 %** of the tokens they answer, against **90.42 %** for the
+Morpheus table `la_macronise` now falls through to instead. An ending generalises; a stem does not,
+and a stem is what those tokens were missing. See `la_macronise.fetch_morpheus`.
 
 Patterns are case-insensitive (the key lowercases the form and the mask is positional), so a
 sentence-initial capital is not mistaken for a distinct macronisation.
@@ -82,20 +84,12 @@ def main():
 
     data = load(args.plain, args.macron)
     l1, l2, l3 = defaultdict(Counter), defaultdict(Counter), defaultdict(Counter)
-    s4, s3 = defaultdict(Counter), defaultdict(Counter)
     for form, mask, upos, feats in data:
         l1[(form, upos, feats)][mask] += 1
         l2[(form, upos)][mask] += 1
         l3[form][mask] += 1
-        # suffix levels: keep only the bits inside the window, re-indexed from the right
-        for k, tab in ((4, s4), (3, s3)):
-            n = len(form)
-            tail = sum(1 << (i - n + k) for i in range(n)
-                       if (mask >> i) & 1 and i >= n - k)
-            tab[(form[-k:], upos, feats)][tail] += 1
 
     b1, b2, b3 = majority(l1), majority(l2), majority(l3)
-    b4, bs3 = majority(s4), majority(s3)
 
     # backoff pruning: store a level only where it differs from the next-general one
     p2 = {k: v for k, v in b2.items() if b3.get(k[0]) != v}
@@ -106,9 +100,8 @@ def main():
         "L1": [[f, u, x, m] for (f, u, x), m in p1.items()],
         "L2": [[f, u, m] for (f, u), m in p2.items()],
         "L3": [[f, m] for f, m in b3.items()],
-        "S4": [[f, u, x, m] for (f, u, x), m in b4.items()],
-        "S3": [[f, u, x, m] for (f, u, x), m in bs3.items()],
-    }
+    }   # no S4/S3 -- see the module docstring. `la_macronise` still READS them, for tables built
+        # before this change, but only when no Morpheus table is available to beat them.
     raw = json.dumps(blob, ensure_ascii=False).encode("utf-8")
     with gzip.open(args.out, "wb", compresslevel=9) as fh:
         fh.write(raw)
@@ -119,7 +112,7 @@ def main():
           f"(morphology overrides the bare form on {len(p1)} keys)")
     print(f"  L2 {len(b2):6d} -> {len(p2):6d}")
     print(f"  L3 {len(b3):6d}")
-    print(f"  S4 {len(b4):6d}   S3 {len(bs3):6d}")
+    print("  (no suffix levels: la_macronise falls through to Morpheus instead)")
     print(f"  json {len(raw)/1e6:.2f} MB, gzipped {len(gzip.compress(raw, 9))/1e6:.2f} MB")
 
 

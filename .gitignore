@@ -80,3 +80,8 @@ build_la_macron/
 assets_dcs/
 # derived CSLiser training pairs (regenerate with make_samhita_pairs.py / dcs_to_samhita.py)
 data_samhita/
+
+# Latin vowel lengths: neither table is ours to redistribute (see NOTICE.md).
+# The Morpheus cache normally lives in ~/.cache/sud-spacy/, but $LA_MORPHEUS_TABLE can put
+# it anywhere — including here, which is what this line is for.
+la_macron_morpheus.json.gz

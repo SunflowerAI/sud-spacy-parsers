@@ -82,7 +82,11 @@ def main():
     nlp = spacy.load(args.model)
     if "la_macronise" in nlp.pipe_names:
         nlp.remove_pipe("la_macronise")
-    nlp.add_pipe("la_macronise", config={"lut": args.lut}, last=True)
+    # require_data=True: a measurement must never quietly score the no-data pass-through, which
+    # would count the plain form as "agreement" everywhere Alatius added nothing. The RELEASED
+    # component defaults to False so the default pipeline degrades instead of raising (see
+    # la_macronise.py); an evaluator is precisely the caller that wants to be told.
+    nlp.add_pipe("la_macronise", config={"lut": args.lut, "require_data": True}, last=True)
     comp = nlp.get_pipe("la_macronise")
     comp.paradigm = not args.no_paradigm
 

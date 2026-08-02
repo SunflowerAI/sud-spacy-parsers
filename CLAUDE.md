@@ -540,9 +540,33 @@ work above (which macronises the treebank to make the parser robust to macronise
 - **Why it is cheap.** Alatius = RFTagger + a Morpheus-derived lexicon. Our pipeline already does
   the tagging half, with a tagger trained on the same treebank the lexicon is keyed to. Only the
   lookup remains. `build_la_macron_lut.py` harvests it from the plain/macron treebank pair (token-
-  aligned by construction), keyed at `L1 (form,upos,feats)` / `L2 (form,upos)` / `L3 (form)` plus
-  suffix levels `S4`/`S3` indexed from the right. **Backoff pruning** (store a level only where it
-  differs from the one below) collapses 152 443 entries to 42 817, 0.55 MB gzipped.
+  aligned by construction), keyed at `L1 (form,upos,feats)` / `L2 (form,upos)` / `L3 (form)`.
+  **Backoff pruning** (store a level only where it differs from the one below) collapses 152 443
+  entries to 42 817, 0.55 MB gzipped.
+- **⚠ TWO TABLES NOW, CASCADED — and the harvest is no longer the primary one.** `la_macronise`
+  falls through from its harvested levels to **Morpheus itself**, fetched at runtime by
+  `la_macronise.fetch_morpheus()` (`macrons.txt` from latin-macronizer, 4 MB on the wire, compiled
+  to ~2.2 MB in `~/.cache/sud-spacy/`). Measured against Alatius, gold morphology, ITTB+PROIEL test:
+
+  | | harvest has the word (92.1 %) | it does not (7.9 %) | whole-token |
+  |---|---|---|---|
+  | harvested alone | 98.23 % | 52.46 % | 94.42 % |
+  | Morpheus alone | 93.98 % | 90.42 % | 93.71 % |
+  | **cascaded** | 98.23 % | 90.42 % | **97.63 %** |
+
+  On Perseus (classical poetry, where the harvest's OOV share goes 7.9 % → 23.8 %): 87.02 % /
+  95.75 % / **97.33 %**. So the harvest is kept for its own vocabulary, where it is near-perfect,
+  and Morpheus answers everything else — 249 659 wordforms against 42 817.
+  **The S4/S3 suffix levels are gone from the builder** (still READ, for tables built before this,
+  and used only when no Morpheus table is present): at 52.46 % they were barely better than a coin
+  toss, and they were the "the residue is overwhelmingly STEM length on words the table has never
+  seen" note in the component's own docstring, finally acted on. Morphology is matched through a
+  nine-slot key (`ud_key` / `ldt_key`) that renders UPOS+FEATS and the Perseus/LDT nine-position tag
+  into one alphabet, with a backoff LADDER rather than one exact key — the tagger is imperfect
+  (`cano` → ADJ, `fortes` → VERB on a sample) and an exact key turns every mis-tag into a total
+  miss. Each rung is precomputed at build time and only where it is decisive.
+  Fetching also skips Docker, the Morpheus compile and RFTagger entirely, so route (1) in NOTICE.md
+  needs none of the offline apparatus `build_la_macron.sh` does.
 - **Purely additive.** spaCy tokens are immutable, so it sets `token._.macron` / `doc._.macron`
   and never touches `token.text`. `la_parse_macronised.py` joins parse + macrons into CoNLL-U (FORM
   macronised) or a table; `--mode reparse` re-parses the macronised string so `token.text` itself
@@ -551,10 +575,13 @@ work above (which macronises the treebank to make the parser robust to macronise
 - **Accuracy (agreement with Alatius, held-out test): 94.09 % whole-token / 97.13 % per-vowel**
   with predicted morphology, 94.32/97.34 with gold. NB these are *agreement*, not gold vowel
   length — Alatius is itself ~98–99 %, and its errors count as our successes.
-- **The bound is VOCABULARY, not morphology.** Error budget: OOV levels (S4/S3/bare) = **71 % of
-  all errors from 8 % of tokens**; the morphology-keyed levels only 9 %. Endings are 94.3 % right
-  from FEATS alone on unseen forms, stems only 75.4 %. Perfect morphology would buy just +0.23, so
-  improving the morphologiser would NOT meaningfully help; only a real stem lexicon (Morpheus) would.
+- **The bound is VOCABULARY, not morphology — and this is now FIXED rather than merely diagnosed.**
+  Error budget as measured before the cascade: OOV levels (S4/S3/bare) = **71 % of all errors from
+  8 % of tokens**; the morphology-keyed levels only 9 %. Endings were 94.3 % right from FEATS alone
+  on unseen forms, stems only 75.4 %. Perfect morphology would have bought just +0.23, so improving
+  the morphologiser would NOT have helped; the conclusion drawn at the time — "only a real stem
+  lexicon (Morpheus) would" — is exactly what the Morpheus fall-through supplies, and it moves that
+  8 % from 52.46 % to 90.42 %.
 - **`_PARADIGM` override** (user-driven). The table memorises pairs and cannot express a paradigm
   rule, so an unseen `(form,morph)` falls through to the morphology-BLIND `L3` and can contradict
   correctly-predicted morphology — nominative `Gallia` came out `Galliā` because the treebank only
@@ -568,14 +595,34 @@ work above (which macronises the treebank to make the parser robust to macronise
   grammatically correct (`differentia`→`differentiā`, `modo`→`modō`, `mēnsūrā`→`mēnsūra`). It also
   faithfully transmits Case ERRORS (`Roma caput mundi` → `Rōmā`), so it is on by default but
   `config={"paradigm": False}` disables it. Case F is 0.899 in-domain / 0.732 on Perseus.
-- **Shipped opt-in, table NOT bundled (licensing).** Morpheus is CC BY-SA 3.0, which forbids adding
-  restrictions; the la wheel is CC BY-**NC**-SA (its three treebanks are all NC), so bundling
-  Morpheus-derived data would add exactly the restriction BY-SA rules out. `package_lemma.sh la`
-  therefore passes `--code scripts/la_macronise.py` (which registers the factory — verified: the
-  module IS imported on `spacy.load` even with the pipe absent) but ships no table. Users run
-  `bash scripts/build_la_macron.sh`, then `nlp.add_pipe("la_macronise", config={"lut": ...})`.
-  Table-less it RAISES rather than silently returning unmacronised text. RFTagger (non-commercial
-  only) is used solely to label the treebank offline and is not a runtime dependency. See NOTICE.md.
+- **SHIPPED IN THE PIPELINE, NEITHER TABLE BUNDLED (licensing).** Morpheus is CC BY-SA 3.0, which
+  forbids adding restrictions; the la wheel is CC BY-**NC**-SA (its three treebanks are all NC), so
+  bundling Morpheus-derived data would add exactly the restriction BY-SA rules out. What ships is
+  therefore the COMPONENT WITHOUT ITS DATA: `package_lemma.sh la` runs
+  `add_la_macronise.py … --no-lut` first and then packages with `--code scripts/la_macronise.py`,
+  which registers the factory the shipped config now names. Verified on the built wheel installed
+  into a clean `--target` dir: `pipe_names` ends in `la_macronise`, and with a Morpheus cache
+  present `nlp("Gallia est omnis divisa in partes tres.")._.macron` comes back
+  `Gallia est omnis dīvīsa in partēs trēs.` with no configuration at all.
+  ⚠ **It used to ship only the FACTORY**, leaving `nlp.add_pipe` to the caller — so `doc._.macron`
+  was absent from the released model by default and a user had to already know the component
+  existed. The pipe now travels with the model and turns itself on the moment data appears:
+  `fetch_morpheus()` once (no config — the component finds the cache itself), or
+  `bash scripts/build_la_macron.sh` for a harvested table to cascade on top, or both.
+  **Fetching is not redistributing** — GPL restricts distribution, not use — which is the whole
+  reason the easy route can exist; the cache also sits OUTSIDE the model directory, so the shipped
+  wheel stays clean.
+  ⚠ **With no data it DEGRADES, it does not raise** (`require_data=False`, the default): every token
+  passes through unchanged, `token._.macron` is always a readable string, and ONE `RuntimeWarning`
+  per component instance names both routes. It has to be that way now the pipe is in the DEFAULT
+  pipeline — a component that raises would make every ordinary `nlp(text)` fail for the users who
+  never wanted macrons. `require_data=True` restores the hard failure for a caller who added the
+  pipe deliberately and would rather hear about a missing table. The warning's fetch line is built
+  from `__name__`, so inside the wheel it reads `from la_sud_ittb_proiel_perseus.la_macronise import
+  fetch_morpheus` rather than a bare module name that would `ImportError` for exactly the reader who
+  needs it.
+  RFTagger (non-commercial only) is used solely to label the treebank offline and is not a runtime
+  dependency. See NOTICE.md.
 
 ## Sanskrit sandhied-CSL representation (`sa_sud_vedic_ufal_dcs`)
 

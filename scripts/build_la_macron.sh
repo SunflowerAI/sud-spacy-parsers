@@ -1,6 +1,17 @@
 #!/bin/bash
 # Build the Latin macronisation lookup table LOCALLY and attach it to a local copy of the model.
 #
+# YOU PROBABLY DO NOT NEED THIS. Since the Morpheus fall-through landed, one download gets most of
+# the benefit and none of the apparatus below:
+#
+#   python -c 'import sys; sys.path.insert(0,"scripts"); import la_macronise; la_macronise.fetch_morpheus()'
+#
+# That covers 249,659 wordforms and needs no Docker, no compiled Morpheus and no RFTagger. What THIS
+# script still buys is the last few points on YOUR OWN treebank's vocabulary, where a harvested table
+# scores 98.23 % against Morpheus's 93.98 % -- the two CASCADE, so it is worth having in addition
+# rather than instead. Off that vocabulary it is far worse (52.46 % against 90.42 %), which is why
+# the suffix levels it used to emit are gone. Full table in NOTICE.md.
+#
 # WHY THIS IS A SCRIPT AND NOT A SHIPPED DATA FILE
 # ------------------------------------------------
 # The vowel-length data ultimately comes from **Morpheus** (Perseus Project, CC BY-SA 3.0 US),
@@ -12,7 +23,9 @@
 # So the repository ships the BUILDER (ours, MIT) and never the TABLE. You generate the table on
 # your own machine from your own macroniser run; nothing Morpheus-derived is ever redistributed.
 # `scripts/la_macron_lut.json.gz` and `build_la_macron/` are gitignored for this reason, and
-# `package_lemma.sh` deliberately does NOT add `la_macronise` to the released wheel.
+# `package_lemma.sh` adds `la_macronise` to the released wheel WITH NO TABLE (`--no-lut`): the pipe
+# ships, the data does not, and the pipe starts macronising the moment the user supplies data by
+# either route. What must never ship is a wheel with a table inside it.
 #
 # NB the macroniser's own tagger is RFTagger, which is licensed for non-commercial use only. It is
 # used here only to LABEL your treebank offline; the resulting component uses this project's own

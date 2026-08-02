@@ -34,11 +34,17 @@ case $lang in
        pkg id  training_id_lemma/model-final sud_gsd \
             "--code scripts/id_lemma_case_fix.py" ;;
   ko)  pkg ko  training_ko_lemma/model-best  sud_gsd                 "" ;;
-       # la ships la_macronise as an OPT-IN component: --code registers the factory (verified: it
-       # is imported on spacy.load even though the pipe is absent from the pipeline), so a caller
+       # la ships la_macronise as an OPT-IN component here: --code registers the factory (verified:
+       # it is imported on spacy.load even though the pipe is absent from the pipeline), so a caller
        # can nlp.add_pipe("la_macronise", config={"lut": ...}). The lookup TABLE is deliberately
        # NOT bundled -- it is Morpheus-derived (CC BY-SA 3.0) and this wheel is CC BY-NC-SA; see
-       # NOTICE.md. Build it with scripts/build_la_macron.sh. Without a table the component raises.
+       # NOTICE.md. Build it with scripts/build_la_macron.sh.
+       # ⚠ THIS IS NOT WHAT SHIPS. `scripts/package_sud.sh` supersedes this script for the released
+       # wheels -- it builds from the SUD arm and adds the sud_misc/sud_idiom/sud_subject layer --
+       # and the la_macronise pipe is attached THERE (`--no-lut`, in the pipeline). Adding it here
+       # instead produced a la wheel 1.8 MB SMALLER than the released one, having quietly dropped
+       # sud_subject and the three sud_* code modules; the size going DOWN is what caught it. If you
+       # are changing what the released Latin model contains, change package_sud.sh.
   la)  pkg la  training_la_lemma/model-best  sud_ittb_proiel_perseus \
             "--code scripts/la_macronise.py" ;;
   zh)  pkg zh  training_zh_lemma/model-best  sud_gsd_simp_trad       "" ;;

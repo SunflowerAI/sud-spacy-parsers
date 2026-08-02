@@ -58,30 +58,64 @@ in **Morpheus** (Perseus Project, **CC BY-SA 3.0 US**), reached via Johan Winge'
 CC BY-SA permits commercial use but forbids imposing further restrictions on the work. The Latin
 model is CC BY-**NC**-SA (forced by its three NonCommercial treebanks, above), so bundling
 Morpheus-derived content into that wheel would add precisely the restriction BY-SA rules out.
-Rather than resolve that tension by guesswork, the repository ships only the **builder**, which is
-our own code (MIT):
+Rather than resolve that tension by guesswork, the repository ships no table at all — only code.
+
+**There are now two ways to supply the data, and the easy one is also the better one.**
 
 ```bash
+# 1. FETCH Morpheus (recommended; one 4 MB download, 249,659 wordforms, nothing else needed)
+python -c 'import sys; sys.path.insert(0,"scripts"); import la_macronise; la_macronise.fetch_morpheus()'
+
+# 2. HARVEST a table from your own treebank (optional, and worth having IN ADDITION)
 bash scripts/build_la_macron.sh     # macronise locally -> harvest table -> attach to a local model
 ```
 
-The released wheel **does** ship the component's code (ours, MIT) via `spacy package --code`, so the
-factory is registered and the component is opt-in — but it ships **no table**:
+Fetching is not redistributing, and that is what makes (1) available at all. Johan Winge commits
+Morpheus's output in **latin-macronizer** as `latin_macronizer/macrons.txt`; **GPL-3.0 restricts
+distribution, not use**, so a file the user's own machine downloads from upstream — and that never
+enters a build of this package — is not ours to license. Nothing here ships it, and nothing should.
+
+The two tables cascade rather than compete, and each is better than the other somewhere. Measured
+against Alatius on the held-out ITTB+PROIEL test split, gold morphology:
+
+| | harvest has the word (92.1 %) | it does not (7.9 %) | whole-token |
+|---|---|---|---|
+| harvested alone | 98.23 % | 52.46 % (its suffix levels) | 94.42 % |
+| Morpheus alone | 93.98 % | 90.42 % | 93.71 % |
+| **cascaded** | 98.23 % | 90.42 % | **97.63 %** |
+
+and on Perseus (classical poetry, out of the harvest's domain, where its out-of-vocabulary share
+rises to 23.8 %): harvested alone 87.02 %, Morpheus alone 95.75 %, **cascaded 97.33 %**.
+
+The released wheel **does** ship the component itself — the code is ours (MIT) and travels via
+`spacy package --code`, and the pipe is in the shipped pipeline — but it ships **no table**:
 
 ```python
-nlp = spacy.load("la_sud_ittb_proiel_perseus")          # 5 pipes, no macroniser
-nlp.add_pipe("la_macronise", config={"lut": "scripts/la_macron_lut.json.gz"})
+nlp = spacy.load("la_sud_ittb_proiel_perseus")          # 6 pipes, macroniser last
 nlp("Gallia est omnis divisa in partes tres.")._.macron
+# with a Morpheus cache present:
 # -> 'Gallia est omnis dīvīsa in partēs trēs.'
+# with none: -> 'Gallia est omnis divisa in partes tres.'   (unchanged, one RuntimeWarning)
 ```
 
-`scripts/la_macron_lut.json.gz` and `build_la_macron/` are gitignored; the component raises rather
-than silently returning unmacronised text if loaded without a table. A model you build this way
-contains Morpheus-derived data — **keep it local and do not redistribute it**.
+Shipping the pipe with no data is the only arrangement the licences allow, and it is better than
+shipping neither: the model macronises as soon as the user runs `fetch_morpheus()`, with no
+`add_pipe` and no config, and `doc._.macron` is readable either way. **With no data the component
+passes text through unchanged and warns once** rather than raising — it is in the default pipeline
+now, so raising would break every ordinary `nlp(text)` for the users who never wanted macrons. Pass
+`config={"require_data": True}` to get the hard failure instead.
+
+`scripts/la_macron_lut.json.gz` and `build_la_macron/` are gitignored, as is the fetched Morpheus
+cache (`~/.cache/sud-spacy/la_macron_morpheus.json.gz`, or `$LA_MORPHEUS_TABLE`). A model you build
+by ATTACHING a harvested table contains Morpheus-derived data — **keep it local and do not
+redistribute it**. Fetching leaves the model alone: the cache sits outside it, so the released
+wheel, which carries the component and no table, is still clean.
 
 The macroniser's own tagger, **RFTagger** (Schmid & Laws), is licensed for education, research and
 other **non-commercial** use only. It is used solely to label your treebank offline; the component
-uses this project's morphologiser at inference, so RFTagger is not a runtime dependency.
+uses this project's morphologiser at inference, so RFTagger is not a runtime dependency. Route (1)
+above does not touch it at all — `macrons.txt` is Morpheus's own output, tagged by Morpheus, so
+fetching skips RFTagger, Docker and the Morpheus compile together.
 
 ## NonCommercial exclusion — SUD_English-GUM
 

@@ -68,8 +68,20 @@ case $lang in
        # Both keep the Subject layer and the idiom layer.
   fa)  $PY scripts/add_sud_idiom.py "$base" "$work" --drop sud_reported >/dev/null 2>&1
        pkg fa  "$work" sud_perdt "$CODE_BASE,scripts/sud_tagger.py" ;;
-  la)  $PY scripts/add_sud_idiom.py "$base" "$work" --drop sud_reported >/dev/null 2>&1
-       pkg la  "$work" sud_ittb_proiel_perseus "$CODE_BASE,scripts/sud_tagger.py" ;;
+       # la additionally ships `la_macronise` IN THE PIPELINE, with NO lookup table (--no-lut): the
+       # vowel lengths are Morpheus-derived (CC BY-SA 3.0 US) and this wheel is CC BY-NC-SA, so the
+       # data cannot travel with it -- but the COMPONENT can, and it starts macronising the moment
+       # the user runs `fetch_morpheus()`. Until then it passes every token through unchanged and
+       # warns once (require_data=False; see la_macronise.py on why a default-pipeline component
+       # must not raise). Added AFTER sud_idiom so it lands last: it only writes `token._.macron`,
+       # reads nothing sud_idiom writes, and nothing downstream reads it -- so last is where it can
+       # neither disturb nor be disturbed. See NOTICE.md.
+  la)  $PY scripts/add_sud_idiom.py "$base" "$work.idiom" --drop sud_reported >/dev/null 2>&1
+       $PY scripts/add_la_macronise.py "$work.idiom" "$work" --no-lut \
+            --code sud_tagger.py,sud_misc.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py \
+            >/dev/null 2>&1
+       pkg la  "$work" sud_ittb_proiel_perseus \
+            "$CODE_BASE,scripts/sud_tagger.py,scripts/la_macronise.py" ;;
   ar)  $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang ar >/dev/null 2>&1
        add_idiom "$work.rep" "$work"
        pkg ar  "$work" sud_padt  "$CODE_REP,scripts/ar_tokenizer.py" ;;
