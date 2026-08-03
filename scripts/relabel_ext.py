@@ -10,6 +10,10 @@ Scope added on top of the baseline ADP-of-VERB relabel:
   + Korean bare NOUN dependent of a VERB, disambiguated by the CASE SUFFIX read off the
      rightmost eojeol of the phrase (head-final): locative/temporal/comitative cases -> mod,
      dative 에게 -> comp, selecting (verb,case) frames -> comp, 로/으로/topic/bare -> model.
+  + Sanskrit `udep@<subtype>` semantic-role tags (instr/goal/lmod/tmod/source/manner/soc/benef/
+     grad/path) -- the base sa_case bucket only ever sees plain `udep`, so these were never
+     relabelled at all. 7 subtypes -> mod, 2 (goal/path, motion/placement-verb-headed) -> comp:obl,
+     @soc -> model. See sa_subtype_audit.py for the evidence.
   2. zh: 的/之 associative PART under a NOUN -> mod      (deterministic; committed 737:3 mod)
   3. ko: ADV dependent of a VERB         -> mod          (deterministic; committed 3554:1 mod)
 
@@ -112,6 +116,30 @@ def sa_case_label(toks, by, t, head):
     return None                                     # Dat-of-purpose / Ins / Acc / Gen -> model
 
 
+# Sanskrit `udep@<subtype>` semantic-role tags (Annotator-assigned, distinct from the bare-Case
+# `sa_case` bucket above, which only ever sees plain `udep`). Per `scripts/sa_subtype_audit.py`:
+# @manner is the only subtype with in-treebank commit evidence (626 mod@manner / 0 comp:obl@
+# manner); the rest have none, but their Case distribution matches cases already established as
+# circumstantial for Sanskrit (SA_MOD_CASES = Loc/Abl/Voc/Nom) or canonical adjunct semantics
+# (Ins-of-means, Dat/Gen-of-purpose, Abl-of-comparison) -> mod. @goal/@path are >85% headed by
+# motion/placement/ritual-offering verbs (i, gam, āgam, praviś, āruh, dhā, nidhā, hu, nī...)
+# taking an Acc/Loc goal-of-motion or path-traversed argument -- the paradigm selected oblique,
+# no verb-class gating needed (the annotators' own subtype IS the signal) -> comp:obl. @soc
+# sampled as a genuine mix (ingredient-mixing instrumentals vs. true accompaniment under
+# joining/union verbs) -> left for the LLM, same as Ins/Acc/Gen in the base `sa_case` bucket.
+SA_SUBTYPE_MOD = {"instr", "lmod", "tmod", "source", "manner", "benef", "grad"}
+SA_SUBTYPE_COMP = {"goal", "path"}
+
+
+def sa_subtype_label(t):
+    sub = t["deprel"].rpartition("@")[2]
+    if sub in SA_SUBTYPE_MOD:
+        return "modifier"
+    if sub in SA_SUBTYPE_COMP:
+        return "complement"
+    return None                                     # @soc -> model
+
+
 def lzh_coverb_label(t, head):
     """Classical Chinese coverb whose udep carries the treebank's own semantic-role subtype:
     @tmod (temporal) is a WHEN adjunct -> mod; @lmod (locative) is the locus -> comp:obl only
@@ -148,6 +176,13 @@ def targets(lang, toks, by):
         if lang == "yue" and t["deprel"] == "udep@tmod":
             yield t, head, "yue_tmod"
             continue
+        # Sanskrit: annotator-assigned semantic-role subtypes on udep (instr/goal/lmod/tmod/
+        # source/manner/soc/benef/grad/path) -- the base `sa_case` bucket below only ever sees
+        # plain `udep`, so these were previously never relabelled at all (see sa_subtype_audit.py).
+        if lang == "sa" and t["deprel"].startswith("udep@") \
+                and t["deprel"].rpartition("@")[2] in (SA_SUBTYPE_MOD | SA_SUBTYPE_COMP | {"soc"}):
+            yield t, head, "sa_subtype"
+            continue
         if t["deprel"] != "udep":          # all other targets are plain `udep`
             continue
         if lang == "zh" and t["upos"] == "PART" and t["lemma"] in ("的", "之") and head["upos"] == "NOUN":
@@ -172,6 +207,18 @@ def targets(lang, toks, by):
             continue
         if lang == "ko" and t["upos"] in ("ADV", "NOUN") and head["upos"] == "VERB":
             if has_verb_descendant(toks, by, t):       # nominal only (skip relative clauses)
+                continue
+            yield t, head, "ko_case"
+            continue
+        if lang == "ko" and t["upos"] in ("ADV", "NOUN") and head["upos"] in ("NOUN", "ADJ", "ADV"):
+            # Korean fuses the case particle into the eojeol, so `ko_case_label` reads it off the
+            # dependent regardless of what heads it — unlike the prepositional languages, where the
+            # ext scope had to name each head POS because the cue sits on a separate ADP token.
+            # These 539 train cases (NOUN->NOUN 121, NOUN->ADV 109, ADJ->ADV 55, ...) were simply
+            # never in scope; an audit of the 1022-token residue found ZERO in-scope cases the
+            # pipeline had missed, so this is the whole of what is left to decide by rule.
+            # The other 483 are in-scope-but-clausal, excluded by `has_verb_descendant` by design.
+            if has_verb_descendant(toks, by, t):
                 continue
             yield t, head, "ko_case"
             continue
@@ -209,6 +256,8 @@ def rule_label(lang, toks, by, t, head, bucket):
         return ko_case_label(toks, by, t, head)
     if bucket == "sa_case":
         return sa_case_label(toks, by, t, head)
+    if bucket == "sa_subtype":
+        return sa_subtype_label(t)
     if bucket == "participial":
         return "modifier" if t["form"].lower() in EN_PARTICIPIAL_MOD else None
     if bucket.startswith("adp_") and lang in g.FILES:   # zh/ko/id frame & temporal rules
