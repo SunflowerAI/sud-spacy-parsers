@@ -875,9 +875,28 @@ class SanskritInputTokenizer:
         self.csliser = None             # stage 0; None => input is assumed to be CSL already
 
     def load_csliser(self, path):
-        """Attach a trained saṃhitā -> CSL character tagger (scripts/sa_presegment.py)."""
-        import sa_presegment
-        self.csliser = sa_presegment.Presegmenter.from_disk(path)
+        """Attach a trained saṃhitā -> CSL character tagger.
+
+        Two kinds exist. The plain one (`sa_presegment.Presegmenter`) reads characters only. The
+        lexicon-feature one (`sa_presegment_lex.LexPresegmenter`) additionally reads, per position,
+        whether a plausible INFLECTED word ends there and another starts next — Apte stems plus a
+        small ending inventory, which lifts dev split-location F from 89.08 (no lexicon) through
+        91.94 (plain stem membership) to 92.58. It needs both resources at inference, so they are
+        bundled beside the weights and reloaded here; a `n_sources` key in vocab.json is what
+        distinguishes the two on disk.
+        """
+        import json
+        path = pathlib.Path(path)
+        meta = json.loads((path / "vocab.json").read_text(encoding="utf-8"))
+        stems, ends = path / "apte_stems.txt", path / "sa_endings.json"
+        if "n_sources" in meta and stems.exists() and ends.exists():
+            import sa_presegment_lex
+            sa_presegment_lex.enable_inflect(str(stems), str(ends))
+            lex = {w for w in stems.read_text(encoding="utf-8").split("\n") if w}
+            self.csliser = sa_presegment_lex.LexPresegmenter.from_disk(path, [lex])
+        else:
+            import sa_presegment
+            self.csliser = sa_presegment.Presegmenter.from_disk(path)
         self.cslise = True
         return self
 

@@ -12,6 +12,9 @@ import argparse
 import importlib.util
 
 import spacy
+import char_seg_tokenizer  # noqa: F401 — the id arm's tokenizer is sud.CharSegTokenizer.v1;
+import sud_affix_embed     # noqa: F401   without these spacy.load raises E893
+import gold_tok_corpus     # noqa: F401
 
 
 def load_code(path):

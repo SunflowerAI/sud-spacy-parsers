@@ -35,28 +35,50 @@ import spacy                                        # noqa: E402
 import sa_tokenizer                                 # noqa: E402,F401
 import clause_parser                                # noqa: E402,F401
 import sud_affix_embed                              # noqa: E402,F401
+import sud_unsandhi                                 # noqa: E402,F401
+import sa_devanagari                                # noqa: E402,F401  — registers `sa_deva`
 from gold_tok_corpus import CompoundCorpus          # noqa: E402
 from sa_presegment import Presegmenter, apply_labels  # noqa: E402
 
-TEST_SPACY = "corpus_sa_csl_rev/sa_vedic-sud-test.csl_rev.spacy"
-TEST_CONLLU = "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-test.csl_rev.conllu"
+# The corpus MUST match the representation the model was trained on, or every number is nonsense
+# while still looking plausible. `corpus_sa_csl_rev` is the SUPERSEDED pausa-normalised
+# representation; the shipped arm trains on the DCS/MWT one, whose FORMs differ (a standalone token
+# keeps its sandhied surface there). Pointing the old constants at the current model produced
+# token F 0.0724 and LAS 0.0324 — a harness artefact, not a result. Overridable so a future
+# representation change is a flag, not an edit.
+TEST_SPACY = "corpus_sa_split/vedic_test.spacy"
+TEST_CONLLU = "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-test.csl_mwt.conllu"
 DIVIDERS = (" ", "-")
 
 
-def token_spans(labels):
+def token_spans(labels, samhita=None):
     """Per-character labels -> the saṃhitā character range of each token they produce.
 
     A label may carry more than one divider (`' ô `, where a one-vowel particle is wholly absorbed
     into its neighbour); each extra divider closes a zero-width token, which is exactly what the
     absorbed word is on the saṃhitā side.
+
+    `samhita` must be passed whenever the input carries SPACES. Under the `iast`/`devanagari`
+    spacing regimes the word boundaries are already literal spaces in the input, so the labels stop
+    marking them and only mark what is left to find (compound breaks, coalescences). Counting label
+    dividers alone then undercounts badly — `hasti-varcasam iti hastinam` yielded 2 spans against 4
+    gold tokens, and 2491 of 2545 sentences were dropped as unreconstructable. A literal space is a
+    token boundary in its own right and belongs to no token. Passing nothing keeps the old
+    behaviour, which is correct for the space-free `continuous` regime.
     """
     spans, start = [], 0
     for i, lab in enumerate(labels):
+        if samhita is not None and samhita[i].isspace():
+            if i > start:                       # close the token the space terminates
+                spans.append((start, i))
+            start = i + 1                       # the space itself is in no token
+            continue
         n = sum(lab.count(d) for d in DIVIDERS)
         for j in range(n):
             spans.append((start, i + 1) if j == 0 else (i + 1, i + 1))
             start = i + 1
-    spans.append((start, len(labels)))
+    if start < len(labels) or not spans:
+        spans.append((start, len(labels)))
     return spans
 
 
@@ -131,9 +153,24 @@ def main():
     ap.add_argument("model")
     ap.add_argument("presegment")
     ap.add_argument("pairs")
+    ap.add_argument("--test-spacy", default=TEST_SPACY)
+    ap.add_argument("--test-conllu", default=TEST_CONLLU)
     a = ap.parse_args()
+    globals()["TEST_SPACY"] = a.test_spacy
+    globals()["TEST_CONLLU"] = a.test_conllu
 
     nlp = spacy.load(a.model)
+    # BOTH scored conditions hand the pipeline a CSL string that this script built itself — the
+    # oracle from the gold labels, the real one from the presegmenter's predicted labels. A shipped
+    # v3 model, though, CSLises whatever it is given, so it would run the CSLiser a SECOND time over
+    # text that is already CSL. That double pass is not a small error: it re-segmented `hāstidantaṃ`
+    # to `hāsti dantam` and emitted bare `-` tokens, dragging the ORACLE (which is exact by
+    # definition) down to token F 0.6639. Disabling stage 0 leaves the de-CSLizer and the trained
+    # de-sandhifier, which is exactly the contract these conditions assume.
+    if getattr(nlp.tokenizer, "cslise", False):
+        nlp.tokenizer.cslise = False
+        nlp.tokenizer.csliser = None
+        print("  (CSLiser stage disabled: this script supplies CSL directly)")
     rows = {r["sent_id"]: r for r in
             (json.loads(line) for line in open(a.pairs, encoding="utf-8"))}
     sids = [line.split("=", 1)[1].strip() for line in open(TEST_CONLLU, encoding="utf-8")
@@ -158,7 +195,7 @@ def main():
     bad_gold = bad_pred = 0
     for s in order:
         row, ref = rows[s], by_sid[s].reference
-        gspans = token_spans(row["labels"])
+        gspans = token_spans(row["labels"], row["samhita"])
         gold = ref_tuples(ref, gspans)
         if gold is None:                       # gold labels must reproduce the gold tokenisation
             bad_gold += 1
@@ -166,7 +203,7 @@ def main():
         for acc, labels in ((oracle, row["labels"]), (real, pred_labels[order.index(s)])):
             csl = apply_labels(row["samhita"], labels)
             doc = nlp(csl)
-            tup = doc_tuples(doc, token_spans(labels))
+            tup = doc_tuples(doc, token_spans(labels, row["samhita"]))
             if tup is None:
                 if acc is real:
                     bad_pred += 1

@@ -51,7 +51,26 @@ for lang in "$@"; do
   # Base arm: the trained SUD arm where it won, else the released lemma arm.
   case $lang in
     en|fa|la|yue) base=training_${lang}_sud/model-best ;;
-    sa)           base=training_sa_mwt_lemma_sfx5/model-best ;;
+    # sa ships the JOINT MULTI-TASK arm: ONE shared encoder for tagger + parser + morphologizer +
+    # lemmatizer, instead of the three-encoder freeze recipe every other arm uses. 25.85 -> 19.16 MB
+    # (-25.9 %), tag/pos/morph/lemma each +0.3 to +0.7, and on HELD-OUT UFAL (classical prose, the
+    # actual use case) LAS 0.3873 -> 0.4163 / UAS 0.5685 -> 0.6199. It costs Vedic LAS 0.5470 ->
+    # 0.5140, accepted by user decision because the target is classical, not Vedic. NB the UFAL
+    # figure rests on 416 tokens; the Vedic one on 18 k, so the cost is better measured than the gain.
+    sa)           base=training_sa_multitask/model-best ;;
+    # ko ships the EOJEOL arm, trained on the ORIGINAL SUD_Korean-GSD with spaCy's rule tokeniser
+    # instead of mecab morphemes. The point is tokenisation fidelity: against that treebank the
+    # shipped tokeniser now scores TOK 99.77, where the morpheme arm scored 0.3070 (strict span
+    # match: rule 0.9522 vs morphemes 0.3070). Trained with `sud.GoldTokCorpus.v1`, so sentence
+    # boundaries are LEARNED — raw SENT F 83.80 and raw LAS 55.00, against SENT F 0.00 / LAS 47.15
+    # for the same arm under plain gold_preproc.
+    # COST, accepted by user decision: this discards the Korean case-particle relabel result
+    # (`comp:obl` F 0.169 -> 0.386), which depended on the morpheme split putting relations on the
+    # particle. Eojeol tokens fuse noun+particle, so that signal has nowhere to live.
+    # CAVEAT: the original treebank populates FEATS on only 4.7 % of tokens, so this arm's
+    # `morph_acc` 95.36 is ~the base rate for predicting empty and says nothing. POS 83.05 and
+    # lemma 78.30 are real.
+    ko)           base=training_ko_eojeol_lemma/model-best ;;
     *)            base=training_${lang}_lemma/model-best ;;
   esac
   work=build_sud/work_$lang

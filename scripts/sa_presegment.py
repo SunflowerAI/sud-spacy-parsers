@@ -33,7 +33,16 @@ import srsly
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from sa_tokenizer import normalise            # noqa: E402  (Devanagari -> IAST, accents, NFC)
+try:                                          # Devanagari -> IAST, accents, NFC
+    from sa_tokenizer import normalise        # noqa: E402
+except ImportError:                           # pragma: no cover
+    # This module is also the character segmenter for zh/id (`sud.CharSegTokenizer.v1`), whose
+    # wheels have no reason to carry the Sanskrit tokeniser. `normalise` is only meaningful for
+    # Sanskrit input — Devanagari transliteration and accent stripping — so outside that setting
+    # the identity is exactly right, and importing sa_tokenizer would drag Sanskrit into a Chinese
+    # wheel. `to_csl` is the only caller (L116); the trained models for zh/id never see Devanagari.
+    def normalise(text):
+        return text
 from thinc.api import (Embed, Maxout, Softmax, chain, clone, expand_window, residual,
                        with_array)
 

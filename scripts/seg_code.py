@@ -33,6 +33,13 @@ for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            "sa_tokenizer.py", "clause_parser.py", "sud_unsandhi.py", "sa_devanagari.py",
            # registers sud.MultiHashEmbedAffix.v1 (per-component affix windows; sa morph/lemma)
            "sud_affix_embed.py",
+           # registers sud.CharSegTokenizer.v1 — the treebank-trained character segmenter used as
+           # the TOKENIZER for zh (pkuseg 0.8385 -> 0.8725) and id (enclitic split, 0.9985).
+           # Must come after sa_presegment's dependencies; it imports that module lazily.
+           "char_seg_tokenizer.py",
+           # registers sud.SamplingCorpus.v1 — rebalance by SAMPLING rather than
+           # duplicating docs, which inflates the parser's workload 10x
+           "sampling_corpus.py",
            # sud_misc first: sud_tagger imports it. (sud_idiom is packaging-time only and needs
            # no registration here, as with id_lemma_case_fix.)
            "sud_misc.py", "sud_tagger.py"):
