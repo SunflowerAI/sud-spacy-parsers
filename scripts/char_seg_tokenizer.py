@@ -5,8 +5,17 @@ Registered as **`sud.CharSegTokenizer.v1`**, language-neutral. It exists because
 statistical segmenters disagree with the treebanks the parsers were trained on, and a treebank-
 trained tagger is only worth what its tokenisation is worth:
 
-    zh   pkuseg 0.8385 vs this 0.8725 strict whole-token F  (about one token in six was wrong)
+    zh   pkuseg 0.8385 -> 0.8725 plain -> 0.8898 with a jackknifed corpus lexicon -> 0.9202 with
+         jieba's own segmentation decision as a second channel (`zh_jieba_feature.py`)
     id   the enclitic split `coarsen_id.py` merges away: 0.9985, 99.91 % of words segmented exactly
+
+All strict whole-token F, scored PER TEXT — which is what `__call__` does, one `predict` per input
+string. Scoring a whole test set in ONE `predict` is not the same thing: `with_array` concatenates
+the batch, so the first character of each row sees its neighbour instead of zero padding. The effect
+is confined to that character (|Δ| 0.81 at position 0, ~0 by position 2), so it is worth 0.27 F on
+zh, where the sentence-initial split is genuinely uncertain, and exactly 0.00 on id/yue/sa. Since
+training batches 32 rows, the ZERO-PADDED path here is the out-of-distribution one; prepending a
+throwaway `。` chunk recovers the 0.27 on zh. Not done — it would change every language's output.
 
 Boundaries come from the same two-label scheme `make_seg_pairs.py` writes (`=` keep, `= ` break),
 and inference runs per WHITESPACE CHUNK — the model never saw a space, so feeding it one hands the
@@ -56,10 +65,15 @@ class CharSegTokenizer:
         meta = json.loads((path / "vocab.json").read_text(encoding="utf-8"))
         lex_file = pathlib.Path(lexicon) if lexicon else path / "lexicon.txt"
         if "n_sources" in meta and lex_file.exists():
-            from sa_presegment_lex import LexPresegmenter
+            import sa_presegment_lex as spl
+            if meta.get("jieba_source") is not None:
+                # One channel is jieba's own segmentation of the chunk, not a word list. It must be
+                # switched on BEFORE the model is built, since `multi_codes` reads the module state.
+                ud = path / "jieba_force_split.txt"
+                spl.enable_jieba(meta["jieba_source"], str(ud) if ud.exists() else None)
             entries = {w for w in lex_file.read_text(encoding="utf-8").split("\n") if w}
             self.lexicon = entries
-            self.seg = LexPresegmenter.from_disk(path, [entries] * meta["n_sources"])
+            self.seg = spl.LexPresegmenter.from_disk(path, [entries] * meta["n_sources"])
         else:
             from sa_presegment import Presegmenter
             self.seg = Presegmenter.from_disk(path)

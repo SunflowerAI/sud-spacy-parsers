@@ -85,3 +85,37 @@ data_samhita/
 # The Morpheus cache normally lives in ~/.cache/sud-spacy/, but $LA_MORPHEUS_TABLE can put
 # it anywhere — including here, which is what this line is for.
 la_macron_morpheus.json.gz
+
+# ---- Derived data and weights that are REGENERABLE, added 2026-08-04 ----------------------------
+# Same rule as data_samhita/ above: anything a script rebuilds stays out of the repo. These had
+# simply never been listed, so ~950 MB of them showed as untracked noise in every `git status`.
+
+# Character-segmenter training pairs (regenerate: scripts/make_seg_pairs.py <treebank> <out>)
+data_seg_zh/
+data_seg_id/
+data_seg_yue/
+# Trained segmenters, pkuseg models, lexicons. These SHIP INSIDE THE WHEELS (the tokenizer/
+# directory), so the release is the distribution channel, not the repo.
+models/
+# Derived treebank artefacts: the Latin ITTB+PROIEL+Perseus merges and their macron/relabel/reported
+# variants (rebuild: scripts/add_perseus_la.sh, train_la_ext_macron.sh), the combined SUD dumps, and
+# the Apte/CDSL extraction (scripts/build_apte_lexicon.py). Individually 56-71 MB each.
+assets_la/
+assets_sud/
+assets_apte/
+assets_ko_retok_rl/
+assets_id_coarse_rl/
+# English udep-ruled derivatives. en was SKIPPED for the udep-rule retrain (0.22 % of tokens), so
+# these are experimental only; rebuild with scripts/apply_udep_rules.py.
+assets/en_ewt-sud-*.udep_ruled.conllu
+# Pre-transform backups, kept locally as an undo path for one-way rewrites
+backup_la_preperseus/
+backup_sa_prepipe/
+backup_sa_prestrip/
+# Superseded LLM decision caches from the abandoned multi-way residue pass (see the negative result)
+archive_residue_pass1/
+archive_residue_pass2/
+# Extracted tok2vec weights for the sa joint arms (same rule as zh_both_tok2vec.bin above)
+sa_joint_tok2vec.bin
+sa_joint_tok2vec_w96.bin
+dist_la_perseus/

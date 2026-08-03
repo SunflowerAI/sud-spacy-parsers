@@ -132,6 +132,23 @@ def enable_inflect(stems_path, endings_path):
     _INFLECT["fn"] = inf.inflect_codes
 
 
+_JIEBA = {"index": None, "fn": None, "tok": None}
+
+
+def enable_jieba(index, userdict=None):
+    """Route lexicon source `index` through jieba's SEGMENTATION DECISION (BMES) instead.
+
+    Imported lazily, and from a separate module, because `sa_presegment_lex` is bundled into every
+    wheel that ships a character segmenter — the zh model has no reason to carry jieba's 5 MB
+    dictionary at import time, and the sa model has no reason to carry jieba at all. Same rule that
+    kept `eval_samhita` out of module scope here.
+    """
+    import zh_jieba_feature as jf
+    _JIEBA["index"] = index
+    _JIEBA["fn"] = jf.jieba_codes
+    _JIEBA["tok"] = jf.get_tokenizer(userdict)
+
+
 def multi_codes(text, lexes, min_lens, max_len=24):
     """One independent code per lexicon SOURCE.
 
@@ -144,7 +161,9 @@ def multi_codes(text, lexes, min_lens, max_len=24):
     """
     out = []
     for k, (lx, ml) in enumerate(zip(lexes, min_lens)):
-        if k == 0 and _FREQ.get("counts") is not None:
+        if _JIEBA["index"] == k:
+            out.append(_JIEBA["fn"](text, _JIEBA["tok"]))
+        elif k == 0 and _FREQ.get("counts") is not None:
             out.append(freq_codes(text, lx if isinstance(lx, dict) else _FREQ["counts"]))
         elif k == 0 and _INFLECT.get("fn") and lx:
             out.append(_INFLECT["fn"](text, _INFLECT["stems"], _INFLECT["by_add"],
@@ -169,7 +188,22 @@ def build_lex_model(n_chars, n_labels, width=64, depth=6, window_size=1, maxout_
     )
     encoder = clone(residual(cnn), depth)
     encoder.set_dim("nO", width)
-    return with_array(chain(embed, encoder, Softmax(nO=n_labels, nI=width)))
+    # `pad` is NOT optional, and leaving it off was a regression against `sa_presegment.build_model`
+    # (which has always passed `pad=window_size * depth`, copying spacy.MaxoutWindowEncoder).
+    # `with_array` receives a LIST of sequences and flattens it into ONE array, so without padding
+    # between them the ±1 window at the first layer reads the PREVIOUS sequence's last character.
+    # Measured on zh before the fix: |Δ| 0.81 on the first character of a row depending on what
+    # preceded it in the call, ~0 by the third — enough to flip 60 of 529 sentence-initial splits.
+    # Training batches 32 rows, so the model learned that first decision with a real neighbour and
+    # then met zero padding at inference, where each text is alone in its call.
+    # `depth` window-1 layers give a receptive field of `depth`, which is the padding needed.
+    # NB the padding is inserted in the INT input here (one `with_array` around the whole chain),
+    # not in embedding space as `build_model` does it, so the pad rows arrive as character id 0 =
+    # PAD_CHAR and lexicon code 0. `build_vocabs` reserves index 0 for exactly this. Keeping the
+    # single wrapper also keeps every existing checkpoint loadable: `pad` is an attr, not a
+    # parameter, so the serialised structure is unchanged.
+    return with_array(chain(embed, encoder, Softmax(nO=n_labels, nI=width)),
+                      pad=window_size * depth)
 
 
 class LexPresegmenter:
@@ -223,7 +257,11 @@ class LexPresegmenter:
              "depth": self.depth, "min_len": self.min_lens,
              # n_sources decides how many Embed tables the architecture has; without it
              # from_disk rebuilds a 1-source model and thinc raises "mismatched structure"
-             "n_sources": len(self.lexes), "n_values": self.n_values},
+             "n_sources": len(self.lexes), "n_values": self.n_values,
+             # which source (if any) is jieba's segmentation decision rather than a word list. A
+             # model trained with this channel and loaded without it runs with one input deleted and
+             # nothing raises, so the marker travels with the weights.
+             "jieba_source": _JIEBA["index"]},
             ensure_ascii=False), encoding="utf-8")
 
     @classmethod
@@ -270,6 +308,18 @@ def main():
                     help="path to models/sa_endings.json; makes source 0 use the sandhi/inflection"
                          "-aware extractor (suffix-strip against the stem list) rather than plain "
                          "membership")
+    ap.add_argument("--jieba-source", type=int, default=None, metavar="K",
+                    help="route lexicon source K through jieba's SEGMENTATION DECISION (BMES, 4 "
+                         "values) rather than membership in the file passed at that position. The "
+                         "file still has to be given — pass an empty one — because the source list "
+                         "is what sizes the architecture. jieba is EXTERNAL, so this channel needs "
+                         "no jackknifing: its dictionary was not harvested from our training split, "
+                         "and train-time reliability therefore already equals test-time.")
+    ap.add_argument("--jieba-userdict", default=None,
+                    help="word list to force-split (`del_word`) before segmenting. Harvest it with "
+                         "zh_jieba_feature.force_split_dict — but note it is derived from GOLD, so "
+                         "a train-harvested one leaks unless it is jackknifed like the corpus "
+                         "lexicon.")
     ap.add_argument("--jackknife", type=int, default=0, metavar="K",
                     help="build the lexicon from the TRAINING DATA by K-fold jackknifing: each "
                          "training sentence sees a lexicon derived from the OTHER folds only. A "
@@ -286,6 +336,10 @@ def main():
                          "the sa affix gain was information rather than capacity.")
     a = ap.parse_args()
 
+    if a.jieba_source is not None and not a.no_lex:
+        enable_jieba(a.jieba_source, a.jieba_userdict)
+        print(f"  source {a.jieba_source} = jieba segmentation decision (BMES)"
+              + (f", force-split userdict {a.jieba_userdict}" if a.jieba_userdict else ""))
     if a.inflect_endings and not a.no_lex:
         enable_inflect(a.lexicon[0], a.inflect_endings)
         print(f"  source 0 = sandhi/inflection-aware ({a.inflect_endings})")
@@ -332,7 +386,18 @@ def main():
         print(f"    train-time coverage: jackknifed {seen/max(tot,1):.1%} "
               f"(naive would be {naive/max(tot,1):.1%})")
         jk_codes = {}
+        jk_jieba = a.jieba_source is not None and a.jieba_userdict == "auto"
+        if jk_jieba:
+            # The force-split userdict is harvested from GOLD, so it must be jackknifed exactly like
+            # the corpus lexicon — otherwise jieba arrives at training already corrected on the very
+            # rows it is being scored against, and the model learns a reliability the channel will
+            # not have at inference. This is the same leak that cost the naive corpus lexicon 1.37 F.
+            import zh_jieba_feature as jf
+            print(f"  jieba userdict jackknifed K={K} (harvested per fold from the other folds)")
         for k in range(K):
+            if jk_jieba:
+                other = [rows[i] for j in range(K) if j != k for i in folds[j]]
+                _JIEBA["tok"] = jf.set_userdict(jf.force_split_dict(other))
             if a.freq_counts:
                 import collections as _c
                 cnt = _c.Counter()
@@ -349,6 +414,15 @@ def main():
             for i in folds[k]:
                 jk_codes[i] = multi_codes(rows[i]["samhita"], lexes_k, mins)
         lex = [full] + lex[1:]                     # dev/test see the full lexicon
+        if jk_jieba:
+            # dev/test/deployment see the userdict harvested from the WHOLE training split, which is
+            # what a released model would ship; it is saved so evaluation can reproduce it exactly.
+            words = jf.force_split_dict(rows)
+            _JIEBA["tok"] = jf.set_userdict(words)
+            out = pathlib.Path(a.out); out.mkdir(parents=True, exist_ok=True)
+            (out / "jieba_force_split.txt").write_text("\n".join(sorted(words)), encoding="utf-8")
+            print(f"    full-train force-split userdict: {len(words)} words -> {out.name}/"
+                  f"jieba_force_split.txt")
 
     if a.freq_counts and not a.no_lex:
         import collections as _c

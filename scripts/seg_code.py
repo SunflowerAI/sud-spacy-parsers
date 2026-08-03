@@ -34,7 +34,8 @@ for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            # registers sud.MultiHashEmbedAffix.v1 (per-component affix windows; sa morph/lemma)
            "sud_affix_embed.py",
            # registers sud.CharSegTokenizer.v1 — the treebank-trained character segmenter used as
-           # the TOKENIZER for zh (pkuseg 0.8385 -> 0.8725) and id (enclitic split, 0.9985).
+           # the TOKENIZER for zh (pkuseg 0.8385 -> 0.9202, the last +3 from jieba's segmentation
+           # decision as an input channel) and id (enclitic split, 0.9985).
            # Must come after sa_presegment's dependencies; it imports that module lazily.
            "char_seg_tokenizer.py",
            # registers sud.SamplingCorpus.v1 — rebalance by SAMPLING rather than

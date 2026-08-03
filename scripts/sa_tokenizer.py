@@ -926,7 +926,14 @@ class SanskritInputTokenizer:
         """
         pieces, cs, ce = [], {}, {}
         out_pos = in_pos = 0
-        chunks = norm.split(" ")
+        # Whether to chunk on spaces is a property of the LOADED CSLiser, not of this code: a model
+        # trained on continuous samhita has no space in its vocabulary and must be fed space-free
+        # pieces, while the released `sa_presegment_ortho` was trained on spaced text and loses
+        # 4.83 split-location F when chunked. See `sa_presegment.Presegmenter.to_csl`. With one
+        # chunk the `if k:` branch below never fires and each space is simply a character the model
+        # labels itself, so the offset bookkeeping needs no special case.
+        spaced = getattr(self.csliser, "reads_spaces", False)
+        chunks = [norm] if spaced else norm.split(" ")
         labels_per_chunk = self.csliser.predict([c for c in chunks])
         for k, (chunk, labels) in enumerate(zip(chunks, labels_per_chunk)):
             if k:                                          # the joining space is 1:1

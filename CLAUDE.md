@@ -1060,6 +1060,41 @@ extensions, silently dropping the Token-level ones. It had already been bitten b
 (dropping lemma and morph). **Anything that rebuilds a `Doc` owns carrying EVERY annotation** —
 `clause_parser` and `sa_deva` now both do.
 
+**FIXED 2026-08-04 (was: `_cslise` fed the ortho CSLiser an input regime it was not trained on,
+costing 4.83 split-location F).** `Presegmenter.to_csl` / `sa_tokenizer._cslise`
+split the normalised text on spaces and predict chunk by chunk. That was CORRECT for the original
+CSLiser, which was trained on continuous saṃhitā and has **no space in its vocabulary** — feeding it
+a spaced string would hand the encoder UNK at every word boundary, which is what the `to_csl`
+docstring explains. But the RELEASED model is `sa_presegment_ortho`, retrained on spaced IAST /
+Devanagari: 381 775 of its 386 260 training rows contain a space, and `' '` is one of its 41
+vocabulary characters. The chunking was never removed, so the shipped wheel evaluates its CSLiser on
+one regime and deploys it on another. On the Vedic IAST test:
+
+    whole spaced string (as TRAINED)     split-loc 0.8731  split-type 0.8385  full 0.8232  PM 0.7882
+    space-split chunks (as DEPLOYED)     split-loc 0.8248  split-type 0.7898  full 0.7747  PM 0.7269
+
+i.e. **−4.83 split-location F, −6.13 sentence PM**, and every CSLiser figure quoted in this file was
+the trained-regime one, so the released model had been doing worse than its own numbers said. Same
+shape as the unset-vs-empty MORPH bug: an invariant true of an earlier model, silently false for its
+replacement, with nothing raising.
+
+**Shipped: the sa wheel was rebuilt and re-released over v0.1.0 on 2026-08-04** (19 819 000 bytes),
+and verified in a clean `--target` install — `nlp.tokenizer.csliser.reads_spaces` is True inside the
+wheel, so the whole-string path is the one that runs.
+
+**The fix asks the model instead of assuming.** `Presegmenter.reads_spaces` is True iff `' '` is in
+its character inventory — which `build_vocabs` fills from the training rows, so it answers "was this
+trained on spaced text" exactly rather than by proxy. `to_csl` and `_cslise` both branch on it.
+Chunking stays for a continuous-saṃhitā CSLiser, where it remains REQUIRED.
+
+The `src_spans` bookkeeping needed no special case after all: with one chunk the `if k:` branch that
+hand-inserts the joining space never fires, and each space becomes an ordinary character the model
+labels itself. Verified that this is safe rather than assumed — over the Vedic IAST test the ortho
+model predicts a non-`KEEP` label on **0 of 13 780** space characters (and the gold has none either),
+so a space always expands to itself and stays 1:1. Checked end to end on `training_sa_multitask_full`:
+spans still tile the input exactly (`rājā uvāca | kiṃ bhadre` → 5 tokens at (0,4) (5,10) (11,12)
+(13,16) (17,23)), and over 500 corpus `# text` lines, **0 spans out of bounds and 0 dropped**.
+
 ### DCS multiword-token representation (`restructure_sa_csl.py`, built and measured; NOT shipped)
 
 An alternative to the pausa-normalised `*.csl_rev.conllu`, following the **Digital Corpus of
@@ -1687,6 +1722,225 @@ Three explanations of mine were each refuted by the next measurement — max-ove
 code 3 at 64 % of non-breaks) and something better must exist, but five attempts found only the
 simplest one. **Stop here unless a new idea arrives; do not re-run the encoding search.**
 
+### The new idea did arrive: jieba's DECISION, not its dictionary (+3.0 token F, +2.5 raw LAS)
+
+The encoding search above asked jieba's dictionary for MEMBERSHIP ("is this substring one of its
+349 044 entries") and lost to the jackknifed corpus lexicon, 0.8859 vs 0.8902. It never asked jieba
+to SEGMENT. `scripts/zh_jieba_feature.py` does, and reads the verdict off per character as a **BMES**
+code (4 values, so the channel is exactly a lexicon channel's width and the capacity control stays
+parameter-identical). That is the output of a DAG search plus an HMM over unknown words — a far
+stronger signal than a substring lookup, and the piece the earlier experiment left on the table.
+
+**The headroom was measured before anything was built** (test, against the shipped `zh_seg_jk`):
+
+    jieba boundaries    P 0.9730  R 0.8793     -- very PRECISE and INCOMPLETE: it under-splits
+    zh_seg_jk           P 0.9507  R 0.9556
+
+    per character position:  both right 86.89 %   ours only 7.33 %
+                             JIEBA ONLY RIGHT 4.19 %   both wrong 1.59 %
+
+i.e. **jieba is right at 72.5 % of the 1079 positions the shipped model gets wrong**, and that is
+reachable only by a feature — 97 % of this segmenter's errors are CONFIDENT errors, which no decoder
+touches (see the decode-time negative results above). A hard union of the two break sets already
+scores 0.8938 with no training at all.
+
+**Strict whole-token F on test, 5 independent runs each** (`scripts/eval_zh_seg.py`; model init is
+unseeded, so the spread is real run-to-run noise, and every figure is scored PER TEXT — see the
+batching note below, which is why these are ~0.3 lower than the first pass):
+
+| arm | mean | range |
+|---|---|---|
+| shipped `zh_seg_jk`, corpus lexicon jackknifed (`n_sources` 1) | 0.8898 | — (one fixed model) |
+| capacity control: same + a ZEROED second channel (`n_sources` 2) | 0.8761 | 0.8679–0.8855 |
+| **corpus lexicon + jieba decision** (`n_sources` 2) | **0.9203** | 0.9188–0.9210 |
+
+No overlap against the control: the worst jieba run beats the best control by 3.33 points. The
+control is what makes it readable — going 1 → 2 sources COSTS 1.37 on its own (char embed 56 → 48),
+so the feature is worth **+4.42 against its own architecture and +3.05 against the shipped model**.
+Both these arms are PADDED (see below); the pre-fix runs measured 0.8757 control / 0.9186 jieba,
+i.e. the same conclusion 0.2 lower.
+
+Two ablations, measured on the pre-fix (unpadded) arms and not re-run, since neither changed the
+decision: **jieba alone** (`n_sources` 1) scored 0.9158, 0.28 behind the pair with the ranges
+overlapping — so keep the corpus lexicon because it is free, not because the gain is measured; and
+the **force-split userdict** scored 0.9172, also a wash (see the negative result below).
+
+**Raw end-to-end, and a caution about it.** Both arms retrained 5× and run through
+`training_zh_lemma/model-best` on the same 100 test docs:
+
+| | token F | raw LAS |
+|---|---|---|
+| control | 0.8761 (0.8679–0.8855) | 0.4673 (0.4361–0.4945) |
+| + jieba decision | 0.9203 (0.9188–0.9210) | **0.5269** (0.4979–0.5608) |
+
+No overlap on either, so the downstream gain is real: **+5.96 LAS against the matched control**.
+But **raw LAS is far noisier than the segmentation metric that drives it** — a 0.22-point spread in
+token F produces a 6.3-point spread in LAS, because a handful of differently-placed boundaries
+misalign whole spans in the scorer. So: never quote zh raw LAS from a single segmenter training run.
+An earlier draft of this note claimed "+2.51 LAS" from exactly that mistake, one arm against one
+baseline. Against the shipped `zh_seg_jk` (a fixed model, raw LAS 0.5118) the comparison is NOT
+resolved by these runs — 0.5118 sits inside the jieba arm's range — even though its token F 0.8898
+is cleanly beaten. The shipped arm itself scores raw LAS 0.5608, the top of the range; expect the
+0.5269 mean from a fresh retrain.
+
+### The batching leak is real but ONE CHARACTER deep, and it is a zh-only problem
+
+Found while verifying the built wheel, which scored 0.9202 where the loose model had scored 0.9229 —
+weights `cmp`-identical, feature codes identical, and **60 of 529 rows still segmented differently**.
+The cause is the architecture: the encoder is `with_array(... expand_window ...)`, so thinc
+concatenates the batch into ONE array and the window at layer 1 reads across sequence boundaries.
+
+**The reach is not ±6.** Measured per position on a differing row (`|Δ|` between predicting the row
+alone and predicting it after another row): **0.813 at position 0, 0.0013 at position 1, 0.0003 at
+position 2, and 0 thereafter** — and the one argmax flip is at position 0. Every differing zh example
+is a sentence-INITIAL split (`台大`→`台/大`, `同年`→`同/年`, `团购`→`团/购`). Six stacked windows do
+propagate, but the magnitude collapses within two characters. Note also that swapping which row
+precedes barely matters (max |Δ| 0.044, zero argmax flips) — what matters is whether there is a real
+character there at all, rather than the zero padding.
+
+**ROOT CAUSE: `build_lex_model` dropped the `pad` argument that `build_model` has always had.**
+`sa_presegment.build_model` wraps its encoder as `with_array(encoder, pad=window_size * depth)`,
+copying `spacy.MaxoutWindowEncoder`, and `build_vocabs` reserves index 0 for `PAD_CHAR` to go with
+it. `thinc`'s `_list_forward` reads that attr and inserts `pad` zero rows BETWEEN sequences when it
+flattens the list, so no sequence can see another. The lexicon variant, written later, wrapped
+everything in one bare `with_array(...)` and lost the padding — so **this was never an architectural
+property of the family, just a regression in the one model zh uses.** Fixed; `build_lex_model` now
+passes `pad=window_size * depth` too.
+
+Two consequences worth knowing. **`Model.from_bytes` restores `attrs` from the checkpoint**, so an
+existing model keeps `pad: 0` and its trained behaviour — the fix reaches only retrained models,
+which is the right semantics but means "I changed the architecture" does not show up until you
+retrain. And because the single wrapper covers the embed too, the pad rows arrive as character id 0
+= `PAD_CHAR` and lexicon code 0, rather than as zero vectors in embedding space the way
+`build_model` does it — the reserved index makes that meaningful rather than accidental.
+
+Retrained with padding, batching becomes irrelevant by construction: batched and per-text agree on
+**0** of 529 rows differing, at identical F.
+
+**So it is not the general contamination the first draft of this note claimed.** Re-measured across
+the family, deployment-grouped (`scripts/eval_seg_batching.py`, which reconstructs the real call
+unit — `CharSegTokenizer.__call__` and `sa_tokenizer._cslise` both pass a whole string's chunks in
+one `predict`):
+
+| model | test set | batched | as deployed | Δ |
+|---|---|---|---|---|
+| `id_seg_char2` | id test, 9856 rows | 0.9954 | 0.9954 | **0.00** |
+| `yue_seg_char` | yue test, 100 rows | 0.8844 | 0.8844 | **0.00** |
+| `sa_presegment_dcs` | DCS test | 0.9791 | 0.9791 | **0.00** |
+| `sa_presegment_dcs` | Vedic test | 0.9398 | 0.9398 | **0.00** |
+| `sa_presegment_dcs` | Suśruta (unseen) | 0.9277 | 0.9277 | **0.00** |
+| `sa_presegment_ortho` | Vedic IAST | 0.8731 | 0.8731 | **0.00** |
+| `zh_seg_jbdec` | zh test | 0.9229 | 0.9202 | −0.27 |
+
+(id/yue/zh are strict token F; sa is split-location F. Every published sa figure above reproduces
+exactly, so none of them needs revising.) Only zh moves, and the reason follows from the mechanism:
+the effect lives entirely at the first character, and only zh has a genuinely uncertain decision
+there. An id row is an orthographic word (no break after character 1) and sa is scored on sentences
+whose openings the model is confident about.
+
+**An inference-time prime was measured and then DISCARDED in favour of the real fix.** Before the
+`pad` regression was found, the gap looked like a train/inference mismatch to be papered over:
+training batches 32 rows, so 31 of every 32 training rows had a real character to their left, while
+at inference every text is alone and gets zeros. Prepending a throwaway `。` chunk did recover the
+whole 0.27 (dev picked it, 0.9147 → 0.9165). Padding the model properly reaches the same place
+without the hack — retrained, the padded arms average **0.9203** against the unpadded arms'
+deployment average of 0.9186 — and it also makes batched and per-text scoring agree exactly, which
+priming does not. Keep the prime only as evidence that the diagnosis was right.
+
+`eval_zh_seg.py` predicts per text by DEFAULT (`--batched` exists and is documented as
+not-for-reporting), and `eval_seg_batching.py` reports all three groupings side by side.
+
+Raw end-to-end is in the table above (`scripts/eval_zh_raw.py`, `training_zh_lemma/model-best`, same
+100 test docs, only the segmenter differs). Training reads through `sud.GoldTokCorpus.v1` (gold
+tokenisation), so **the parser is segmenter-agnostic and no retrain is needed** to adopt this — the
+same free swap as pkuseg → char tagger. The shipped arm reads tag 0.8411, lemma 0.8776,
+`sents_f` 0.9850, UAS 0.6108, LAS 0.5608.
+
+**NEGATIVE RESULT: pre-correcting jieba buys nothing as a feature.** A force-split userdict harvested
+from train (`del_word`, which registers a hard split in `finalseg`) lifts jieba *as a standalone
+segmenter* from token F 0.7989 to **0.8570**, and halves the positions where jieba is wrong and the
+model is right (1369 → 958) while keeping every position where jieba rescues the model. As a channel
+it is 0.14 behind the raw one, with the ranges overlapping — a wash, not a measured loss, but a
+5.8-point better source bought exactly nothing. Same lesson as the decode-time lexicons: hand a noisy
+source over RAW and let the model weight it. Correcting it first collapses the distinction between
+"jieba confidently merged this" and "jieba split it", which is what the model was learning from — so
+the extra harvest, the extra jackknifing and the extra file to ship all pay for themselves in noise.
+`--jieba-userdict auto` jackknifes the userdict per fold (it is harvested from GOLD, so it leaks
+exactly as the naive corpus lexicon did); the plain `--jieba-source` channel needs **no** jackknifing
+because jieba's own dictionary was never harvested from our training split.
+
+**Also negative, and cheap to re-check before trying it: `add_word` is the wrong direction.** jieba
+under-splits relative to GSD, so adding the 636 GSD word types its dictionary lacks costs 0.8 F
+(0.7989 → 0.7911). The words it needs forced APART are the pronoun+classifier and light-noun
+compounds — `这个 这次 有人 因此 为什么 一名 那个 企业家`.
+
+**PACKAGED (user decision: the dictionary dependency is worth it).** `models/zh_seg_jbdec` is the
+shipped arm (selected on dev; test F 0.9202 per text). `scripts/bundle_zh_charseg.py` swaps it into
+`training_zh_lemma/model-best` post-hoc — training reads through `sud.GoldTokCorpus.v1`, so no
+retrain — declares **`jieba>=0.42.1`** in `meta.json` (the SudachiPy lesson: the ja wheel shipped
+requiring only spacy and hit an ImportError on every load), and REFUSES to write a model whose saved
+`vocab.json` lacks the `jieba_source` marker. That marker is what `char_seg_tokenizer.load_segmenter`
+reads to switch the channel on before building the model; without it the wheel would load, run with
+one of its inputs deleted, and say nothing — the same silent degradation as sa's `Compound` feature
+on token input. `package_sud.sh zh` now runs the bundler and passes the four modules as `--code`.
+
+**RE-RELEASED over v0.1.0 on 2026-08-04** (`--clobber`, zh and sa only; the other nine wheels in
+`build_sud/` were byte-identical to the published assets and were left alone). Verified the new zh
+wheel in a clean `--target` install: `Requires-Dist: jieba>=0.42.1`, all four modules present,
+segmenter restores `n_sources=2` / `jieba_source=1`, tokeniser reproduces 0.9210 on test; and the
+published asset `cmp`s identical to the local build.
+
+**The zh wheel that had actually been live was the PKUSEG one — the char-tagger swap was never
+released.** Downloaded and inspected before clobbering: 26 919 859 bytes, carrying
+`tokenizer/pkuseg_model/weights.npz`, no custom Python modules, and `Requires-Dist: spacy` only. So
+the "zh 0.8385 → 0.8902, wheel 26 → 14 MB" note above described a bundle that was built but never
+uploaded, and `build_zh_charseg` was itself a generation behind THAT (it held the no-lexicon
+segmenter at 0.8725, the figure still in `char_seg_tokenizer.py`'s docstring). **The jump users
+actually get from this release is token F 0.8385 → 0.9210**, not the 0.8898 → 0.9210 measured
+against the best local arm. Lesson: a wheel in `build_*/` is not evidence of what is published —
+`gh release view v0.1.0 --json assets` and the asset SIZE are, and both were checked this time.
+
+### Release audit, 2026-08-04: 10 of 11 wheels were current, id was a generation stale
+
+Prompted by discovering that the zh wheel had never left pkuseg. Every published v0.1.0 asset was
+downloaded and read (`scratchpad/audit*.py` — the method is worth repeating, the scripts are not).
+Three checks, each catching something the previous one cannot:
+
+1. **Structure** — pipeline, bundled modules, `Requires-Dist`, tokenizer artefacts, from the wheel
+   itself. All 11 matched what this file claims: en/ar/sa carry `sud_reported_rule`, en/fa/la/yue
+   `sud_subject` with lzh on `sud_subject_rule`, the seven idiom languages `sud_idiom`, la
+   `la_macronise`, lzh/sa `clause_parser`, sa the full front end, ja `sudachipy`, yue
+   `spacy-pkuseg`, zh/ko/id no MISC layer.
+2. **Weights** — `parser/model` and `tagger/model` hashed out of each wheel and compared with the
+   arm `package_sud.sh` selects. **22/22 matched.**
+3. **Chain integrity** — the freeze recipe makes `parser/model` byte-identical up base → morph →
+   lemma → sud, so a break means an upper arm was stacked on an older lower one. This is what
+   check 2 cannot see: a wheel faithfully shipping a stale stack.
+
+**The finding is id.** Its published wheel declares `@tokenizers = "spacy.Tokenizer.v1"` with an
+empty `tokenizer` entry — the older COARSENED arm (`training_id_lemma`, parser `6b4710babaee`) —
+while the treebank-trained character segmenter with the enclitics SPLIT lives in
+`training_id_split_lemma` (parser `c5c4f451fb14`) and `build_id_charseg`, which are byte-identical to
+each other and were finished **14 hours before** the release went up (2026-08-02T21:31 UTC vs
+2026-08-03T11:59 UTC). Nothing timed out; `package_sud.sh` simply fell through to the generic
+`base=training_${lang}_lemma/model-best`. So the "Treebank-trained tokenisers" section above
+described id as released when it was not — the same shape as zh, and the second instance of it.
+Fixed: the `id` case now packages `build_id_charseg` and passes `char_seg_tokenizer.py` +
+`sa_presegment.py` as `--code`. Verified in a clean install — `CharSegTokenizer`,
+`Penghuninya` → `Penghuni / nya` with `nya` taking `mod@poss`.
+
+**Two false alarms, recorded so the next audit does not chase them.** fa and ja both show a
+`parser/model` mismatch against their `training_<lang>_seg` directory. Those are the PRE-udep-ruled
+bases, left on disk after `retrain_udep_ruled.sh` rebuilt each chain; the live morph → lemma → sud
+arms are internally consistent and match the published wheels. A stale sibling directory is not a
+stale release — check the chain the packaging script actually walks, not every directory that looks
+like it belongs to the language.
+
+**The general lesson, now twice-learned: a directory is not a release.** Neither `build_*/` nor
+`training_*/` says anything about what users have. `gh release view v0.1.0 --json assets`, the asset
+size, and the wheel's own `config.cfg` do. Check 3 is the one that earns its keep, because checks 1
+and 2 both pass on a wheel that correctly ships the wrong generation.
+
 ## `udep` beyond comp/mod: rules commit 10 730, the LLM pass was abandoned
 
 `relabel_ext.py` asks one question (comp:obl or mod), so anything that is not an adpositional or
@@ -1734,10 +1988,12 @@ not transfer because that was a BINARY choice with a rule-built gold to select p
 here there is no gold, so prompts can only be judged by consistency, and consistency does not move.
 Caches archived under `archive_residue_pass{1,2}/`; the script is kept so this stays reproducible.
 
-## UNCOMMITTED working tree as of 2026-08-03 (Korean `udep` relabel, redone on eojeol)
+## Korean `udep` relabel, redone on eojeol (COMMITTED 2026-08-04; was uncommitted)
 
-Seven files are modified but not committed. Recorded here because they exist nowhere else — the
-treebank edits and the LLM cache are not recoverable if the working tree is reverted.
+These seven files were carried uncommitted for a day and are now in git, so the warning that used to
+head this section — that the treebank edits and the LLM cache existed nowhere else and would be lost
+to a `git checkout` — no longer applies. The description is kept because it is the only record of
+what the edits ARE.
 
 **1. The Korean `udep` relabel, redone against the ORIGINAL (eojeol) treebank.** 424 DEPREL cells
 changed across `assets_ko/SUD_Korean-GSD/ko_gsd-sud-{train,dev,test}.relabeled_ext.conllu` (313 /

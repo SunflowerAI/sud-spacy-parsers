@@ -1,0 +1,22 @@
+== seg
+   all      plain   TAG 80.35 UAS 79.17 LAS 72.26 
+   all      macron  TAG 80.33 UAS 79.12 LAS 72.16 
+   itp      plain   TAG 91.61 UAS 82.31 LAS 76.58 
+   itp      macron  TAG 91.67 UAS 82.26 LAS 76.44 
+   perseus  plain   TAG 35.19 UAS 65.49 LAS 53.47 
+   perseus  macron  TAG 34.86 UAS 65.42 LAS 53.52 
+== morphfirst
+   all      plain   TAG 79.94 UAS 79.32 LAS 72.56 
+   all      macron  TAG 79.52 UAS 79.43 LAS 72.64 
+   itp      plain   TAG 91.24 UAS 82.71 LAS 77.22 
+   itp      macron  TAG 91.19 UAS 82.88 LAS 77.33 
+   perseus  plain   TAG 34.67 UAS 64.54 LAS 52.28 
+   perseus  macron  TAG 32.75 UAS 64.39 LAS 52.22 
+== capacity_control
+   all      plain   TAG 80.56 UAS 79.34 LAS 72.55 
+   all      macron  TAG 80.68 UAS 79.21 LAS 72.35 
+   itp      plain   TAG 92.02 UAS 82.47 LAS 76.91 
+   itp      macron  TAG 91.90 UAS 82.22 LAS 76.64 
+   perseus  plain   TAG 34.61 UAS 65.72 LAS 53.59 
+   perseus  macron  TAG 35.74 UAS 66.08 LAS 53.70 
+ALL DONE

@@ -110,7 +110,14 @@ case $lang in
        # emitting -- an annotation wrong two times in three is worse than none. Chinese raising is
        # marked by 是/被/了 constructions the frame table cannot separate from ordinary comp:obj.
        # (zh also annotates no idioms, so it gets no SUD MISC layer at all.)
-  zh)  pkg zh  "$base" sud_gsd_simp_trad "" ;;
+       # zh packages from build_zh_charseg, NOT from the lemma arm directly: the raw-text tokeniser
+       # is the treebank-trained character segmenter, swapped in post-hoc (training reads through
+       # sud.GoldTokCorpus.v1, so it is segmenter-agnostic and needs no retrain). The segmenter has
+       # two channels -- the jackknifed corpus word list and jieba's own segmentation decision --
+       # so the wheel REQUIRES jieba, declared in meta.json by bundle_zh_charseg.py.
+  zh)  $PY scripts/bundle_zh_charseg.py --out "$work" >/dev/null 2>&1
+       pkg zh  "$work" sud_gsd_simp_trad \
+            "scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py,scripts/zh_jieba_feature.py" ;;
        # lzh DOES ship the frame rule (F 80.7 vs 59.0 trained -- 可/能/欲 carry it).
   lzh) $PY scripts/add_clause_parser.py "$base" "$work.seg" >/dev/null 2>&1
        $PY scripts/add_sud_subject_rule.py "$work.seg" "$work.rule" --lang lzh >/dev/null 2>&1
@@ -134,8 +141,15 @@ case $lang in
        pkg yue "$work.pkuseg" sud_hk \
             "$CODE_BASE,scripts/yue_tokenizer.py,scripts/sud_tagger.py" ;;
        # id/ko annotate none of the four keys, so they are unchanged from package_lemma.sh.
-  id)  $PY scripts/add_id_lemma_case_fix.py "$base" "$work" >/dev/null 2>&1
-       pkg id  "$work" sud_gsd "scripts/id_lemma_case_fix.py" ;;
+       # id packages from build_id_charseg, NOT from the generic training_id_lemma fallback. The
+       # released tokeniser is the treebank-trained character segmenter with the enclitics SPLIT
+       # (`-nya` gets its own mod@poss), which lives in the training_id_split_* chain; the plain
+       # `base` above still points at the older COARSENED arm, whose tokenizer is spacy.Tokenizer.v1.
+       # Pointing at the wrong dir is exactly how the v0.1.0 id wheel shipped a generation stale
+       # while CLAUDE.md described the split arm as released -- audited 2026-08-04.
+  id)  $PY scripts/add_id_lemma_case_fix.py build_id_charseg "$work" >/dev/null 2>&1
+       pkg id  "$work" sud_gsd \
+            "scripts/id_lemma_case_fix.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py" ;;
   # (ko takes no --code at all)
   ko)  pkg ko  "$base" sud_gsd "" ;;
   *) echo "  unknown lang: $lang" ;;

@@ -78,6 +78,17 @@ class Presegmenter:
         self.model = model if model is not None else build_model(
             len(self.chars), len(self.labels), width, depth)
 
+    @property
+    def reads_spaces(self):
+        """True if this model was trained on SPACED text and wants whole strings, not chunks.
+
+        The inventory answers it exactly: `build_vocabs` collects the characters actually seen in
+        training, so a space is in `chars` if and only if training rows contained one. Callers must
+        ask this rather than assume — the two CSLisers differ on it and the wrong choice is silent
+        (see `to_csl`).
+        """
+        return " " in self.char_id
+
     # ---- encoding ---------------------------------------------------------------------------
     def encode_chars(self, text):
         unk = self.char_id[UNK_CHAR]
@@ -108,12 +119,22 @@ class Presegmenter:
     def to_csl(self, text):
         """saṃhitā -> CSL, ready for `sa_tokenizer`. Accepts Devanagari or IAST.
 
-        Runs the model per WHITESPACE CHUNK, never over the whole string. The training pairs are
-        fully space-free (`make_samhita_pairs.py` emits continuous saṃhitā, the hardest case), so
-        the space character is not in the model's vocabulary at all and feeding it a spaced string
-        silently hands the encoder UNK at every word boundary. Chunking is also the right semantics:
-        a space in the input is already a word boundary, so the model only ever has to find the
-        boundaries INSIDE a chunk.
+        Chunking is CONDITIONAL on the loaded model, and getting it wrong is silent and expensive
+        in both directions.
+
+        A model trained on continuous saṃhitā (`make_samhita_pairs.py`, the hardest case) has never
+        seen a space, so the character is not in its vocabulary and feeding it a spaced string hands
+        the encoder UNK at every word boundary. For those the model MUST be run per whitespace
+        chunk, which is also the right semantics: a space in the input is already a word boundary,
+        so the model only has to find the boundaries INSIDE a chunk.
+
+        A model trained on SPACED text — `sa_presegment_ortho`, which is the one the released wheel
+        carries, 381 775 of its 386 260 training rows containing a space — wants the whole string.
+        Chunking it throws away every cue that crosses a space, which is exactly the context that
+        locates the remaining breaks. Measured on the Vedic IAST test, chunking the ortho model
+        costs **split-location F 0.8731 -> 0.8248 and sentence PM 0.7882 -> 0.7269**; that is what
+        the released model was doing, because this method kept chunking after the CSLiser was
+        replaced. `reads_spaces` now decides it from the model's own vocabulary.
 
         This matters more for Devanagari than for IAST, because the two scripts do not agree on
         where spaces go: Devanagari cannot write a bare consonant before a vowel-initial word, so
@@ -123,6 +144,8 @@ class Presegmenter:
         trained on.
         """
         norm = normalise(text)
+        if self.reads_spaces:
+            return apply_labels(norm, self.predict([norm])[0]) if norm else ""
         return " ".join(self.to_csl_chunk(c) for c in norm.split(" "))
 
     def to_csl_chunk(self, chunk):
