@@ -1751,6 +1751,14 @@ target is classical. NB the UFAL figure rests on **416 tokens** and Vedic on 18 
 much better measured than the gain. Beware `spacy convert -n 10`: a 60-sentence holdout is only 6
 resampling units, which is why the arm comparison there could not be resolved.
 
+**The README now reports Sanskrit on UFAL, not Vedic** — the arm was chosen for classical prose, so
+the Vedic figure overstates what users get. Measured on the 1843-token `corpus_sa_ufal_eval` test
+(gold-preproc): **UAS 52.2 / LAS 37.3 / `comp:obl` F 27.6 / TAG 72.1 / POS 75.2**. NB this does NOT
+reproduce the 0.4163 quoted above, which came from the 494-token arm-selection holdout
+(`corpus_sa_split/ufal_test.spacy`, where the shipped arm scores LAS 31.97). Three UFAL test sets
+give 32.0 / 37.3 / 41.6, i.e. a ~10-point spread driven by which few hundred tokens you pick — so
+treat any single classical figure as approximate, and prefer the largest test when publishing.
+
 **UFAL upsampling failed in three variants** and is not worth retrying. UFAL is 170 sentences /
 1323 tokens against Vedic's 161 985, and across all-x5 (UFAL 0.4032), x612 duplication (killed after
 3 h) and sampling to parity (0.4203) **UFAL LAS never moved more than ~0.4 from baseline while Vedic

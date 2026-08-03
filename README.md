@@ -20,7 +20,7 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | `ko_sud_gsd` | Korean | 65.5 | 56.5 | 38.6 | 99.8§ |
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
 | `fa_sud_perdt` | Persian | 90.6 | 87.2 | 79.2 | 99.1 |
-| `sa_sud_vedic_ufal_dcs` | Sanskrit | 67.9 | 54.8 | 44.9 | 100.0† |
+| `sa_sud_vedic_ufal_dcs` | Sanskrit (classical prose) | 52.2 | 37.3 | 27.6 | 100.0†◊◊ |
 | `lzh_sud_kyoto` | Classical Chinese (trad+simp) | 84.1 | 79.0 | 73.1 | 100.0† |
 | `ja_sud_gsd` | Japanese | 91.1 | 88.2 | 69.6 | 99.4 |
 | `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
@@ -39,6 +39,16 @@ collapses (LAS ~48 / ~41). `sa_sud_vedic_ufal_dcs` takes **raw sandhied Sanskrit
 segments and de-sandhis internally (see below). Persian runs fine on raw text (raw LAS 85.3).
 
 ‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~72 vs 78 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
+
+◊◊ **Sanskrit is now reported on held-out UFAL (classical prose), not Vedic.** The shipped arm is
+a joint multi-task model — one shared encoder for tagger/parser/morphologizer/lemmatizer instead of
+the freeze recipe the other arms use — and it was chosen for classical Sanskrit, which is the actual
+use case, at a deliberate cost to Vedic. Reporting the Vedic figure (UAS 65.1 / LAS 51.4) would
+overstate what the model does on the text people bring to it. These numbers are on the 1843-token
+UFAL test (`corpus_sa_ufal_eval`); a smaller 494-token holdout used during arm selection reads
+several points higher, so treat classical Sanskrit accuracy as approximate — it rests on far less
+data than any other row here. Sanskrit remains much the hardest language in the set: free word
+order, heavy compounding, and sandhi that must be undone before parsing can start.
 
 § **Korean changed tokenisation, so this row is not comparable with earlier ones.** `ko_sud_gsd`
 now trains on the original `SUD_Korean-GSD` with spaCy's rule tokeniser (eojeol words), where the
