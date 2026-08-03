@@ -201,6 +201,12 @@ other language-specific semantic subtypes are legitimate SUD conventions the pip
 
 ## Tokeniser–treebank matching (`retokenize.py`, `coarsen_id.py`, `train_pkuseg_zh.py`)
 
+> **SUPERSEDED for zh / id / ko** by "Treebank-trained tokenisers" at the end of this file. zh no
+> longer uses pkuseg, id no longer coarsens, and ko no longer retokenises to morphemes. The
+> reasoning below is kept because it explains WHY each direction was chosen and the trade-offs are
+> still the right ones to think with; only the outcomes changed. la/fa/ar/sa/lzh/ja/yue are
+> unaffected.
+
 `gold_preproc` sidesteps the tokeniser/treebank mismatch for *evaluation*; this layer makes the
 tokeniser and treebank actually **agree**, so the parsers work on raw text (raw-eval `tok` is now
 0.941 zh / 0.999 id / 1.000 ko, up from a Korean collapse to ~LAS 30). Direction is chosen per
@@ -1548,7 +1554,203 @@ Verified: the `en_sud_ewt` wheel installs into a clean venv and emits `Subject`,
 
 ### Noted, not fixed
 
-`assets_ko_retok_rl/ko_gsd-retok-train.relabeled.conllu` has an **entirely empty FEATS column**
-(0/100 889 tokens) although the un-retokenised `assets_ko/SUD_Korean-GSD` source has 2689 non-empty
-FEATS rows — `retokenize.py` drops them, the same class of bug as the `coarsen_id.py` FEATS blanking
-already fixed. `training_ko_morph` is therefore learning UPOS only and its `morph_acc` is vacuous.
+~~`assets_ko_retok_rl/ko_gsd-retok-train.relabeled.conllu` has an **entirely empty FEATS column**~~
+**MOOT** — ko no longer trains on the retokenised corpus at all (see "Treebank-trained tokenisers").
+The eojeol arm reads the original `assets_ko/SUD_Korean-GSD`, whose FEATS is 4.7 % populated, so its
+`morph_acc` is inflated rather than vacuous: predicting empty everywhere scores ~95.3 %.
+
+## Treebank-trained tokenisers (`sud.CharSegTokenizer.v1`, `char_seg_tokenizer.py`, `make_seg_pairs.py`)
+
+zh, id and ko now ship tokenisers **trained on their own treebank** instead of bent-to-fit
+statistical ones. The segmenter is `sa_presegment`'s character tagger reused verbatim: per character
+a rewrite label (`=` keep, `= ` word break, `=-` compound break), greedy argmax. `make_seg_pairs.py`
+builds the pairs from any SUD CoNLL-U; `sud.CharSegTokenizer.v1` is the spaCy tokenizer wrapper, and
+it serialises the segmenter (and its lexicon) beside the weights so a wheel is self-contained.
+
+| language | before | now | strict whole-token F |
+|---|---|---|---|
+| **zh** | pkuseg on GSD+GSDSimp | char tagger + jackknifed lexicon feature | 0.8385 -> **0.8902** |
+| **id** | `coarsen_id.py` merged the enclitics away | char tagger, enclitics SPLIT | raw LAS 73.4 -> **73.87** |
+| **ko** | mecab morphemes (`retokenize.py`) | eojeol, spaCy's RULE tokeniser | 0.3070 -> **99.77** |
+
+- **zh.** `这本书` segments 这/本/书 (it was 这/本书). Training is segmenter-agnostic — the arm reads
+  through `sud.GoldTokCorpus.v1`, which uses gold tokenisation — so the swap needs no retrain, as
+  with the yue pkuseg bundle. Wheel 26 -> 14 MB, since pkuseg's model was most of it.
+- **id.** The MWT trap: a range line (`16-17 penghuninya`) carries the orthographic word and its
+  spacing while the SUB-TOKENS carry no `SpaceAfter=No`, so reading spacing off the sub-tokens makes
+  `penghuni` and `nya` look like separate whitespace words. The first segmenter therefore learned
+  punctuation splitting ONLY and never saw one of the 1002 `-nya` junctions; it scored 0.9985
+  against a corpus whose enclitics were already pre-split for it. `-nya` now gets its own `mod@poss`,
+  so this is strictly better than coarsening rather than a trade.
+- **ko.** "Match the treebank" was ambiguous and the two readings differ hugely: the mecab arm scored
+  TOK 1.0000 against ITS OWN retokenised treebank and 0.3070 against the ORIGINAL SUD_Korean-GSD.
+  The original is eojeol + split punctuation with ZERO multiword ranges — a rule tokeniser's job —
+  and spaCy's generic one matches it at 0.9522 out of the box. **Cost, accepted by user decision:**
+  this discards the Korean case-particle relabel result (`comp:obl` F 0.169 -> 0.386), which needed
+  the particle as a separate token. FEATS is only 4.7 % populated in the original, so that arm's
+  `morph_acc` 95.36 is ~the base rate for predicting empty and says nothing; POS 83.05 / lemma 78.30
+  are real.
+
+### The lexicon feature only works JACKKNIFED (and it is the whole ballgame)
+
+A word list harvested from the training split covers **100 % of train words and 87.6 % of test
+words**, so the model learns a reliability the feature will not have at inference and never develops
+a fallback. Naive it is WORSE than useless; jackknifed (per fold, lexicon built from the OTHER folds,
+`--jackknife K`) it is the single biggest win:
+
+    zeroed channel (capacity control)   94.37 dev / 0.8802 test
+    naive corpus lexicon                93.00 dev            <- below the control
+    jieba, external so no leak          94.79 dev / 0.8859
+    corpus lexicon, JACKKNIFED          95.20 dev / 0.8902   <- shipped
+
+Jackknifing moves train-time coverage 100 % -> 87.0 %, matching test's 87.6 %. Note jieba is large
+(349 k entries, 78.4 % standalone coverage) but NOT GSD-aligned — it writes `这个` as one word where
+the treebank splits it — and jieba-only boundaries are **5.3x depleted** at real word breaks.
+Composing corpus+jieba (0.8872) loses to the jackknifed corpus alone (0.8902): a second channel
+costs 8 dimensions of character embedding and adds little. **Always compare within the same
+`n_sources`** — 1 source gives char embed 56, 2 gives 48, and that alone is worth ~0.5 F.
+
+### Apte's stems as a Sanskrit CSLiser feature (+3.50 F), and the inflection extension
+
+`build_apte_lexicon.py` extracts **128 872 IAST stems** from CDSL `csl-orig` (AP90 + AP). Apte cites
+NOMINATIVE SINGULARS (`anuyAtraM`, `anuyAtrikaH`), so the SLP1 visarga/anusvara endings are stripped
+to recover the stem a compound actually uses.
+
+    zeroed channel (capacity control)          89.08 dev
+    Apte membership as an INPUT feature        91.94
+    + inflection/sandhi-aware (suffix-strip)   92.58
+
+**The inflection extension answers the right question.** Direct Apte lookup recovers only 35.7 % of
+running Vedic forms; stripping a 500-entry ending inventory first reaches 84.8 %, and it never
+materialises stem x ending (128 872 x 500 = 64 M). Both inventories are closed — 200 alternations
+cover 77 % of tokens, and Sanskrit word-finals are a small set. `sa_inflect_feature.py`; the stem
+must be reconstructed with the ending's OWN strip (`deva`+`-e` surfaces as `dev`+`e`), because
+blanket-truncating every stem by 1-3 chars gives a 292 869-entry set matching almost anything
+(1.2x enrichment, useless) instead of 2.92x.
+
+**NOT SHIPPED: it does not transfer to spaced input (-3.50 F).** The released CSLiser is
+`sa_presegment_ortho`, trained on spaced IAST/Devanagari, and the feature answers "where does a word
+END" — which spaces already mark. It is worth +0.64 on continuous saṃhitā and negative on the regime
+the wheel actually sees. `models/apte_stems.txt` and `models/sa_endings.json` are kept for that case.
+
+### NEGATIVE RESULTS: decode-time lexicons, and graded frequency
+
+**A lexicon never helps at DECODE time, in either language.** Sanskrit beam rescoring -0.40 PM;
+greedy + lexicon repair +-0.00 in domain and -0.80 on unseen text (it fires 2x per 250 sentences);
+Chinese beam search loses at every setting — greedy 0.8950, pure beam 0.8935, and worse with span
+bonuses. Pure beam losing slightly is the *expected* sanity check: the model is non-autoregressive
+(`Embed -> residual(expand_window + Maxout) -> Softmax`, no recurrence, no transition matrix), so
+per-position argmax IS the exact global MAP and a beam can only match it or lose to truncation.
+**97 % of the zh segmenter's errors are CONFIDENT errors** (margin >= 0.10), which no decoder reaches;
+a transition model would touch 18 errors in 300 sentences, and the word-length distribution it would
+encode is already matched to within half a point at every length.
+
+**Graded frequency loses to binary membership**, across four encodings:
+
+    binary membership (shipped)     0.8902
+    count-band, no jackknife        0.8482
+    count-band + jackknife          0.8252   <- banding flips on decade boundaries: jackknifing
+                                                moves 14.4 % of positions vs 1.8 % for membership
+    rank-band + jackknife           0.7602   <- rank is subsample-stable but 5 bands over 17 k types
+                                                is nearly constant; optimised the wrong property
+    closed-class-only membership    not trained: enrichment 1.32x vs 1.45x, and it fires at only
+                                    33 % of real breaks (most zh boundaries are open-class)
+
+Three explanations of mine were each refuted by the next measurement — max-over-lengths collapse
+(the band marginals are unimodal-centred, 8/22/36/21/12 %), rank stability, and band lopsidedness
+(all 25 codes used, top three carry 29.6 %). Binary membership IS nearly vacuous (1.46x enrichment,
+code 3 at 64 % of non-breaks) and something better must exist, but five attempts found only the
+simplest one. **Stop here unless a new idea arrives; do not re-run the encoding search.**
+
+## `udep` beyond comp/mod: rules commit 10 730, the LLM pass was abandoned
+
+`relabel_ext.py` asks one question (comp:obl or mod), so anything that is not an adpositional or
+case-marked oblique stays `udep` — 32 415 tokens over nine treebanks, dominated by material where no
+oblique/modifier choice is being deferred: Persian's relativiser `که` (5060), English `'s` and
+infinitival `to` (950), Japanese adnominal/copular `た`/`だ` (355).
+
+**`udep_residue_audit.py`** answers "what SHOULD this be?" from the treebank's own committed
+decisions — for each residual token, the DEPRELs the annotators used for the same (head UPOS, dep
+UPOS, dep lemma) signature. **`apply_udep_rules.py`** commits what is dominated past 90 % on >= 20
+committed examples, writing `*.udep_ruled.conllu` (DEPREL column only; line counts identical, 0
+non-DEPREL changes). Rules are DERIVED, never hardcoded.
+
+    fa 7156  (NOUN<-SCONJ `که` -> mod, 98 % of 375)      lzh 1834 (VERB<-NOUN 今/後/初 -> comp:obj)
+    ja  802  (NOUN<-AUX た/だ -> mod, 99 % of 1392)       en 526   ar 311   zh 54   id 33   ko 12   yue 2
+
+Japanese is the clearest set: NOUN<-AUX `た` is a RELATIVE CLAUSE (the tense auxiliary heads it, so it
+attaches through `た`), NOUN<-AUX `だ` is the adnominal copula `な`, VERB<-AUX `だ` the adverbial `に`
+— the same copula in its two non-finite guises, both `mod`, recovered independently by the evidence.
+
+**fa/lzh/ja retrained and re-released** (`retrain_udep_ruled.sh`): fa LAS 87.18, lzh 79.01 (identical
+to before), ja 88.21. The point is not accuracy — a 0.4-1.4 % relabel will not move LAS — but OUTPUT
+CORRECTNESS: on 40 test sentences the old fa model emitted `udep` on 34 and `mod` on 4; the new one
+emits `mod` on 35. en/ar (0.22 %/0.10 %) and id/ko/zh/yue (<= 0.05 %) were skipped. Pre-rule
+treebanks are kept as `*.pre_ruled`. **fa also needs its `_sud` arm rebuilt** — it ships from a
+Subject layer stacked above the lemma arm, which the base chain alone would miss.
+
+### NEGATIVE RESULT: the LLM pass over the remaining residue is not reliable enough to use
+
+`relabel_residue.py` offered a CONSTRAINED multi-way choice (candidates = relations the treebank
+attests for that signature, answer as a DIGIT since SUD labels contain `:` and `@`). It produced
+21 353 decisions and **none of them were applied**, because three probes said the labels reflect how
+the question was posed rather than what the sentence says:
+
+    self-consistency, option ORDER shuffled, qwen3:8b, definitions only     75.3 %
+    ... + one contrastive example per label, harvested from the treebank    76.7 %
+    ... same prompt, gemma4                                                 68.0 %
+    pass 1 vs pass 2 on the SAME 2467 en tokens (different option SETS)     36.4 %
+
+Prompt engineering moved the label DISTRIBUTION enormously (en `comp:obl` 26 % -> 55 % when
+`comp:obl` was added as a guaranteed option; `compound` 3 % -> 17 % when examples were added) and
+consistency not at all. gemma4 and qwen3 produce nearly INVERTED majority labels on identical
+prompts (`mod` 60 % vs 19 %; `comp:obl` 11 % vs 49 %). The comp/mod pipeline's few-shot success does
+not transfer because that was a BINARY choice with a rule-built gold to select prompts against;
+here there is no gold, so prompts can only be judged by consistency, and consistency does not move.
+Caches archived under `archive_residue_pass{1,2}/`; the script is kept so this stays reproducible.
+
+## Sanskrit: the released arm is JOINT MULTI-TASK, and UFAL upsampling failed
+
+**`sa_sud_vedic_ufal_dcs` now ships ONE shared encoder** for tagger + parser + morphologizer +
+lemmatizer, breaking the freeze recipe every other arm uses. Same test file, same scorer:
+
+    metric      3 encoders   1 encoder      metric      3 encoders   1 encoder
+    tag_acc       0.8850      0.8908        dep_uas       0.6805      0.6514
+    pos_acc       0.8866      0.8933        dep_las       0.5439      0.5140
+    morph_acc     0.7787      0.7836        UFAL LAS      0.3873      0.4163
+    lemma_acc     0.8719      0.8745        wheel size    25.85 MB    19.16 MB
+
+Everything improves except parsing, and on HELD-OUT UFAL (classical prose, the actual use case) LAS
+rises 0.3873 -> 0.4163 while Vedic falls 0.5470 -> 0.5140. Accepted by user decision because the
+target is classical. NB the UFAL figure rests on **416 tokens** and Vedic on 18 161, so the cost is
+much better measured than the gain. Beware `spacy convert -n 10`: a 60-sentence holdout is only 6
+resampling units, which is why the arm comparison there could not be resolved.
+
+**UFAL upsampling failed in three variants** and is not worth retrying. UFAL is 170 sentences /
+1323 tokens against Vedic's 161 985, and across all-x5 (UFAL 0.4032), x612 duplication (killed after
+3 h) and sampling to parity (0.4203) **UFAL LAS never moved more than ~0.4 from baseline while Vedic
+swung 10+**. 170 sentences is too little to learn classical syntax from however often it is shown.
+
+**`sud.SamplingCorpus.v1` (`sampling_corpus.py`) is the right way to rebalance.** Duplicating docs
+inflates the PARSER's workload — the expensive transition-based component — 9.9x, and the x612 arm
+produced one checkpoint in three hours. Sampling holds the syntactic token budget FIXED and swaps
+Vedic examples for UFAL ones: 200 steps in 20-168 min became 2000 steps in 5 min. Two traps: the
+reader MUST be finite per call (spaCy's `initialize` iterates the whole training corpus to collect
+labels, so `while True` hangs it at 100 % CPU with no output), and the predicted doc must be built
+from GOLD WORDS, never `nlp.make_doc` — the sa tokeniser rewrites its input, so re-tokenising raises
+E949.
+
+## Operational notes
+
+- **`spacy train ... | tail -N` hides everything until the command exits.** Two runs looked stalled
+  for hours and one genuinely was; `model-last`'s mtime is the reliable progress signal (it is
+  rewritten at EVERY eval), and `python -u` is needed for live output when redirecting.
+- **There is no GPU path for spaCy here.** thinc's GPU backend is CuPy/CUDA only and this is Apple
+  silicon, so `--gpu-id` has nothing to bind to. `thinc-apple-ops` IS installed and thinc uses
+  `AppleOps` (Accelerate/AMX). Ollama is separate and DOES use Metal, which is why LLM passes and
+  spaCy training contend only mildly (1.7 -> 1.1 decisions/s).
+- **The ja wheel now declares SudachiPy.** It previously required only `spacy>=3.8.14`, so every user
+  hit an ImportError on load. Set `requirements` in the model's `meta.json` before packaging.
+- **Training-only imports must not be module-scope in a bundled file.** `sa_presegment` importing
+  `sa_tokenizer`, and `sa_presegment_lex` importing `eval_samhita`, both broke the zh wheel; the zh
+  model has no reason to carry the Sanskrit tokeniser or a training loop's scorer.
