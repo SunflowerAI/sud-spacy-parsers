@@ -1343,6 +1343,31 @@ fa 100→72.7 (n=6), ar 100→67.3/68.4, lzh 100→66.0/68.8, **la 100→35.3/50
 `ExtPos` in 586k tokens, so the morphologiser almost never predicts it). Precision holds up
 (78–98 %); **recall is the limiter** everywhere.
 
+### The MISC layer is COUPLED to the arm underneath it — re-measure after any retrain
+
+Every component here reads the released pipeline's own predictions (`ExtPos`, `unk`, deprel,
+VerbForm/Mood, lemma), so retraining a base arm silently moves the MISC layer with it. The idiom
+rule is the most exposed, because it is a CONJUNCTION of two predictions (`ExtPos` AND an `unk`
+dependent) — upstream errors multiply rather than add.
+
+Measured when `sa` switched from the three-encoder freeze recipe (`training_sa_lemma3_noannot`) to
+the joint multi-task arm (`training_sa_multitask`), test, end-to-end:
+
+    Idiom     F 77.7 -> 55.1   (P 83.7 -> 84.5, R 72.5 -> 40.8)
+    InIdiom   F 81.3 -> 58.6   (P 87.5 -> 84.1, R 76.0 -> 45.0)
+    Reported  F 68.8 -> 57.4   (P 72.9 -> 67.9, R 65.1 -> 49.7)
+
+Precision holds; **recall is what collapses**. This is the documented Vedic cost of the multi-task
+trade (LAS 0.5470 -> 0.5140) propagating into the layer, amplified by the conjunction. The trade was
+taken deliberately for classical Sanskrit and is not being reversed — but the MISC figures in this
+file are for the OLD arm wherever they were measured before the switch. Re-run
+`scripts/eval_sud_idiom.py --model <arm>` and `scripts/eval_sud_reported.py` after any base retrain;
+the gold-trees mode of the idiom eval is unaffected (it does not use the model) and stays 100 %.
+
+What did NOT go stale: `sud_subject_frames.py` re-harvests byte-identically after the udep-residue
+commit (raising complements are `comp:obj`/`comp:obl`/`comp:pred`, never `udep`), and the en/fa/la/yue
+sud arms' frozen components still `cmp`-match their lemma arms.
+
 ### `Subject` — trained, but the rule wins in two languages (`sud_tagger.py`, `sud_subject_rule.py`)
 
 The **value** is not in doubt: given (deprel, head UPOS) it is determined at 100 % (zh 91 %), over

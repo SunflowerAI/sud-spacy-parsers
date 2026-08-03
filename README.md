@@ -17,12 +17,12 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 |-------|----------|----:|----:|-------------:|----------:|
 | `en_sud_ewt` | English | 84.4 | 79.6 | 70.8 | 99.6 |
 | `zh_sud_gsd_simp_trad` | Chinese (simp+trad) | 74.3 | 69.3 | 32.6 | 94.9 |
-| `ko_sud_gsd` | Korean | 79.7 | 75.6 | 24.7 | 100.0 |
+| `ko_sud_gsd` | Korean | 65.5 | 56.5 | 38.6 | 99.8§ |
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
-| `fa_sud_perdt` | Persian | 90.8 | 87.3 | 79.4 | 99.1 |
+| `fa_sud_perdt` | Persian | 90.6 | 87.2 | 79.2 | 99.1 |
 | `sa_sud_vedic_ufal_dcs` | Sanskrit | 67.9 | 54.8 | 44.9 | 100.0† |
-| `lzh_sud_kyoto` | Classical Chinese (trad+simp) | 84.3 | 79.0 | 70.9 | 100.0† |
-| `ja_sud_gsd` | Japanese | 91.5 | 88.6 | 68.8 | 99.4 |
+| `lzh_sud_kyoto` | Classical Chinese (trad+simp) | 84.1 | 79.0 | 73.1 | 100.0† |
+| `ja_sud_gsd` | Japanese | 91.1 | 88.2 | 69.6 | 99.4 |
 | `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
 | `la_sud_ittb_proiel_perseus` | Latin | 80.6 | 73.9 | 65.2 | 100.0¶ |
 | `yue_sud_hk` | Cantonese | 74.2 | 65.6 | 26.7 | 94.7◊ |
@@ -39,6 +39,17 @@ collapses (LAS ~48 / ~41). `sa_sud_vedic_ufal_dcs` takes **raw sandhied Sanskrit
 segments and de-sandhis internally (see below). Persian runs fine on raw text (raw LAS 85.3).
 
 ‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~72 vs 78 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
+
+§ **Korean changed tokenisation, so this row is not comparable with earlier ones.** `ko_sud_gsd`
+now trains on the original `SUD_Korean-GSD` with spaCy's rule tokeniser (eojeol words), where the
+previous arm split each eojeol into mecab morphemes. The point is tokenisation fidelity: against
+that treebank the shipped tokeniser scores TOK 99.8 (strict span match 0.95), where the morpheme arm
+scored 0.31 — the old row's LAS 75.6 was measured against a *retokenised* treebank and never applied
+to raw Korean. Sentence boundaries are learned (raw SENT F 83.8, raw LAS 55.0). The cost, accepted
+deliberately, is the Korean case-particle relabel result: eojeol tokens fuse noun+particle, so the
+signal that lifted `comp:obl` F to 0.386 on morphemes has nowhere to live. NB this treebank populates
+FEATS on only 4.7 % of tokens, so the arm's `morph_acc` 95.4 is ~the base rate for predicting empty
+and says nothing; POS 83.1 and lemma 78.3 are real.
 
 ◊ SUD_Cantonese-HK ships a **test split only** (1004 sentences), so `yue_sud_hk` is trained on a
 deterministic 80/10/10 round-robin carve of it — the 100-sentence test makes its figures noisier

@@ -32,6 +32,7 @@ byte-identical to what this module produced before, which is what lets the wheel
 without retraining. `None` is reported wherever the span cannot be established honestly rather
 than a guess (see `_normalise_aligned`).
 """
+import pathlib
 import re
 import unicodedata
 
