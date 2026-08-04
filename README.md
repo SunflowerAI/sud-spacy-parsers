@@ -111,7 +111,7 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto (+ simplified) | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
 | `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | CAMeL ATB tokeniser (needs `camel-tools` + data) | CC BY-SA 4.0 |
-| `la_sud_ittb_proiel_perseus` | Latin   | SUD_Latin-ITTB+PROIEL+Perseus | disambiguated (ext) | rule tokeniser | CC BY-NC-SA § |
+| `la_sud_ittb_proiel_perseus` | Latin   | SUD_Latin-ITTB+PROIEL+Perseus | disambiguated (ext) | rule tokeniser, enclitic `-que` split (bundled) | CC BY-NC-SA § |
 | `yue_sud_hk`     | Cantonese  | SUD_Cantonese-HK    | disambiguated (ext) | pkuseg (needs `spacy-pkuseg`); char fallback | CC BY-SA 4.0 |
 
 § The Latin model is trained on the union of three SUD Latin treebanks, **all NonCommercial**:
@@ -259,19 +259,33 @@ relabelling also rewrites the test-set gold, so `comp:obl` F has a moving denomi
 
 ### Tokeniser–treebank matching
 
-For a parser to work on raw text, the spaCy tokeniser must agree with the treebank. Each language is
-handled by whichever direction is lossless, measured by the raw end-to-end token accuracy:
+For a parser to work on raw text, the spaCy tokeniser must agree with the treebank. The direction is
+chosen per language by whether the treebank tokenisation is a deterministic function of the text —
+where it is, a rule reaches the ceiling and a trained segmenter cannot beat it; where it is not, the
+tokeniser is trained. Strict token F against the treebank's own test set:
 
-| Lang | Approach | raw token match |
-|------|----------|----------------:|
-| en   | default rule tokeniser — already matches EWT | ~0.995 |
-| ko   | retokenise the treebank to mecab morphemes (functional-head structure) | 1.000 |
-| id   | coarsen the treebank (merge enclitics into whitespace tokens) | 0.999 |
-| zh   | pkuseg segmenter trained on GSDSimp + a GSD user dictionary | 0.941 |
+| Lang | Approach | token F |
+|------|----------|--------:|
+| lzh  | one Han character = one token (bundled) | 1.000 |
+| ko   | eojeol words, spaCy's rule tokeniser | 0.9977 |
+| id   | treebank-trained character segmenter, enclitics **split** | 0.9954 |
+| la   | rule tokeniser + the enclitic `-que` split (bundled) | 0.9944 † |
+| en   | default rule tokeniser — already matches EWT | 0.991 |
+| yue  | pkuseg trained from scratch on Cantonese | 0.95 ‡ |
+| zh   | character segmenter: jackknifed corpus lexicon + jieba's BMES decision | 0.9210 |
+| ar   | CAMeL ATB tokeniser, splitting PADT's clitics | 0.91 |
+| sa   | CSLiser + de-sandhi front end, from raw sandhied text | 0.8699 |
+| fa, ja | rule tokeniser; SudachiPy | — |
 
-Chinese is the only language with no lossless option, because word boundaries in unsegmented text
-are inherently ambiguous; the other three reach an exact or near-exact match. Drivers:
-`scripts/train_all_retok.sh` and `scripts/relabel_retrain_retok.sh`.
+† Perseus (classical orthography); ITTB is 0.9924. ‡ word F1, not strict token F.
+
+Chinese and Sanskrit are the two with no lossless option — word boundaries in unsegmented text and
+sandhi junctions in continuous saṃhitā are both inherently ambiguous, so their segmenters are trained
+and their figures are ceilings on everything downstream. Everywhere else the tokenisation is
+recoverable by rule, and matching the tokeniser to the treebank has consistently beaten re-tokenising
+the treebank: `id` once merged its enclitics and `ko` once split into mecab morphemes, both since
+replaced. Drivers: `scripts/retrain_seg.sh` per language, plus `scripts/train_all_retok.sh` and
+`scripts/relabel_retrain_retok.sh` for the superseded matched-tokenisation arms.
 
 ## Licence
 

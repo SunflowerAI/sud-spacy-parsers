@@ -51,6 +51,14 @@ do_merge() {
   itp_test=$((  $(grep -c '^# sent_id' "$ITTB-test.conllu")  + $(grep -c '^# sent_id' "$PROIEL-test.conllu") ))
   $PY scripts/blank_perseus_xpos.py "$A/$P-train.conllu" "$A/$P-train.conllu" --from-sent "$itp_train"
   $PY scripts/blank_perseus_xpos.py "$A/$P-test.conllu"  "$A/$P-test.conllu"  --from-sent "$itp_test"
+  # Make the multiword-token convention explicit before anything converts these files. ITTB and
+  # Perseus mark `Animosque` with a range line and leave the sub-tokens unspaced by convention --
+  # 0 of 198 range lines carries `SpaceAfter=No` on the host. `spacy convert` drops range lines and
+  # reads MISC for only SpaceAfter=No, so without this it rebuilds the text SPACED and the fused
+  # spelling the treebank actually transcribes never reaches the corpus. MISC only, idempotent.
+  for s in train dev test; do
+    $PY scripts/fuse_mwt_spaceafter.py "$A/$P-$s.conllu" >/dev/null
+  done
   for s in train dev test; do
     printf "  %-5s sentences: " "$s"; grep -c '^# sent_id' "$A/$P-$s.conllu"
   done

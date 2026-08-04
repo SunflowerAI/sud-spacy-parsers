@@ -95,12 +95,24 @@ case $lang in
        # must not raise). Added AFTER sud_idiom so it lands last: it only writes `token._.macron`,
        # reads nothing sud_idiom writes, and nothing downstream reads it -- so last is where it can
        # neither disturb nor be disturbed. See NOTICE.md.
+       # la also swaps in the `-que`-splitting tokeniser (sud.LatinEncliticTokenizer.v1). spaCy's
+       # stock la rules split nothing ending in -que, but ITTB and Perseus write `Animosque` fused
+       # and analyse it as `Animos` + `que` -- so real classical orthography reached the model with
+       # a token boundary missing. Swapped in post hoc, NOT retrained: training reads through
+       # sud.GoldTokCorpus.v1 under gold_preproc, so the parser is segmenter-agnostic and every
+       # component's weights come out byte-identical (--verify checks). Perseus test, raw
+       # end-to-end: TOK 98.25 -> 99.70, UAS 62.97 -> 65.19, LAS 51.31 -> 53.35; ITTB+PROIEL
+       # unchanged. It goes LAST because it is the one step that rewrites [nlp.tokenizer] in the
+       # config, and it re-verifies the reload rather than trusting `to_disk`.
   la)  $PY scripts/add_sud_idiom.py "$base" "$work.idiom" --drop sud_reported >/dev/null 2>&1
-       $PY scripts/add_la_macronise.py "$work.idiom" "$work" --no-lut \
+       $PY scripts/add_la_macronise.py "$work.idiom" "$work.mac" --no-lut \
             --code sud_tagger.py,sud_misc.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py \
             >/dev/null 2>&1
+       $PY scripts/add_la_enclitic_tokenizer.py "$work.mac" "$work" --verify \
+            --code sud_tagger.py,sud_misc.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,la_macronise.py \
+            || { echo "  la: enclitic tokeniser swap FAILED — skip"; continue; }
        pkg la  "$work" sud_ittb_proiel_perseus \
-            "$CODE_BASE,scripts/sud_tagger.py,scripts/la_macronise.py" ;;
+            "$CODE_BASE,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py" ;;
   ar)  $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang ar >/dev/null 2>&1
        add_idiom "$work.rep" "$work"
        pkg ar  "$work" sud_padt  "$CODE_REP,scripts/ar_tokenizer.py" ;;
