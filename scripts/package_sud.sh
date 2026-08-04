@@ -40,6 +40,11 @@ pkg() {  # $1=lang  $2=src model dir  $3=--name value  $4=comma-separated --code
   local lang=$1 src=$2 name=$3 code=""
   [ -n "$4" ] && code="--code $4"
   if [ ! -d "$src" ]; then echo "  $lang: SRC $src missing — skip"; return; fi
+  # An arm straight out of `spacy train` has an EMPTY license field, and `spacy package` copies it
+  # through without complaint -- so a rebuilt arm ships unlicensed unless this runs. Every model
+  # here derives from CC BY-SA treebanks (la from NonCommercial ones), so this is an obligation.
+  $PY scripts/stamp_model_meta.py "$src" --lang "$lang" ${DESCRIPTION:+--description "$DESCRIPTION"} \
+    >/dev/null || { echo "  $lang: meta stamp FAILED"; return; }
   rm -rf build_sud/$lang && mkdir -p build_sud/$lang
   $PY -m spacy package "$src" build_sud/$lang --name "$name" --version 0.1.0 $code \
     --build wheel --force >build_sud/$lang.log 2>&1
