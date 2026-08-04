@@ -8,12 +8,14 @@ those boundaries with punctuation (。，；for Classical Chinese, daṇḍa ।
 component recovers them.
 
 Each **sentence** is the span between two sentence-final marks. Which marks those are is set by
-`sent_scheme`: the default uses the fixed `sent_punct` set (Classical Chinese leaves it empty, so
-*every* mark is sentence-final and a sentence is one 句讀 unit); `sent_scheme="danda"` (Sanskrit)
-chooses the set **per document** — ? and ! (optionally + a trailing CLOSING quotation mark, a space
-before it allowed) always end a sentence, and then a period / a double daṇḍa / a single daṇḍa is the
-other sentence-final mark depending on which of those the text contains (see `_sentencer`). Within a
-sentence the content
+`sent_scheme`: the default uses the fixed `sent_punct` set, which holds the genuinely
+sentence-final marks only (。．.！？!?…, plus the daṇḍas), so a pause mark — a comma, a
+semicolon, a bracket — leaves its 句讀 units inside ONE sentence; `sent_scheme="danda"` (Sanskrit)
+chooses the set **per document** — ? and ! always end a sentence, and then a period / a double
+daṇḍa / a single daṇḍa is the other sentence-final mark depending on which of those the text
+contains (see `_sentencer`). Under either scheme a sentence-final mark may be followed by any run
+of CLOSING quotation marks and brackets (」』）”» …), which stay with the sentence just closed;
+an OPENING mark after it begins the next (quoted) sentence. Within a sentence the content
 tokens are concatenated **with the
 sentence-medial marks removed** (a stray comma derails the parser as much as a daṇḍa) and parsed
 as a single doc — so the parser itself decides how the comma-separated units relate, rather than
@@ -34,16 +36,6 @@ from spacy.tokens import Doc, Token
 # config (Classical Chinese 句讀 vs Sanskrit daṇḍa . ? ! | || / //).
 DEFAULT_PUNCT = "。．，、；：？！…।॥|/.?!‖"
 
-# The subset of `punct` that ends a *sentence* (as opposed to a sentence-medial pause). Every
-# punctuation mark is still pulled out before parsing — a stray comma derails the parser just like
-# a daṇḍa — but only a sentence-final mark ends a `doc.sents` sentence; units separated by a medial
-# mark (a comma, a bracket) are parsed together (concatenated, comma removed) so they stay in one
-# sentence. The empty default makes *every* mark sentence-final (correct for Classical Chinese 句讀
-# units, each of which the Kyoto treebank annotates as its own sentence). Sanskrit sets it to the
-# daṇḍa-class marks so a comma is medial — `.?!` and the daṇḍa ।॥ (transliterated to | / ||) end a
-# sentence, but , ; : « » do not.
-SENT_PUNCT_DEFAULT = ""
-
 # Canonical Kyoto punctuation tags (the treebank carries almost no punctuation, so the tagger
 # never learned it and hallucinates content categories — e.g. ？ tagged 名詞,糧食 "noun, food",
 # 。 tagged 動詞 "verb"). We force every punctuation token onto the 記号 ("symbol") tagset
@@ -51,9 +43,22 @@ SENT_PUNCT_DEFAULT = ""
 # 括弧開/括弧閉 open/close bracket.
 _OPEN_BRACKETS = set("（「『【〔《〈［｛(<[{“‘")
 _CLOSE_BRACKETS = set("）」』】〕》〉］｝)>]}”’")
-_SENT_FINAL = set("。．！？!?।॥…")
+_SENT_FINAL = set("。．.！？!?।॥…")
 _PAUSE = set("，、；：,;:/|")
 PUNCT_TAG_DEFAULT = "s,記号,*,*"
+
+# The subset of `punct` that ends a *sentence* (as opposed to a sentence-medial pause). Every
+# punctuation mark is still pulled out before parsing — a stray comma derails the parser just like
+# a daṇḍa — but only a sentence-final mark ends a `doc.sents` sentence; units separated by a medial
+# mark (a comma, a bracket) are parsed together (concatenated, comma removed) so they stay in one
+# sentence. The default is exactly the set that gets the 句点 tag above: a full stop, a question or
+# exclamation mark, an ellipsis, a daṇḍa. A comma, a semicolon, a colon and a bracket are pauses,
+# so 曰／，-separated 句讀 units stay in the sentence they belong to. Sanskrit overrides the whole
+# question with `sent_scheme="danda"` (which ignores this set).
+# `sent_punct=""` is kept as an escape hatch meaning *every* mark is sentence-final — the original
+# Classical Chinese behaviour, one 句讀 unit per sentence, matching how the Kyoto treebank
+# annotates them but NOT how a punctuated edition reads.
+SENT_PUNCT_DEFAULT = "".join(sorted(_SENT_FINAL))
 
 
 def punct_tag(text):
@@ -86,9 +91,12 @@ def is_punct_text(text):
 # normalises the Indic ones to |/|| and groups runs, but `_danda_kind` handles the raw chars too.
 _QEXCL = set("?？!！")                                   # question / exclamation (+ fullwidth)
 # CLOSING quotation marks (straight — ambiguous but act as closers here — + curly-close + angular-close).
-# Only these may trail a sentence-final mark: an OPENING quote (« ‹ “ ‘) after a final mark begins the
-# NEXT (quoted) sentence, so it must not be pulled back onto the sentence just closed.
 _CLOSE_QUOTES = set("\"'”’»›")
+# What may TRAIL a sentence-final mark and still belong to the sentence it closed: any run of closing
+# quotation marks and closing brackets (」』）】〕”» …), as in 「…也。」 or (…!). An OPENING mark
+# (「 « ‹ “ ‘ （) after a final mark begins the NEXT (quoted) sentence, so it must not be pulled back.
+# The straight " and ' are ambiguous and treated as closers, which is the common case after a stop.
+_CLOSERS = _CLOSE_QUOTES | _CLOSE_BRACKETS
 
 
 def _char_danda(c):
@@ -124,8 +132,10 @@ def _is_qexcl(text):
     return bool(text) and all(c in _QEXCL for c in text)
 
 
-def _is_close_quote(text):
-    return bool(text) and all(c in _CLOSE_QUOTES for c in text)
+def _is_closer(text):
+    """True for a token made wholly of CLOSING quotation marks / brackets (a run of them counts,
+    and consecutive closer tokens chain, so 也。」）is one sentence)."""
+    return bool(text) and all(c in _CLOSERS for c in text)
 
 
 def _is_period(doc, i):
@@ -146,8 +156,8 @@ def _force_compound(morph, flag):
     return "|".join(sorted(feats))
 
 
-def make_clause_parser(nlp, name, punct, punct_tag, sent_punct, sent_scheme):
-    return ClauseParser(nlp, punct, punct_tag, sent_punct, sent_scheme)
+def make_clause_parser(nlp, name, punct, punct_tag, sent_punct, sent_scheme, keep_marks):
+    return ClauseParser(nlp, punct, punct_tag, sent_punct, sent_scheme, keep_marks)
 
 
 # Guard registration: both the lzh and sa wheels bundle this module, so it is imported twice
@@ -157,12 +167,13 @@ def make_clause_parser(nlp, name, punct, punct_tag, sent_punct, sent_scheme):
 # neutral "PUNCT" so the daṇḍa is not stamped with Japanese-tagset notation.
 if not Language.has_factory("clause_parser"):
     Language.factory("clause_parser",
-                     default_config={"punct": DEFAULT_PUNCT, "punct_tag": "",
+                     default_config={"punct": DEFAULT_PUNCT, "punct_tag": "", "keep_marks": False,
                                      "sent_punct": SENT_PUNCT_DEFAULT, "sent_scheme": ""})(make_clause_parser)
 
 
 class ClauseParser:
-    def __init__(self, nlp, punct, punct_tag="", sent_punct=SENT_PUNCT_DEFAULT, sent_scheme=""):
+    def __init__(self, nlp, punct, punct_tag="", sent_punct=SENT_PUNCT_DEFAULT, sent_scheme="",
+                 keep_marks=False):
         self.nlp = nlp
         self.punct = set(punct)
         self.punct_tag = punct_tag
@@ -170,6 +181,13 @@ class ClauseParser:
         # "" -> the fixed `sent_punct` set decides boundaries (lzh: empty set = every mark is a
         # boundary). "danda" -> the document-dependent Sanskrit scheme (see the module comment above).
         self.sent_scheme = sent_scheme
+        # Strip sentence-medial marks before parsing (the default) or leave them in the sub-doc.
+        # Stripping is right for a parser that has never SEEN a mark — Kyoto carries 5 punctuation
+        # tokens in 374 560, so a bracket left in a clause gets tagged as a noun and can become its
+        # ROOT. It is wrong for one trained on a punctuated treebank (see align_kanripo_punct.py),
+        # where a comma is a boundary cue the parser was taught to use, and removing it deletes the
+        # very signal that makes a multi-unit sentence parsable.
+        self.keep_marks = keep_marks
         self._pipes = None
 
     def _subpipes(self):
@@ -187,21 +205,29 @@ class ClauseParser:
                 or is_punct_text(tok.text))
 
     def _is_sent_boundary(self, tok):
-        """Does this punctuation mark end a sentence? With an empty `sent_punct` every mark is a
-        boundary (the original behaviour — each 句讀 unit is its own sentence). When `sent_punct`
-        is set (Sanskrit), only those marks end a sentence; a medial mark (a comma) is still pulled
-        out before parsing but keeps its neighbouring units in one sentence."""
+        """Is this punctuation mark in the sentence-final set? Only those marks end a sentence; a
+        medial mark (a comma, a bracket) is still pulled out before parsing but keeps its
+        neighbouring units in one sentence. An empty `sent_punct` is the escape hatch meaning every
+        mark is a boundary, and `_sentencer` short-circuits it before reaching here."""
         if not self.sent_punct:
             return True
         return tok.text in self.sent_punct or all(c in self.sent_punct for c in tok.text)
 
     def _sentencer(self, doc):
-        """Return (is_sent_final, allow_trailing_quote) for THIS doc. The `danda` scheme chooses the
+        """Return (is_sent_final, allow_trailing_closer) for THIS doc. The `danda` scheme chooses the
         sentence-final mark set per document (see the module comment): ?/! always, then a period /
-        double daṇḍa / single daṇḍa depending on what the text contains. Other schemes fall back to
-        the fixed `sent_punct` set (with no trailing-quote handling)."""
+        double daṇḍa / single daṇḍa depending on what the text contains. Otherwise the fixed
+        `sent_punct` set decides — with the same decimal-point guard, so 3.14 is not two sentences."""
         if self.sent_scheme != "danda":
-            return self._is_sent_boundary, False
+            if not self.sent_punct:                 # escape hatch: every mark ends a sentence
+                return (lambda t: True), False
+
+            def fixed(t):
+                if not self._is_sent_boundary(t):
+                    return False
+                return _is_period(doc, t.i) if all(c == "." for c in t.text) else True
+
+            return fixed, True
         has_period = any(_is_period(doc, t.i) for t in doc)
         has_double = any(_danda_kind(t.text) == "double" for t in doc)
         if has_period:
@@ -227,8 +253,8 @@ class ClauseParser:
         # Partition the doc into sentences (spans between sentence-final marks). Each sentence keeps
         # its tokens in order as ("content", idx) or ("medial", idx) (a sentence-medial mark, e.g. a
         # comma); a sentence-final mark closes the sentence and is recorded against the sentence on
-        # its left. With sent_punct empty every mark is sentence-final, so a sentence is one unit.
-        sent_final, allow_trailing_quote = self._sentencer(doc)
+        # its left, as does any run of closing quotes/brackets trailing it.
+        sent_final, allow_trailing_closer = self._sentencer(doc)
         sentences = []                  # each: list of ("content"|"medial", token index)
         boundary_puncts = []            # (punct index, index into `sentences` on its left, or None)
         cur = []
@@ -242,12 +268,12 @@ class ClauseParser:
                     left = len(sentences) - 1 if sentences else None
                     boundary_puncts.append((t.i, left))
                     after_final, left_of_final = True, left
-                elif allow_trailing_quote and after_final and _is_close_quote(t.text):
-                    # a CLOSING quotation mark stays with the sentence the sentence-final mark just
-                    # closed (…vākyam ॥ » -> the » ends the same sentence; a space before it is fine,
-                    # since whitespace is not a token). An opening quote is NOT pulled back — it starts
-                    # the next quoted sentence and falls through to the medial/content path.
-                    boundary_puncts.append((t.i, left_of_final))    # keep after_final for ?"» chains
+                elif allow_trailing_closer and after_final and _is_closer(t.text):
+                    # a CLOSING quotation mark or bracket stays with the sentence the sentence-final
+                    # mark just closed (…也。」 -> the 」 ends the same sentence; a space before it is
+                    # fine, since whitespace is not a token). An OPENING mark is NOT pulled back — it
+                    # starts the next quoted sentence and falls through to the medial/content path.
+                    boundary_puncts.append((t.i, left_of_final))    # keep after_final: 。」）chains
                 else:
                     cur.append(("medial", t.i)); after_final = False
             else:
@@ -281,7 +307,9 @@ class ClauseParser:
         sent_roots = []                 # doc-index root of each sentence (aligned with `sentences`)
 
         for items in sentences:
-            content = [i for kind, i in items if kind == "content"]
+            # `keep_marks` hands the medial marks to the parser instead of stripping them; it then
+            # decides their attachment itself, and the reattachment rule below is skipped for them.
+            content = [i for kind, i in items if self.keep_marks or kind == "content"]
             if not content:
                 sent_roots.append(None)
                 continue
@@ -309,6 +337,8 @@ class ClauseParser:
                     root = i
             sent_roots.append(root)
             # Reinsert each medial mark as a `punct` child of the head of the unit on its left.
+            # Under `keep_marks` the parser has already attached them, so only the punctuation
+            # morphology is imposed — a mark must never carry a content category either way.
             left_unit = []
             for kind, i in items:
                 if kind == "content":
@@ -316,10 +346,11 @@ class ClauseParser:
                     continue
                 tags[i] = self.punct_tag or punct_tag(doc[i].text)
                 poss[i] = "PUNCT"
-                anchor = self._unit_head(left_unit, heads) if left_unit else root
-                if anchor is not None:
-                    heads[i] = anchor
-                    deps[i] = "punct"
+                if not self.keep_marks:
+                    anchor = self._unit_head(left_unit, heads) if left_unit else root
+                    if anchor is not None:
+                        heads[i] = anchor
+                        deps[i] = "punct"
                 left_unit = []          # the next unit starts after this mark
 
         # A sentence-final mark attaches as `punct` to the root of the sentence on its left (its own

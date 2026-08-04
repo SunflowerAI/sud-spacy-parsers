@@ -12,9 +12,11 @@ Usage:
 --punct-tag "" (default) uses the Kyoto 記号 subtype map (lzh); pass "PUNCT" for
 Sanskrit (daṇḍa not stamped with the Japanese tagset).
 
---sent-punct "" (default) makes every punctuation mark a sentence boundary (lzh: each 句讀
-unit is its own sentence). Sanskrit passes the daṇḍa-class marks ("।॥|/.?!…") so that a
-sentence-medial comma is pulled out for isolated parsing but does NOT break the sentence.
+--sent-punct defaults to the genuinely sentence-final marks (。．.！？!?…।॥, optionally followed by
+a run of closing brackets / quotation marks), so a sentence-medial pause — a comma, a semicolon, a
+bracket — is still pulled out for parsing but does NOT break the sentence. Pass "" for the old
+behaviour, where EVERY mark is a boundary and each 句讀 unit is its own sentence. Sanskrit ignores
+this and passes --sent-scheme danda instead.
 """
 import argparse
 import importlib.util
@@ -33,7 +35,9 @@ def main():
     ap.add_argument("in_model")
     ap.add_argument("out_model")
     ap.add_argument("--punct-tag", default="")
-    ap.add_argument("--sent-punct", default="")
+    # None (not passed) leaves the factory default — the sentence-final marks. Passing "" is
+    # meaningful in its own right (every mark becomes a boundary), so it can't be the default here.
+    ap.add_argument("--sent-punct", default=None)
     # "" (default) uses the fixed --sent-punct set (lzh). "danda" uses the document-dependent
     # Sanskrit scheme: ?/! always end a sentence, then periods / double daṇḍas / single daṇḍas by
     # what the text contains, with a trailing quotation mark kept on the closing sentence.
@@ -49,9 +53,10 @@ def main():
     # model may already carry one from an earlier release built with the old factory.
     if "clause_parser" in nlp.pipe_names:
         nlp.remove_pipe("clause_parser")
-    nlp.add_pipe("clause_parser",
-                 config={"punct_tag": args.punct_tag, "sent_punct": args.sent_punct,
-                         "sent_scheme": args.sent_scheme})
+    config = {"punct_tag": args.punct_tag, "sent_scheme": args.sent_scheme}
+    if args.sent_punct is not None:
+        config["sent_punct"] = args.sent_punct
+    nlp.add_pipe("clause_parser", config=config)
     nlp.to_disk(args.out_model)
     print(f"{args.out_model}: pipeline {nlp.pipe_names}")
 
