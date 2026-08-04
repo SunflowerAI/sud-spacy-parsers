@@ -292,7 +292,8 @@ taught to emit `dep`. The supported equivalent is to make those boundaries SENTE
 arc there is no loss to mask, and the unit root is then a genuine root.
 
 **A parser cannot invent a relation, and asked to generalise it reproduces a known bias.** The
-rules-only arm, which never saw an invented edge, chooses at unmarked cross-unit boundaries:
+rules-only arm, which never saw an invented edge, chooses at unmarked cross-unit boundaries
+(counts taken BEFORE the boundary-ownership fix below, so read the ranking, not the figures):
 `comp:obj` 1 169 / ROOT 334 / `parataxis` 303 / `mod` 275 / `conj:coord` 159. Its output vocabulary
 is fixed to the labels seen in training, so "better labels than we can write" was never available;
 what it does is amplify the in-unit prior (`comp:obj` 37.0 %, `parataxis` 28.5 %, `conj:coord`
@@ -326,6 +327,16 @@ our `parataxis` or its `comp:obj`.
   correct — only the comparison was invalid.
 - **Measure the majority baseline before the model, not after.** 56.5 % accuracy reads as a result
   until the 58.5 % constant sits next to it.
+- **A round-trip test proves the CONTENT survived, not that it was filed correctly.**
+  `align_kanripo_punct.py` placed every mark at the right character offset — text byte-identical,
+  round-trip clean on all three splits — while assigning each boundary mark to the unit AFTER the
+  one it closed. 2 780 sentence-final marks opened a unit and none closed one, so `sent_group` ran
+  one unit late and every merged sentence was mis-segmented. Nothing raised, and the strongest check
+  in the script was structurally blind to it. The measurements taken on that data were internally
+  consistent and wrong: the punctuated gain held (+11.9 → +11.93) but the unpunctuated cost grew
+  by 60 % (−1.34 → −2.16) and the idiom "improvement" (67.83) evaporated to parity (66.18). When a
+  derived file has a NOTION OF OWNERSHIP, assert on it directly — no unit may open with a
+  sentence-final mark — because the content-level check cannot see it.
 - **"Missing" in an API is not missing in the code that consumes it.** `has_head()` says False while
   `get_aligned_parse` reads `token.head.i` and gets a root. Third instance in this repo after unset-
   vs-empty MORPH and the CoNLL-U `_` kept as a literal — when annotation is meant to be absent,

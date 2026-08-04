@@ -729,9 +729,17 @@ the marks back: **100 193 inserted**, round-trip exact (drop the PUNCT tokens, r
 - Coverage: 禮記 99.7 %, 孟子/論語 100 %, 戰國策 93.6 %, 楚辭 93.8 %. **十八史略 only 49.8 %** (Kyoto
   sources it from its own `18shilue` path, not kanripo) and **KR4h0169 has no repository at all**;
   those pass through unpunctuated, which is fine — mixed input matches deployment.
-- Only **~19 % of 句讀 boundaries are sentence-final**; the real rate is **1.80 units per sentence**,
-  with 1 840 of 3 066 test sentences a single unit. An early estimate of ~5 from 論語's boundary
-  distribution was wrong — 論語 is comma-heavy, the corpus at large is 。-dense.
+- The real rate is **1.81 units per sentence**, with 1 841 of 3 062 test sentences a single unit. An
+  early estimate of ~5 from 論語's boundary distribution was wrong — 論語 is comma-heavy, the corpus
+  at large is 。-dense.
+- ⚠ **A mark landing exactly on a unit boundary belongs to the unit it CLOSES.** `_bisect` alone
+  assigns it to the FOLLOWING unit at offset 0, which put **2 780 of the sentence-final marks as the
+  FIRST token of the next unit and none as a trailing one** — so `sent_final`/`sent_group` ran one
+  unit late and every merged sentence was mis-segmented (spans beginning with the previous clause's
+  comma and running past the ？ that should have closed them). **The round-trip check cannot catch
+  this**: the text and the character offsets are correct either way, only the OWNERSHIP is wrong.
+  There is now an explicit invariant — no unit may open with a sentence-final mark — checked per
+  work at write time. Opening marks (「) are the deliberate exception, belonging to what follows.
 
 **Relating the units** (`cross_unit_rules.py`) is the genuinely new annotation, since Kyoto relates
 none. Rules are harvested from the annotators' own IN-UNIT clause-to-clause links at ≥ 90 %
@@ -752,18 +760,36 @@ dominance on ≥ 20 examples, `udep_residue_audit.py`-style. Three things that a
   head lemma 100 % accurate but 2.9 % coverage; governor class or dependent class ALONE survive at
   zero rules. The opener dominates because Classical Chinese marks clause linkage at the LEFT EDGE.
 
-Coverage reaches **31.2 %** of 41 322 boundaries. `若/雖/苟/縱` are declared from the grammar rather
+Coverage reaches **37.1 %** of 41 498 boundaries. `若/雖/苟/縱` are declared from the grammar rather
 than derived — 句讀 segmentation guarantees they never appear unit-internally (n=8/5/2/2) — and 如 is
 deliberately EXCLUDED from that set, being 'be like'/'go to' as well as 'if'.
 
-**The residue (68.8 %) is left as sentence breaks, not filled.** `--rules-only` merges only the
+**The residue (62.9 %) is left as sentence breaks, not filled.** `--rules-only` merges only the
 rule-derived boundaries; `--write` alone fills the rest with `parataxis` and is kept for comparison.
 Measured on identical input (each punctuated sentence parsed as one doc, no `clause_parser`),
-within-unit content edges — the only ones with real gold:
+within-unit content edges — the only ones with real gold — against the RELEASED chain:
 
-    units unmerged (punct arm)        78.63 UAS / 71.43 LAS
-    full merge, parataxis default     82.10 / 75.33
-    rules only                        82.09 / 75.41   <- ships nothing invented, at no cost
+    released arm (no punctuation in training)   69.18 UAS / 61.91 LAS
+    rules-only arm                              80.77 / 73.84      +11.93 LAS
+
+The released arm collapses on punctuated editions because it has **never seen a mark** (5 tokens in
+374 560) and attaches content words TO the punctuation — in 小大由之。 it makes the full stop the head
+of three tokens, and in 信近於義 it hangs 信 and 於 off the opening 「. That is the failure this whole
+exercise fixes, and it is a failure on the real editions users feed it.
+
+The cost is on bare unpunctuated 白文, where the new arm has learned to rely on marks to join
+clauses: **77.19 → 75.03 LAS (−2.16)**, single seed each. Both figures moved when the boundary-
+ownership bug above was fixed (the cost grew from −1.34), so treat them as one measurement, not a
+settled result — the seed replicates were **not** redone on corrected data. A comparison against the
+full-merge `parataxis` arm was made only on the mis-segmented data and is withdrawn rather than
+restated.
+
+**The MISC layer survives the base change, but does not gain.** Re-measured end-to-end on the
+corrected arm (the idiom rule reads the base's own `ExtPos` and `unk` as a CONJUNCTION, so it is the
+most exposed thing downstream of a retrain): Idiom F **66.18** against the released 66.0, InIdiom
+**66.18** against 68.8, both at precision 100 % with recall 49.45 — precision up, recall down, which
+is this layer's standing pattern. Gold-trees mode stays 100 %. An earlier reading of 67.83 / 71.33
+was taken on the mis-segmented data and is withdrawn.
 
 **`merge_group` resolves subordinating edges FIRST.** In 子曰：「學而不思則罔」 the quote rule attaches
 學而不思 to 曰 and then 則罔 claims 學而不思 — which looks like two edges fighting over one head. It is

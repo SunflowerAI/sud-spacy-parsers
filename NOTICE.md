@@ -24,6 +24,24 @@ the underlying treebanks. You must give attribution and share derivatives alike.
 
 Each source treebank's own `LICENSE.txt` is retained alongside its data.
 
+## Kanseki Repository 漢籍リポジトリ — CC BY-SA 4.0
+
+`lzh_sud_kyoto` is trained on a punctuated form of SUD_Classical_Chinese-Kyoto. The Kyoto treebank
+deliberately carries no punctuation ("in Classical Chinese we had no spaces or punctuations between
+words or sentences, so we did not include any"), so the marks are restored by aligning each work
+against its edition in the **Kanseki Repository**, coordinated by Christian Wittern at the Institute
+for Research in Humanities, Kyoto University — the same source the treebank itself was built from.
+
+- Repository: https://github.com/kanripo (per-work, e.g. `KR1h0004` 論語, `KR1d0052` 禮記)
+- Licence: **CC BY-SA 4.0**, compatible with the treebank's own, so the released model stays
+  CC BY-SA 4.0 and the ShareAlike obligation is satisfied by this notice.
+- Only the **punctuation** is taken: `scripts/align_kanripo_punct.py` inserts the marks into the
+  existing trees and changes nothing else. Verified by round-trip — dropping the inserted tokens and
+  renumbering reproduces the source treebank byte-identically in fields 2–8.
+- Witness branches used where the default differs from Kyoto's base text: `KR2e0003` 戰國策 from the
+  `tls` branch. 十八史略 `KR2b0041` and `KR4h0169` have no usable kanripo counterpart and are left
+  unpunctuated.
+
 ## Digital Corpus of Sanskrit (DCS) — CC BY 4.0
 
 The Sanskrit **CSLiser** (`models/sa_presegment*`, the saṃhitā → CSL pre-tokeniser) is trained on

@@ -108,7 +108,7 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated | rule tokeniser (enclitics merged) | CC BY-SA 4.0 |
 | `fa_sud_perdt`   | Persian    | SUD_Persian-PerDT   | disambiguated (ext) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
 | `sa_sud_vedic_ufal_dcs` | Sanskrit | SUD_Sanskrit-Vedic + UFAL | kept (baseline) | **accepts raw sandhied text**, IAST or Devanagari (needs `indic-transliteration`); segments and de-sandhis internally; Devanagari in gives Devanagari FORM/LEMMA + `Translit`/`LTranslit`; padapāṭha form on `token._.unsandhied` | CC BY-SA 4.0 |
-| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto (+ simplified) | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
+| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto (+ simplified, + kanripo punctuation) | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
 | `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | CAMeL ATB tokeniser (needs `camel-tools` + data) | CC BY-SA 4.0 |
 | `la_sud_ittb_proiel_perseus` | Latin   | SUD_Latin-ITTB+PROIEL+Perseus | disambiguated (ext) | rule tokeniser, enclitic `-que` split (bundled) | CC BY-NC-SA § |

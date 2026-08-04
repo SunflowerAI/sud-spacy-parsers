@@ -42,6 +42,10 @@ def main():
     # Sanskrit scheme: ?/! always end a sentence, then periods / double daṇḍas / single daṇḍas by
     # what the text contains, with a trailing quotation mark kept on the closing sentence.
     ap.add_argument("--sent-scheme", default="")
+    # Hand the sentence-medial marks to the parser instead of stripping and reattaching them by
+    # rule. COUPLED TO THE ARM: worth +2.34 LAS on one trained on a punctuated treebank, and -3.80
+    # on one that has never seen a mark. Never set it on an arm that was not trained with punctuation.
+    ap.add_argument("--keep-marks", action="store_true")
     args = ap.parse_args()
 
     # register every custom tokenizer (lzh char, sa CSL, …) + the clause_parser factory before
@@ -53,7 +57,8 @@ def main():
     # model may already carry one from an earlier release built with the old factory.
     if "clause_parser" in nlp.pipe_names:
         nlp.remove_pipe("clause_parser")
-    config = {"punct_tag": args.punct_tag, "sent_scheme": args.sent_scheme}
+    config = {"punct_tag": args.punct_tag, "sent_scheme": args.sent_scheme,
+              "keep_marks": args.keep_marks}
     if args.sent_punct is not None:
         config["sent_punct"] = args.sent_punct
     nlp.add_pipe("clause_parser", config=config)
