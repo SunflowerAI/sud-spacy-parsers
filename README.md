@@ -21,7 +21,7 @@ raw end-to-end token accuracy (how well the tokeniser matches the treebank on ra
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
 | `fa_sud_perdt` | Persian | 90.6 | 87.2 | 79.2 | 99.1 |
 | `sa_sud_vedic_ufal_dcs` | Sanskrit (classical prose) | 52.2 | 37.3 | 27.6 | 100.0†◊◊ |
-| `lzh_sud_kyoto` | Classical Chinese (trad+simp) | 84.1 | 79.0 | 73.1 | 100.0† |
+| `lzh_sud_kyoto` | Classical Chinese (trad+simp) | 82.5 | 76.9 | 70.3 | 100.0†‖ |
 | `ja_sud_gsd` | Japanese | 91.1 | 88.2 | 69.6 | 99.4 |
 | `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
 | `la_sud_ittb_proiel_perseus` | Latin | 80.6 | 73.9 | 65.2 | 100.0¶ |
@@ -37,6 +37,18 @@ each clause in isolation, and reattaches each mark as a `punct` dependent — re
 per-clause accuracy (79.0 / 54.8) on punctuated running text; only **unpunctuated** running text
 collapses (LAS ~48 / ~41). `sa_sud_vedic_ufal_dcs` takes **raw sandhied Sanskrit in IAST or Devanagari** — it
 segments and de-sandhis internally (see below). Persian runs fine on raw text (raw LAS 85.3).
+
+‖ **The Classical Chinese row is not comparable with earlier ones.** `lzh_sud_kyoto` now trains on
+a punctuation-restored Kyoto — the treebank deliberately carries no punctuation, so the marks are
+aligned in from the Kanseki Repository editions it was built from (CC BY-SA 4.0; see `NOTICE.md`) —
+and its 句讀 units are merged into punctuation-delimited sentences wherever a derived rule licenses
+it. The test set therefore contains punctuation tokens and longer sentences, so 82.5 / 76.9 / 70.3
+is a *different measurement* from the previous 84.1 / 79.0 / 73.1, not a regression against it.
+Measured like for like on the same input, the new arm is **+11.9 LAS** on punctuated editions (the
+old one attaches content words to marks it has never seen) and **−2.2 LAS** on bare unpunctuated
+白文, both single-seed. It expects punctuated input; `clause_parser` runs with `keep_marks=True`,
+which is coupled to this base. Lemmas come from a 163-entry variant-character (異體字) table rather
+than a trained lemmatiser — 99.73 % vs 99.65 %, and 1.4 MB smaller.
 
 ‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~72 vs 78 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
 
@@ -108,7 +120,7 @@ disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheel
 | `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated | rule tokeniser (enclitics merged) | CC BY-SA 4.0 |
 | `fa_sud_perdt`   | Persian    | SUD_Persian-PerDT   | disambiguated (ext) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
 | `sa_sud_vedic_ufal_dcs` | Sanskrit | SUD_Sanskrit-Vedic + UFAL | kept (baseline) | **accepts raw sandhied text**, IAST or Devanagari (needs `indic-transliteration`); segments and de-sandhis internally; Devanagari in gives Devanagari FORM/LEMMA + `Translit`/`LTranslit`; padapāṭha form on `token._.unsandhied` | CC BY-SA 4.0 |
-| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto (+ simplified) | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
+| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto (+ simplified, + kanripo punctuation) | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
 | `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | CAMeL ATB tokeniser (needs `camel-tools` + data) | CC BY-SA 4.0 |
 | `la_sud_ittb_proiel_perseus` | Latin   | SUD_Latin-ITTB+PROIEL+Perseus | disambiguated (ext) | rule tokeniser, enclitic `-que` split (bundled) | CC BY-NC-SA § |

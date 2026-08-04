@@ -31,11 +31,20 @@ PY=.venv/bin/python
 CODE_BASE="scripts/sud_misc.py,scripts/sud_idiom.py"
 # arms that also ship the Reported rule (en/ar/sa -- see the table below)
 CODE_REP="$CODE_BASE,scripts/sud_reported_data.py,scripts/sud_reported_rule.py"
+# Treebank the lzh lemma lookup table is harvested from. It MUST be the same generation of the data
+# the lzh arm was trained on -- override when packaging a differently-trained arm, e.g. the
+# punctuation-restored chain (.relabeled_ext.udep_ruled.punct.rulemerged.conllu).
+LZH_TRAIN_CONLLU="${LZH_TRAIN_CONLLU:-assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-train.relabeled_ext.udep_ruled.punct.rulemerged.conllu}"
 
 pkg() {  # $1=lang  $2=src model dir  $3=--name value  $4=comma-separated --code files (no flag)
   local lang=$1 src=$2 name=$3 code=""
   [ -n "$4" ] && code="--code $4"
   if [ ! -d "$src" ]; then echo "  $lang: SRC $src missing — skip"; return; fi
+  # An arm straight out of `spacy train` has an EMPTY license field, and `spacy package` copies it
+  # through without complaint -- so a rebuilt arm ships unlicensed unless this runs. Every model
+  # here derives from CC BY-SA treebanks (la from NonCommercial ones), so this is an obligation.
+  $PY scripts/stamp_model_meta.py "$src" --lang "$lang" ${DESCRIPTION:+--description "$DESCRIPTION"} \
+    >/dev/null || { echo "  $lang: meta stamp FAILED"; return; }
   rm -rf build_sud/$lang && mkdir -p build_sud/$lang
   $PY -m spacy package "$src" build_sud/$lang --name "$name" --version 0.1.0 $code \
     --build wheel --force >build_sud/$lang.log 2>&1
@@ -71,6 +80,13 @@ for lang in "$@"; do
     # `morph_acc` 95.36 is ~the base rate for predicting empty and says nothing. POS 83.05 and
     # lemma 78.30 are real.
     ko)           base=training_ko_eojeol_lemma/model-best ;;
+    # lzh ships the punctuation-restored chain and takes its lemmas from a lookup table, so its
+    # base is the MORPH arm (there is no trained lemmatizer above it) and it must be packaged
+    # against the treebank generation it was trained on. Both are overridable so a differently
+    # trained lzh arm can be packaged without editing this file:
+    #   LZH_BASE=training_lzh_lemma/model-best LZH_TRAIN_CONLLU=<...>.relabeled_ext.conllu \
+    #     bash scripts/package_sud.sh lzh      # the pre-punctuation arm
+    lzh)          base="${LZH_BASE:-training_lzh_rm_morph/model-best}" ;;
     *)            base=training_${lang}_lemma/model-best ;;
   esac
   work=build_sud/work_$lang
@@ -131,11 +147,24 @@ case $lang in
        pkg zh  "$work" sud_gsd_simp_trad \
             "scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py,scripts/zh_jieba_feature.py" ;;
        # lzh DOES ship the frame rule (F 80.7 vs 59.0 trained -- 可/能/欲 carry it).
-  lzh) $PY scripts/add_clause_parser.py "$base" "$work.seg" >/dev/null 2>&1
+       # lzh replaces the TRAINED lemmatizer with a lookup table: the lemma is the form on 99.0 %
+       # of tokens and the exceptions are variant characters (異體字), not morphology. Test lemma
+       # accuracy 99.733 by table vs 99.649 trained -- the trained layer's errors ARE the variants,
+       # which it leaves untouched -- and the arm loses ~1.4 MB. Only lzh: zh (99.900 / 99.904) and
+       # yue (99.762 / 99.841) are one token apart either way, so they keep the trained layer.
+       # HARVEST FROM THE TREEBANK THE ARM WAS TRAINED ON -- a table built from a different
+       # generation of the data silently disagrees with the model's own vocabulary.
+  lzh) $PY scripts/han_lemma_lut.py --build "$base" "$work.lut" \
+            --conllu "$LZH_TRAIN_CONLLU" >/dev/null 2>&1
+       # --keep-marks is COUPLED to the base: worth +2.34 LAS on the punctuation-trained arm and
+       # -3.80 on one that has never seen a mark. Drop it if you set LZH_BASE to a pre-punctuation
+       # arm. `$LZH_KEEP_MARKS` exists so that can be done without editing this line.
+       $PY scripts/add_clause_parser.py "$work.lut" "$work.seg" \
+            ${LZH_KEEP_MARKS:---keep-marks} >/dev/null 2>&1
        $PY scripts/add_sud_subject_rule.py "$work.seg" "$work.rule" --lang lzh >/dev/null 2>&1
        add_idiom "$work.rule" "$work"
        pkg lzh "$work" sud_kyoto \
-            "$CODE_BASE,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py" ;;
+            "$CODE_BASE,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/han_lemma_lut.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py" ;;
        # sa: Subject is too sparse to ship (142 train / 14 test); the idiom layer still applies.
        # sa_compound must stay FIRST (the encoder reads MORPH); clause_parser before sud_idiom.
        # sa: the whole front end (CSLiser + de-CSLizer + de-sandhifier + Devanagari rendering)
