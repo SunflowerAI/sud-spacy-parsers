@@ -34,7 +34,7 @@ CODE_REP="$CODE_BASE,scripts/sud_reported_data.py,scripts/sud_reported_rule.py"
 # Treebank the lzh lemma lookup table is harvested from. It MUST be the same generation of the data
 # the lzh arm was trained on -- override when packaging a differently-trained arm, e.g. the
 # punctuation-restored chain (.relabeled_ext.udep_ruled.punct.rulemerged.conllu).
-LZH_TRAIN_CONLLU="${LZH_TRAIN_CONLLU:-assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-train.relabeled_ext.conllu}"
+LZH_TRAIN_CONLLU="${LZH_TRAIN_CONLLU:-assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-train.relabeled_ext.udep_ruled.punct.rulemerged.conllu}"
 
 pkg() {  # $1=lang  $2=src model dir  $3=--name value  $4=comma-separated --code files (no flag)
   local lang=$1 src=$2 name=$3 code=""
@@ -75,6 +75,13 @@ for lang in "$@"; do
     # `morph_acc` 95.36 is ~the base rate for predicting empty and says nothing. POS 83.05 and
     # lemma 78.30 are real.
     ko)           base=training_ko_eojeol_lemma/model-best ;;
+    # lzh ships the punctuation-restored chain and takes its lemmas from a lookup table, so its
+    # base is the MORPH arm (there is no trained lemmatizer above it) and it must be packaged
+    # against the treebank generation it was trained on. Both are overridable so a differently
+    # trained lzh arm can be packaged without editing this file:
+    #   LZH_BASE=training_lzh_lemma/model-best LZH_TRAIN_CONLLU=<...>.relabeled_ext.conllu \
+    #     bash scripts/package_sud.sh lzh      # the pre-punctuation arm
+    lzh)          base="${LZH_BASE:-training_lzh_rm_morph/model-best}" ;;
     *)            base=training_${lang}_lemma/model-best ;;
   esac
   work=build_sud/work_$lang
@@ -144,7 +151,11 @@ case $lang in
        # generation of the data silently disagrees with the model's own vocabulary.
   lzh) $PY scripts/han_lemma_lut.py --build "$base" "$work.lut" \
             --conllu "$LZH_TRAIN_CONLLU" >/dev/null 2>&1
-       $PY scripts/add_clause_parser.py "$work.lut" "$work.seg" >/dev/null 2>&1
+       # --keep-marks is COUPLED to the base: worth +2.34 LAS on the punctuation-trained arm and
+       # -3.80 on one that has never seen a mark. Drop it if you set LZH_BASE to a pre-punctuation
+       # arm. `$LZH_KEEP_MARKS` exists so that can be done without editing this line.
+       $PY scripts/add_clause_parser.py "$work.lut" "$work.seg" \
+            ${LZH_KEEP_MARKS:---keep-marks} >/dev/null 2>&1
        $PY scripts/add_sud_subject_rule.py "$work.seg" "$work.rule" --lang lzh >/dev/null 2>&1
        add_idiom "$work.rule" "$work"
        pkg lzh "$work" sud_kyoto \
