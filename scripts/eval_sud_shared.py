@@ -39,6 +39,9 @@ from sud_shared_data import doc_candidates  # noqa: E402
 # reads the arm's own predictions, so scoring it against a different generation measures nothing.
 LEMMA_ARM = {
     "sa": "training_sa_multitask/model-best",
+    # lzh has no trained lemmatizer any more (han_lemma_lut replaces it at packaging), so the top
+    # of its chain is the MORPH storey of the rule-merged punctuation arm.
+    "lzh": "training_lzh_rm_morph/model-best",
     "ko": "training_ko_eojeol_lemma/model-best",
     "id": "training_id_split_lemma/model-best",
 }
@@ -52,7 +55,8 @@ def lemma_arm(lang):
 
 def trained_arm(lang):
     """Prefer a Shared-only arm, else the combined SUD arm."""
-    for cand in (f"training_{lang}_shared/model-best", f"training_{lang}_sud/model-best"):
+    for cand in (f"training_{lang}_shared/model-best", f"training_{lang}_rm_sud/model-best",
+                 f"training_{lang}_sud/model-best"):
         if pathlib.Path(cand).exists():
             return cand
     return None

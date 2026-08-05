@@ -44,5 +44,11 @@ for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            # sud_misc first: sud_tagger imports it. sud_shared_data holds the coordination
            # candidate mask, which sud_tagger looks up by name. (sud_idiom is packaging-time only
            # and needs no registration here, as with id_lemma_case_fix.)
-           "sud_misc.py", "sud_shared_data.py", "sud_tagger.py"):
+           "sud_misc.py", "sud_shared_data.py", "sud_tagger.py",
+           # han_lemma_lut IS needed here, unlike the other packaging-time components: it sits in
+           # the lzh pipeline, so every later packaging step (add_clause_parser, the subject rule,
+           # sud_idiom) has to be able to LOAD a model that already carries it, and each of those
+           # loads through this file. Omitting it made add_clause_parser die with E002 while
+           # package_sud.sh's `>/dev/null 2>&1` swallowed the error and shipped the old pipeline.
+           "han_lemma_lut.py"):
     _load(_f)

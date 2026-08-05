@@ -729,9 +729,17 @@ the marks back: **100 193 inserted**, round-trip exact (drop the PUNCT tokens, r
 - Coverage: 禮記 99.7 %, 孟子/論語 100 %, 戰國策 93.6 %, 楚辭 93.8 %. **十八史略 only 49.8 %** (Kyoto
   sources it from its own `18shilue` path, not kanripo) and **KR4h0169 has no repository at all**;
   those pass through unpunctuated, which is fine — mixed input matches deployment.
-- Only **~19 % of 句讀 boundaries are sentence-final**; the real rate is **1.80 units per sentence**,
-  with 1 840 of 3 066 test sentences a single unit. An early estimate of ~5 from 論語's boundary
-  distribution was wrong — 論語 is comma-heavy, the corpus at large is 。-dense.
+- The real rate is **1.81 units per sentence**, with 1 841 of 3 062 test sentences a single unit. An
+  early estimate of ~5 from 論語's boundary distribution was wrong — 論語 is comma-heavy, the corpus
+  at large is 。-dense.
+- ⚠ **A mark landing exactly on a unit boundary belongs to the unit it CLOSES.** `_bisect` alone
+  assigns it to the FOLLOWING unit at offset 0, which put **2 780 of the sentence-final marks as the
+  FIRST token of the next unit and none as a trailing one** — so `sent_final`/`sent_group` ran one
+  unit late and every merged sentence was mis-segmented (spans beginning with the previous clause's
+  comma and running past the ？ that should have closed them). **The round-trip check cannot catch
+  this**: the text and the character offsets are correct either way, only the OWNERSHIP is wrong.
+  There is now an explicit invariant — no unit may open with a sentence-final mark — checked per
+  work at write time. Opening marks (「) are the deliberate exception, belonging to what follows.
 
 **Relating the units** (`cross_unit_rules.py`) is the genuinely new annotation, since Kyoto relates
 none. Rules are harvested from the annotators' own IN-UNIT clause-to-clause links at ≥ 90 %
@@ -752,18 +760,36 @@ dominance on ≥ 20 examples, `udep_residue_audit.py`-style. Three things that a
   head lemma 100 % accurate but 2.9 % coverage; governor class or dependent class ALONE survive at
   zero rules. The opener dominates because Classical Chinese marks clause linkage at the LEFT EDGE.
 
-Coverage reaches **31.2 %** of 41 322 boundaries. `若/雖/苟/縱` are declared from the grammar rather
+Coverage reaches **37.1 %** of 41 498 boundaries. `若/雖/苟/縱` are declared from the grammar rather
 than derived — 句讀 segmentation guarantees they never appear unit-internally (n=8/5/2/2) — and 如 is
 deliberately EXCLUDED from that set, being 'be like'/'go to' as well as 'if'.
 
-**The residue (68.8 %) is left as sentence breaks, not filled.** `--rules-only` merges only the
+**The residue (62.9 %) is left as sentence breaks, not filled.** `--rules-only` merges only the
 rule-derived boundaries; `--write` alone fills the rest with `parataxis` and is kept for comparison.
 Measured on identical input (each punctuated sentence parsed as one doc, no `clause_parser`),
-within-unit content edges — the only ones with real gold:
+within-unit content edges — the only ones with real gold — against the RELEASED chain:
 
-    units unmerged (punct arm)        78.63 UAS / 71.43 LAS
-    full merge, parataxis default     82.10 / 75.33
-    rules only                        82.09 / 75.41   <- ships nothing invented, at no cost
+    released arm (no punctuation in training)   69.18 UAS / 61.91 LAS
+    rules-only arm                              80.77 / 73.84      +11.93 LAS
+
+The released arm collapses on punctuated editions because it has **never seen a mark** (5 tokens in
+374 560) and attaches content words TO the punctuation — in 小大由之。 it makes the full stop the head
+of three tokens, and in 信近於義 it hangs 信 and 於 off the opening 「. That is the failure this whole
+exercise fixes, and it is a failure on the real editions users feed it.
+
+The cost is on bare unpunctuated 白文, where the new arm has learned to rely on marks to join
+clauses: **77.19 → 75.03 LAS (−2.16)**, single seed each. Both figures moved when the boundary-
+ownership bug above was fixed (the cost grew from −1.34), so treat them as one measurement, not a
+settled result — the seed replicates were **not** redone on corrected data. A comparison against the
+full-merge `parataxis` arm was made only on the mis-segmented data and is withdrawn rather than
+restated.
+
+**The MISC layer survives the base change, but does not gain.** Re-measured end-to-end on the
+corrected arm (the idiom rule reads the base's own `ExtPos` and `unk` as a CONJUNCTION, so it is the
+most exposed thing downstream of a retrain): Idiom F **66.18** against the released 66.0, InIdiom
+**66.18** against 68.8, both at precision 100 % with recall 49.45 — precision up, recall down, which
+is this layer's standing pattern. Gold-trees mode stays 100 %. An earlier reading of 67.83 / 71.33
+was taken on the mis-segmented data and is withdrawn.
 
 **`merge_group` resolves subordinating edges FIRST.** In 子曰：「學而不思則罔」 the quote rule attaches
 學而不思 to 曰 and then 則罔 claims 學而不思 — which looks like two edges fighting over one head. It is
@@ -993,7 +1019,7 @@ on a **predicted** parse, a ceiling on rule and trained alike):
 |---|---|---|---|---|---|
 | fa | 80.2 | 27.1 | 58.3 | **67.7** | trained |
 | en | 70.6 | 24.7 | 55.1 | **62.6** | trained |
-| lzh | 62.7 | 45.2 | 54.3 | **59.6** | trained |
+| lzh | 65.5 | 41.3 | 52.7 | **58.8** | trained |
 | ar | 60.2 | 37.8 | 52.6 | **54.6** | trained |
 | id | 57.1 | 36.1 | 49.1 | **53.6** | trained |
 | la | 45.0 | 8.3 | **35.9** | 35.1 | rule (trained solo; 30.1 in the 3-feature arm — see below) |
@@ -1024,6 +1050,19 @@ en trains `Subject` (local), `Reported` (structural) and `Shared` (tree) in one 
     default encoder, no mask   0.323        structural + mask   0.586
     structural, no mask        0.547        tree + mask         0.616   <- ships
     tree, no mask              0.609
+
+**⚠ The SUD layer must be trained on the arm that SHIPS, and for lzh that is not the obvious one.**
+lzh's released chain is `training_lzh_rm_morph` — punctuation-restored, rule-merged, and with NO
+trained lemmatizer (`han_lemma_lut` replaces it at packaging). Its `Shared` pipe was first trained on
+`training_lzh_lemma` instead, whose parse is a different model's, so its coordination mask was a
+different mask; and the resulting wheel was published, silently reverting the punctuation arm,
+`--keep-marks` and the lemma table. `train_sud.sh` now names the arm `training_lzh_rm_sud` after the
+chain it belongs to, and `src_conllu` gives lzh the `.punct.rulemerged` files — the plain
+`.relabeled_ext` ones carry no PUNCT tokens, so a corpus built from them would not even align under
+`gold_preproc`. The conclusion survived the correction (trained 58.8 v rule 52.7 v morphologiser
+41.3); the numbers moved. **The rule TABLE is generation-coupled too** — `build_sud_shared_frames.py`
+harvests lzh from the same `.punct.rulemerged` files, since a table keyed on a tree with no
+punctuation in it answers a different question.
 
 **⚠ `model-best` in a multi-feature arm is picked on the WEIGHTED MEAN of its features' scores**, so
 a pipe can be checkpointed at an epoch that suited its neighbours. Latin is the case that matters:
@@ -1150,6 +1189,16 @@ chains are internally consistent. A stale sibling directory is not a stale relea
 **The general lesson, now twice-learned: a directory is not a release.** Neither `build_*/` nor
 `training_*/` says anything about what users have. `gh release view v0.1.0 --json assets`, the asset
 size, and the wheel's own `config.cfg` do.
+
+**And the sharpest version of it, 2026-08-05: check that your BRANCH is not behind main before you
+build anything.** A `Shared` branch six commits behind main rebuilt and uploaded all eleven wheels.
+Main had meanwhile (a) replaced lzh's trained lemmatizer with `han_lemma_lut` and repointed its
+packaging base to the punctuation-restored `training_lzh_rm_morph` with `--keep-marks`, and (b) added
+`stamp_model_meta.py` so every wheel carries its licence. The upload therefore shipped lzh a
+generation backwards and eleven wheels with an EMPTY `License:` field — and the local diagnosis went
+the wrong way round, reading the correct 9.1 MB lzh asset as "stale" because a stale directory of the
+same name sat beside the current one. `git log --oneline <branch>..main` would have said so in one
+line. Corrected by merging main in, retraining lzh's pipe on the right arm, and rebuilding.
 
 **Corollary, found 2026-08-05: `build_sud/` can hold two wheels with the SAME name.** A stale
 `build_sud/lzh_rel_pkg/` sat beside `build_sud/lzh/`, each with its own `lzh_sud_kyoto-0.1.0-py3-none-any.whl`

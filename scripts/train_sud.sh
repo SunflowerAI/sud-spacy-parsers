@@ -94,7 +94,10 @@ src_conllu() {
     en)  echo "assets/en_ewt-sud-$2.relabeled_ext.conllu" ;;
     zh)  echo "assets_zh/SUD_Chinese-GSDBoth/zh_gsdboth-sud-$2.relabeled_ext.conllu" ;;
     yue) echo "assets_yue/SUD_Cantonese-HK/yue_hk-sud-$2.relabeled_ext.conllu" ;;
-    lzh) echo "assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-$2.relabeled_ext.conllu" ;;
+    # lzh trains on the PUNCTUATION-RESTORED, rule-merged chain -- the generation its released arm
+    # (training_lzh_rm_morph) was trained on. The plain .relabeled_ext files have no PUNCT tokens,
+    # so a corpus built from them would not even align with that arm under gold_preproc.
+    lzh) echo "assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-$2.relabeled_ext.udep_ruled.punct.rulemerged.conllu" ;;
     fa)  echo "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-$2.relabeled_ext.conllu" ;;
     ar)  echo "assets_ar/SUD_Arabic-PADT/ar_padt-sud-$2.relabeled_ext.conllu" ;;
     la)  echo "assets_la/la_ittbproiel-sud-$2.relabeled_ext.conllu" ;;
@@ -112,8 +115,21 @@ src_conllu() {
 # this wrong is not cosmetic: the MISC layer READS the arm's own predictions (deprel, UPOS, MORPH),
 # so a pipe stacked on a different generation than the one that ships silently mismatches its
 # inputs. Keep these in step with package_sud.sh.
+# lzh's SUD arm sits on the rule-merged punctuation chain, and is NAMED for it so it cannot be
+# confused with the pre-punctuation training_lzh_sud -- which is a different model, with a
+# different parse and therefore a different coordination mask.
+arm_suffix() {
+  case "$1" in
+    lzh) echo "_rm_sud" ;;
+    *)   echo "_sud" ;;
+  esac
+}
+
 src_model() {
   case "$1" in
+    # The rule-merged punctuation arm, and the MORPH storey of it: lzh has no trained lemmatizer
+    # any more (han_lemma_lut replaces it at packaging), so _morph is the top of its chain.
+    lzh) echo "training_lzh_rm_morph/model-best" ;;
     sa) echo "training_sa_multitask/model-best" ;;
     ko) echo "training_ko_eojeol_lemma/model-best" ;;
     # id's released arm is the SPLIT chain (char segmenter, enclitics separated). The generic
@@ -127,6 +143,7 @@ src_model() {
 # The base config matching src_model (same exception list).
 base_config() {
   case "$1" in
+    lzh) echo "configs/config_lzh_rm_morph.cfg" ;;
     sa) echo "configs/config_sa_multitask.cfg" ;;
     ko) echo "configs/config_ko_eojeol_lemma.cfg" ;;
     id) echo "configs/config_id_split_lemma.cfg" ;;
@@ -137,7 +154,7 @@ base_config() {
 prep() {   # $1=lang  $2...=features to hoist
   local lang=$1; shift
   local feats="$*"
-  local out=corpus_${lang}_sud
+  local out=corpus_${lang}$(arm_suffix "$lang")
   mkdir -p "$out"
   for split in train dev test; do
     local src; src=$(prefer_reported "$(src_conllu "$lang" "$split")")
@@ -173,10 +190,10 @@ train_one() {   # $1=lang  $2...=features
   local encoders; encoders=$(encoders_for $feats)
   local src; src=$(src_model "$lang")
   local base; base=$(base_config "$lang")
-  local suffix=${SUD_SUFFIX:-_sud}
+  local suffix=${SUD_SUFFIX:-$(arm_suffix "$lang")}
   local arm=training_${lang}${suffix}
   local cfg=configs/config_${lang}${suffix}.cfg
-  local out=corpus_${lang}_sud
+  local out=corpus_${lang}$(arm_suffix "$lang")
 
   if [ ! -d "$src" ]; then echo "$lang: source model $src missing -- skip"; return 1; fi
   if [ ! -f "$base" ]; then echo "$lang: base config $base missing -- skip"; return 1; fi

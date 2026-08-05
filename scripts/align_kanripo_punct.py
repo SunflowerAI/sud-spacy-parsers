@@ -313,6 +313,15 @@ def main():
             if g is None:
                 continue
             u = max(0, min(len(starts) - 1, _bisect(starts, g)))
+            # A mark falling EXACTLY on a unit boundary belongs to the unit it CLOSES, not the one
+            # it precedes. `_bisect` alone puts it at offset 0 of the following unit, which made
+            # every 。？！ the FIRST token of the next unit — 2 780 of them, none trailing — and so
+            # pushed `sent_final`/`sent_group` one unit late, mis-segmenting every merged sentence.
+            # The round-trip check could not catch it: the text and the character offsets were
+            # right, only the OWNERSHIP was wrong. An OPENING mark is the exception, since 「 does
+            # belong to what follows it.
+            if g == starts[u] and u > 0 and mark not in OPENERS:
+                u -= 1
             placements[u].append((g - starts[u], mark))
             placed += 1
             if g == starts[u] or g - starts[u] == len(units[u][1].text):
@@ -327,6 +336,15 @@ def main():
         # sentence-final mark does not separate belong to one sentence, and merging them needs a
         # relation between their roots that Kyoto never annotated. `# sent_group` numbers the runs
         # so that work can start from here; `# sent_final` marks the unit that closes each run.
+        # INVARIANT: a sentence-final mark must never open a unit — it closes the unit before it.
+        # This is checked rather than assumed because the round-trip test cannot see it (the text
+        # is identical either way) and everything downstream of `sent_final` silently depends on it.
+        lead = sum(1 for _, s in units if s.toks and s.toks[0][3] == "PUNCT"
+                   and any(c in SENT_FINAL for c in s.toks[0][1]))
+        if lead:
+            print(f"   *** {work}: {lead} units OPEN with a sentence-final mark — ownership is "
+                  f"off by one and sent_group will be wrong ***")
+
         group = 0
         for _, s in units:
             final = any(t[1] and t[1][-1] in SENT_FINAL for t in s.toks if t[3] == "PUNCT")

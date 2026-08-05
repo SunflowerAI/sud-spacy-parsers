@@ -24,6 +24,13 @@ the component fabricating a join. Then every punctuation mark is reinserted: a *
 a `punct` child of the root of the sentence on its left. A comma therefore stays inside its
 sentence; only a daṇḍa/full stop ends one.
 
+A span between two sentence-final marks may still come out as MORE than one sentence, and that is
+deliberate. `doc.sents` is derived from the tree, so every root the sub-parse produced opens a
+sentence; all of them are kept rather than only the first. On input that carries no boundary cues —
+unpunctuated 白文, the case the punctuated arm is weakest on — the parser's refusal to join two
+clauses is a real signal about the text, and collapsing them under the leading root would discard
+it silently. The sentence-final mark then attaches to the LAST root of the span it closes.
+
 Added as the last pipe: the normal tok2vec/tagger/parser still run once over the whole doc
 (harmless), then this re-parses per sentence and rebuilds the doc with the corrected analysis.
 """
@@ -326,16 +333,23 @@ class ClauseParser:
                               ["Compound=Yes" if cflags[i] else "" for i in content]))
             for p in pipes:
                 sub = p(sub)
-            root = None
+            # EVERY root the sub-parse produced is kept, not just the first. spaCy derives
+            # `doc.sents` from the tree — a self-headed token opens a sentence — so a span the
+            # parser analysed as several independent clauses comes out as several sentences, which
+            # is the intended behaviour: on input carrying no boundary cues (unpunctuated 白文) the
+            # parser declining to join two clauses is information, and silently gluing them under
+            # the first root would throw it away.
+            roots = []
             for j, i in enumerate(content):
                 hj = sub[j].head.i
                 heads[i] = content[hj]
                 deps[i] = sub[j].dep_ or "dep"
                 tags[i] = sub[j].tag_ or tags[i]
                 poss[i] = sub[j].pos_ or poss[i]
-                if hj == j and root is None:
-                    root = i
-            sent_roots.append(root)
+                if hj == j:
+                    roots.append(i)
+            sent_roots.append(roots)
+            root = roots[0] if roots else None
             # Reinsert each medial mark as a `punct` child of the head of the unit on its left.
             # Under `keep_marks` the parser has already attached them, so only the punctuation
             # morphology is imposed — a mark must never carry a content category either way.
@@ -360,7 +374,11 @@ class ClauseParser:
         for pi, left in boundary_puncts:
             tags[pi] = self.punct_tag or punct_tag(doc[pi].text)
             poss[pi] = "PUNCT"
-            anchor = sent_roots[left] if left is not None else None
+            # the LAST root of the span on the left: if that span fragmented into several
+            # sentences, the mark closes the final one, and hanging it off the first would pull a
+            # sentence-final mark back into an earlier sentence.
+            rs = sent_roots[left] if left is not None else None
+            anchor = rs[-1] if rs else None
             if anchor is not None:
                 heads[pi] = anchor
                 deps[pi] = "punct"
