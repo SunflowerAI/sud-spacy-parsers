@@ -30,8 +30,14 @@ from spacy.util import registry
 
 
 @registry.readers("sud.GoldTokCorpus.v1")
-def create_gold_tok_reader(path, max_length: int = 0, limit: int = 0, augmenter=None):
-    return GoldTokCorpus(path, max_length=max_length, limit=limit, augmenter=augmenter)
+def create_gold_tok_reader(path, max_length: int = 0, limit: int = 0, augmenter=None,
+                           shuffle: bool = False):
+    # `shuffle` matters only under `max_epochs = -1`, where spaCy streams the corpus instead of
+    # materialising it once and shuffling in the loop -- which is what an augmenter that must
+    # resample every epoch requires (see scripts/la_augment.py). One doc is one example here, so
+    # shuffling docs is the same shuffle the training loop would otherwise be doing.
+    return GoldTokCorpus(path, max_length=max_length, limit=limit, augmenter=augmenter,
+                         shuffle=shuffle)
 
 
 class GoldTokCorpus(Corpus):

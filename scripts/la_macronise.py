@@ -12,7 +12,7 @@ Purely additive: spaCy tokens are immutable, so nothing here touches ``token.tex
 form is exposed as extensions, and the original ``doc.text`` is untouched:
 
     token._.macron   -- the macronised word form (str; == token.text when nothing was added)
-    token._.macron_level -- which backoff level fired ("L1"/"L2"/"L3"/"M"/"S4"/"S3"/None)
+    token._.macron_level -- which backoff level fired ("L1"/"L2"/"MP"/"L3"/"M"/"S4"/"S3"/None)
     doc._.macron     -- the macronised text, rebuilt with the doc's own whitespace
 
 SHIPPED IN THE RELEASED WHEEL, WITH NO DATA IN IT. The component is part of the Latin model's
@@ -28,11 +28,44 @@ rest, fetched at runtime (see ``fetch_morpheus``):
 
     L1  (form, upos, feats)  the morphologiser disambiguating genuine homographs   } harvested
     L2  (form, upos)                                                               } from the
-    L3  (form)               a bare word list                                      } treebank
+    MP  Morpheus, POS-SPLIT forms only -- jumped ahead of L3, see below            } treebank
+    L3  (form)               a bare word list                                      }
     M   Morpheus, on a nine-slot morphology key with a backoff ladder              } fetched
     S4  (form[-4:], upos, feats)   ending-only; LEGACY, used only when M is absent
     S3  (form[-3:], upos, feats)
     --  otherwise the form is left bare (no macrons invented)
+
+WHY `MP` INTERRUPTS THE CASCADE. L3 answers 90 % of tokens and is keyed on the STRING ALONE, so on a
+word whose vowel length depends on its part of speech it returns the corpus majority and Morpheus --
+which knows the difference -- is never reached: `malus` ADJ and `mālus` NOUN, `liber` "book" and
+`līber` "free", were one question. `build_morpheus_table` marks the 4 094 forms where part of
+speech alone settles the length and settles it DIFFERENTLY per part of speech, and for those, and
+only those, the UPOS-aware answer goes first. Everywhere else the measured order above stands
+untouched.
+
+Three things keep it from doing harm, each of them found by a token it got wrong:
+  * only a DECISIVE rung answers (`rung_mask`), never `mask`'s form-wide majority fallback -- which
+    was giving vocative `canis` the `cānīs` of `cānus`, displacing a correct answer with a worse
+    kind of majority than the one it replaced.
+  * not inside an IDIOM. SUD gives an idiom's head the idiom's part of speech and says so in
+    `ExtPos`, so `satis` in `satis facit` is tagged VERB while the word is still the adverb
+    "enough"; reading that as the word's own POS made it `satīs`.
+  * the two POS-bearing rungs sit at the END of `_RUNGS`, so for a token whose FEATS are full a more
+    specific rung has already answered and nothing changes.
+
+MEASURED. Agreement with Alatius barely moves (gold morphology 97.60 -> 97.59 whole-token; predicted
+97.39 -> 97.34) and that is expected rather than disappointing: Alatius is RFTagger-predicted on
+exactly these hard words, so it is a poor referee here -- of 24 held-out tokens where the new answer
+differs from it, ~18 are ours right and its tagger wrong (`mēnse` not `mēnsē`, the third-declension
+ablative being short; `ūtī` from `ūtor`, not the conjunction `utī`; `capī`, `ācer`, `audīte`). The
+number that decides it takes Morpheus's GOLD-POS answer as the referee, on the 1 516 POS-split test
+tokens that have one:
+
+    old (L3 corpus majority)          86.02 %
+    new (predicted UPOS + FEATS)      92.74 %
+
+and that is with the tagger at its WEAKEST -- its UPOS accuracy on POS-split tokens is 87.92 %
+against 92.35 % overall, since these are precisely the words that are hard to tag.
 
 WHY THE CASCADE, MEASURED. Agreement with Alatius, gold morphology, held-out ITTB+PROIEL test
 (48 792 tokens), split by whether the harvested table has the word at all:
@@ -180,8 +213,12 @@ MORPHEUS_CREDIT = ("Vowel lengths from Morpheus (Perseus Project, CC BY-SA 3.0 U
 # attached to it. The F/K/S PAYLOAD IS UNCHANGED from 1 -- same 249,659 forms, same 480,384 rung
 # keys, same 7,640 suffixes -- which is why `load` accepts both rather than making every existing
 # cache a 4 MB re-download for two strings.
-MORPHEUS_FORMAT = 2
-_MORPHEUS_READABLE = (1, 2)
+# 3 adds the two part-of-speech rungs to K and the `P` list of POS-split forms (see
+# `build_morpheus_table`). A format 1 or 2 cache simply lacks them, so `_POS_SPLIT` is empty, the
+# `MP` level never fires and the cascade is exactly what it was -- readable, just less informed,
+# which is why an existing cache is not forced into a re-download.
+MORPHEUS_FORMAT = 3
+_MORPHEUS_READABLE = (1, 2, 3)
 
 
 def morpheus_path():
@@ -220,7 +257,11 @@ _UD_TENSE = {("Pres", ""): "p", ("Pres", "Imp"): "p", ("Past", "Imp"): "i", ("Pa
 # next, because it is what the tagger most often gets wrong (`cano` came back ADJ and `fortes` VERB
 # on a sample); then gender, which a Latin ending most often leaves ambiguous. A LADDER rather than
 # one exact key, because with one key every mis-tag becomes a total miss instead of a coarser hit.
-_RUNGS = ("012345678", "01245678", "1245678", "124567", "1247", "27")
+# The last two rungs KEEP the part of speech, and sit at the END. For a token whose FEATS are full
+# a more specific rung has already answered, so they change nothing there; they exist so that the
+# table can be asked the one question the ladder above cannot put to it -- "does part of speech
+# alone settle this word?" -- which is what `_POS_SPLIT` below is built from.
+_RUNGS = ("012345678", "01245678", "1245678", "124567", "1247", "27", "027", "0")
 
 
 def _slots(*vals):
@@ -301,7 +342,7 @@ def build_morpheus_table(lines, progress=None):
         if progress and seen % 200000 == 0:
             progress(f"read {seen:,} analyses")
 
-    F, K = {}, {}
+    F, K, P = {}, {}, []
     for wf, by in forms.items():
         masks = set()
         for st in by.values():
@@ -316,6 +357,7 @@ def build_morpheus_table(lines, progress=None):
         F[wf] = max(tally.items(), key=lambda kv: (kv[1], -kv[0]))[0]
         # Every rung that IS decisive for this form -- and only those, so a rung never answers a
         # question it cannot settle.
+        by_pos = {}
         for keep in _RUNGS:
             agg = {}
             for k, st in by.items():
@@ -323,6 +365,17 @@ def build_morpheus_table(lines, progress=None):
             for rk, st in agg.items():
                 if len(st) == 1:
                     K[wf + "\t" + rk] = next(iter(st))
+            if keep == "0":
+                by_pos = agg
+        # A POS-SPLIT form: part of speech alone settles the vowel length, and settles it
+        # DIFFERENTLY for at least two parts of speech -- `malus` ADJ short against `mālus` NOUN
+        # long, `liber` "book" against `līber` "free". For these and only these the form-wide
+        # majority is a coin flip, which is what `_lookup` uses this list to refuse. Groups whose
+        # POS slot is blank are ignored: an unknown part of speech distinguishes nothing.
+        decisive = {rk: next(iter(st)) for rk, st in by_pos.items()
+                    if len(st) == 1 and rk[0] != "-"}
+        if len(decisive) > 1 and len(set(decisive.values())) > 1:
+            P.append(wf)
 
     # SUFFIX levels for a word Morpheus has never seen either. Kept near-unanimous only: a coin toss
     # here would invent macrons, which is worse than leaving the form bare.
@@ -342,9 +395,9 @@ def build_morpheus_table(lines, progress=None):
             if n / tot >= 0.9:
                 S[sk] = best
     if progress:
-        progress(f"compiled {len(F):,} forms")
+        progress(f"compiled {len(F):,} forms, {len(P):,} of them POS-split")
     return {"format": MORPHEUS_FORMAT, "source": "morpheus", "credit": MORPHEUS_CREDIT,
-            "F": F, "K": K, "S": S}
+            "F": F, "K": K, "S": S, "P": sorted(P)}
 
 
 def fetch_morpheus(dest=None, progress=print):
@@ -378,6 +431,8 @@ class Morpheus:
         self.F = table.get("F") or {}
         self.K = table.get("K") or {}
         self.S = table.get("S") or {}
+        #: forms whose vowel length part of speech alone settles, differently per part of speech
+        self.P = frozenset(table.get("P") or ())
 
     @classmethod
     def load(cls, path=None):
@@ -393,6 +448,22 @@ class Morpheus:
             return cls(t)
         except Exception:
             return None
+
+    def rung_mask(self, form, upos, feats):
+        """The mask from a DECISIVE rung only -- no form-wide majority, no suffix guess.
+
+        `mask` below ends by returning `self.F[form]`, the majority across every reading, which is
+        the right last resort when the alternative is nothing. It is the wrong one when the
+        alternative is the harvested L3 level, whose majority at least comes from the treebank being
+        macronised. Vocative `canis` has no rung at all in Morpheus and was taking `cānīs` (the
+        dative-ablative plural of `cānus`) from that fallback, displacing a correct `canis`.
+        """
+        key = ud_key(upos, feats)
+        for keep in _RUNGS:
+            m = self.K.get(form + "\t" + _rung(key, keep))
+            if m is not None:
+                return m
+        return None
 
     def mask(self, form, upos, feats):
         """The long-vowel mask for `form`, or None when nothing answers."""
@@ -479,6 +550,22 @@ class LaMacronise:
         m = self.l2.get((form, upos))
         if m is not None:
             return m, "L2"
+        # L3 answers 90 % of tokens and is keyed on the STRING ALONE, so on a word whose length
+        # depends on its part of speech it returns the corpus majority and Morpheus -- which knows
+        # the difference -- is never reached. That is a coin flip on `malus` ADJ vs `mālus` NOUN,
+        # `liber` "book" vs `līber` "free". `P` is exactly the set of forms where part of speech
+        # settles the question and settles it differently, so for those, and only those, the
+        # UPOS-aware answer goes first. Everywhere else the measured order stands.
+        # ... but NOT inside an idiom. SUD gives an idiom's head the IDIOM's part of speech and
+        # records the fact in `ExtPos`, so in `satis facit` the token `satis` is tagged VERB while
+        # the word is still the adverb "enough" -- reading that UPOS as the word's own turns it into
+        # `satīs`, the dative-ablative plural of a participle. The treebank says so on the token, so
+        # the guard is exact rather than a heuristic.
+        if (self.morpheus is not None and form in self.morpheus.P
+                and not _feat(feats, "ExtPos")):
+            m = self.morpheus.rung_mask(form, upos, feats)
+            if m is not None:
+                return m, "MP"
         m = self.l3.get(form)
         if m is not None:
             return m, "L3"

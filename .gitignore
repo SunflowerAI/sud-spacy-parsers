@@ -129,3 +129,10 @@ corpus_sa_unsandhied.txt
 corpus_sa_lemmas.txt
 vectors_sa_*.vec
 kanripo_repos.txt
+
+# Latin orthography augmenter (scripts/la_orth.py) artefacts, both regenerable:
+#   the glide lexicon -- which `u` spells the consonant, harvested from the v-writing treebanks
+#   (rebuild: scripts/build_la_glide_lut.py; scripts/train_la_aug.sh does it automatically), and
+#   the label sets a streamed corpus has to be handed (rebuild: scripts/train_la_aug.sh labels).
+scripts/la_glide_lut.json.gz
+labels_la_aug*/
