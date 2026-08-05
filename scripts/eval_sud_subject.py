@@ -29,12 +29,37 @@ TEST = {
     "en":  "assets/en_ewt-sud-{split}.relabeled_ext.conllu",
     "zh":  "assets_zh/SUD_Chinese-GSDBoth/zh_gsdboth-sud-{split}.relabeled_ext.conllu",
     "yue": "assets_yue/SUD_Cantonese-HK/yue_hk-sud-{split}.relabeled_ext.conllu",
-    "lzh": "assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-{split}.relabeled_ext.conllu",
+    # lzh: the punctuation-restored, rule-merged generation its released arm trains on.
+    "lzh": "assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-{split}.relabeled_ext.udep_ruled.punct.rulemerged.conllu",
     "fa":  "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-{split}.relabeled_ext.conllu",
     "la":  "assets_la/la_ittbproiel-sud-{split}.relabeled_ext.conllu",
     "sa":  "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{split}.csl_rev.conllu",
 }
 LEMMA_ARM = {"sa": "training_sa_lemma3_noannot/model-best"}
+# Where the TRAINED pipe lives, when it is not training_<lang>_sud.
+SUD_ARM = {"lzh": "training_lzh_rm_sud/model-best"}
+
+# ⚠ lzh's rule arm cannot be `training_lzh_rm_morph` as it stands. `sud_subject_rule` keys on the
+# HEAD LEMMA, and that arm has no lemma layer at all -- lzh replaced its trained lemmatizer with
+# `han_lemma_lut`, which is attached at PACKAGING time. Evaluated on the bare arm the rule matches
+# no frame and scores a flat 0.00, which looks like a finding and is an artefact. So the eval builds
+# the same lemma layer the wheel ships, from the same treebank generation, and evaluates on that.
+LZH_BASE = "training_lzh_rm_morph/model-best"
+LZH_LUT_ARM = "build_lzh_eval_lut"
+LZH_LUT_CONLLU = ("assets_lzh/SUD_Classical_Chinese-Kyoto-Both/"
+                  "lzh_kyotoboth-sud-train.relabeled_ext.udep_ruled.punct.rulemerged.conllu")
+
+
+def lzh_rule_arm():
+    """The lzh arm WITH its lemma layer, built on demand so this needs no manual step."""
+    out = pathlib.Path(LZH_LUT_ARM)
+    if not out.exists():
+        import subprocess
+        print(f"  (building {LZH_LUT_ARM} -- the lemma layer the lzh wheel ships)")
+        subprocess.run([sys.executable, "scripts/han_lemma_lut.py", "--build", LZH_BASE,
+                        str(out), "--conllu", LZH_LUT_CONLLU], check=True,
+                       stdout=subprocess.DEVNULL)
+    return str(out)
 
 
 def sentences(path):
@@ -98,7 +123,7 @@ def main():
 
     print(f"{args.lang} {args.split}   (gold tokens, everything else predicted)")
 
-    trained_dir = f"training_{args.lang}_sud/model-best"
+    trained_dir = SUD_ARM.get(args.lang, f"training_{args.lang}_sud/model-best")
     if pathlib.Path(trained_dir).exists():
         nlp = spacy.load(trained_dir)
         P, R, F, n, sk = score(nlp, rows)
@@ -107,7 +132,8 @@ def main():
     else:
         print(f"  sud_tagger (trained)  -- {trained_dir} missing")
 
-    lemma = LEMMA_ARM.get(args.lang, f"training_{args.lang}_lemma/model-best")
+    lemma = (lzh_rule_arm() if args.lang == "lzh"
+             else LEMMA_ARM.get(args.lang, f"training_{args.lang}_lemma/model-best"))
     if pathlib.Path(lemma).exists():
         nlp = spacy.load(lemma)
         if "sud_subject_rule" in nlp.pipe_names:

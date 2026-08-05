@@ -210,7 +210,9 @@ case $lang in
   zh)  $PY scripts/bundle_zh_charseg.py --out "$work" >/dev/null 2>&1
        pkg zh  "$work" sud_gsd_simp_trad \
             "scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py,scripts/zh_jieba_feature.py" ;;
-       # lzh DOES ship the frame rule for Subject (F 80.7 vs 59.0 trained -- 可/能/欲 carry it),
+       # lzh DOES ship the frame rule for Subject (F 80.0 vs 66.2 trained -- 可/能/欲 carry it;
+       # measured on the rule-merged arm, with the lemma layer the wheel ships -- see
+       # eval_sud_subject.lzh_rule_arm, without which the rule scores a spurious 0.00),
        # and the TRAINED pipe for Shared (58.8 v rule 52.7 v morphologiser 41.3). Both ride on the
        # punctuation-restored, rule-merged arm,
        # so `training_lzh_rm_sud` is that arm plus the Shared pipe -- NOT the pre-punctuation

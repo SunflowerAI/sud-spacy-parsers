@@ -136,3 +136,4 @@ kanripo_repos.txt
 #   the label sets a streamed corpus has to be handed (rebuild: scripts/train_la_aug.sh labels).
 scripts/la_glide_lut.json.gz
 labels_la_aug*/
+build_lzh_eval_lut/

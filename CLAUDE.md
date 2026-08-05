@@ -1024,7 +1024,7 @@ on test by `eval_sud_subject.py`:
     fa       89.5       71.6    trained      38
     la       66.3       53.0    trained     674
     yue      66.7       36.4    trained       6   (not meaningful either way)
-    lzh      59.0       80.7    RULE        174
+    lzh      66.2       80.0    RULE        174
     zh       27.7       31.6    NEITHER     302
     sa       10.5       12.5    NEITHER      14   (142 train instances)
 
@@ -1193,7 +1193,16 @@ and la is precisely where the trained arm lost to the rule. Retrained ALONE
 comparison rather than a handicapped one. **No other decision turns on this** — the same gap is
 ≤ 2.9 everywhere else (zh 2.27, yue 2.85, sa 2.79, lzh 1.88, en 1.01, ar 0.53, fa 0.06), and the
 single-feature id/ko arms have none by construction. `graft_pipe.py` puts a solo-trained pipe back
-into a multi-feature arm, checking first that the two share a base.
+into a multi-feature arm, checking first that the two share a base (it refuses when the frozen
+components differ, so a pipe cannot be fed a different model's predictions).
+
+**But a dev-F gap is not a test-F gain, and the one time it was checked it went the other way.**
+After the lzh arm was rebuilt on the right chain its own gap fell to 0.09, leaving en the largest at
+1.01. Trained solo, en's `Shared` reached dev 61.55 against the combined arm's 59.99 — and **test
+62.23 against 62.62**. So the combined-arm checkpoint was the better model on held-out data, the
+graft was not made, and no arm now carries a gap worth acting on (en 1.01, ar 0.53, lzh 0.09,
+fa 0.06, id/ko 0 by construction). Retrain solo when a gap is large enough to change a DECISION, as
+la's was; not to chase a point of dev F.
 
 `sud.HeadDepsTagger.v1` wins because the evidence is not linear at any width: what matters is which
 token is my head and what else hangs off it, which `[own | head | mean of dependents]` reads
@@ -1217,8 +1226,12 @@ Fixed in `make_sud_config.py`; all arms retrained. What it moved, end-to-end on 
     Reported  fa 40.0 -> 46.15 (structural, the one shipped)   ar 46.7 -> 45.98   sa 58.0 -> 52.17
     Subject   lzh 59.0 -> 68.83   en 80.0 -> 82.01   fa 89.5 -> 90.67   la 66.3 -> 62.60
 
-**Every ship decision survives** (lzh still prefers its `Subject` rule at 75.82; ar/sa/en still prefer
-their `Reported` rules). The `Subject` moves are seed noise, not the fix — that pipe uses the default
+**Every ship decision survives** (lzh still prefers its `Subject` rule at 80.0 against 66.2; ar/sa/en
+still prefer their `Reported` rules).
+⚠ **lzh's `Subject` rule cannot be scored on the bare `training_lzh_rm_morph`** — it keys on the head
+LEMMA and that arm has no lemma layer, since lzh's is attached at packaging (`han_lemma_lut`). Doing
+so returns a flat 0.00, which reads as a finding and is an artefact. `eval_sud_subject.lzh_rule_arm`
+builds the same lemma layer the wheel ships, on demand, and evaluates against that. The `Subject` moves are seed noise, not the fix — that pipe uses the default
 encoder and reads nothing structural, and model init here is unseeded.
 
 **fa now SHIPS its `Reported` layer**, reversing an earlier decision (user decision, 2026-08-05).
@@ -1272,7 +1285,11 @@ gitignored). Rebuild a custom-code wheel with
   contexts (wheel / `seg_code.py` / `spacy package`).
 - **Declare runtime requirements in `meta.json`** before packaging. The ja wheel once required only
   `spacy>=3.8.14` and hit an ImportError on every load; zh now declares `jieba>=0.42.1`, yue
-  `spacy-pkuseg`.
+  `spacy-pkuseg`, and **ar `camel-tools>=1.5.2`** — its tokeniser raises at LOAD time, so before this
+  a plain `pip install ar_sud_padt` produced a model that could not be opened. Per-language
+  requirements now live in `stamp_model_meta.py`, which already runs for every arm at packaging.
+  The `camel_data -i …` download still has to be run by hand: a data fetch is not expressible as a
+  pip dependency, so this reduces the missing pieces from two to one rather than to none.
 - **Training-only imports must not be module-scope in a bundled file.** `sa_presegment` importing
   `sa_tokenizer`, and `sa_presegment_lex` importing `eval_samhita`, both broke the zh wheel.
 - **A component that silently loses an input must refuse to load.** `bundle_zh_charseg.py` REFUSES

@@ -25,6 +25,19 @@ URL = "https://github.com/SunflowerAI/sud-spacy-parsers"
 LICENSE = {"la": "CC BY-NC-SA 4.0"}
 DEFAULT_LICENSE = "CC BY-SA 4.0"
 
+# Runtime imports a wheel needs beyond spaCy, declared here so `pip install` yields a model that
+# LOADS. Getting this wrong is a known failure in this project: the ja wheel once required only
+# `spacy` and hit an ImportError on every load. ja/yue/zh already declare theirs elsewhere (spaCy's
+# own `ja` extras, bundle_yue_pkuseg, bundle_zh_charseg); ar had nothing, and its tokeniser raises
+# at load time, so `pip install ar_sud_padt` produced a model that could not be opened.
+#
+# `camel_data` still has to be run by hand -- a data download is not expressible as a pip
+# dependency, and the component says so in its own error. Declaring the LIBRARY at least reduces
+# that from two missing pieces to one.
+REQUIREMENTS = {
+    "ar": ["camel-tools>=1.5.2"],
+}
+
 SOURCES = {
     "lzh": [
         {"name": "SUD_Classical_Chinese-Kyoto", "license": "CC BY-SA 4.0",
@@ -50,10 +63,15 @@ def main():
     m["url"] = URL
     if args.lang in SOURCES:
         m["sources"] = SOURCES[args.lang]
+    if args.lang in REQUIREMENTS:
+        # union, never replace: bundle_zh_charseg / bundle_yue_pkuseg write theirs the same way,
+        # and this may run either side of them.
+        m["requirements"] = sorted(set(m.get("requirements") or []) | set(REQUIREMENTS[args.lang]))
     if args.description:
         m["description"] = args.description
     p.write_text(json.dumps(m, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"{args.model_dir}: license={m['license']} sources={[s['name'] for s in m.get('sources', [])]}")
+    print(f"{args.model_dir}: license={m['license']} sources={[s['name'] for s in m.get('sources', [])]}"
+          f" requirements={m.get('requirements') or []}")
 
 
 if __name__ == "__main__":
