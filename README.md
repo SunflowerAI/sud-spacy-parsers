@@ -229,6 +229,28 @@ dependency and XPOS output is unchanged from the parsing-only release — UPOS, 
 purely added annotation layers. The lemmatiser is a trainable edit-tree lemmatiser trained on the
 treebank's `LEMMA` column.
 
+### SUD's own annotation layer
+
+Nine of the eleven models (all but `zh` and `ko`) also predict SUD features that have no home in a
+spaCy `Doc`. They go on the extension `token._.sud_misc`, a dict: `Idiom`/`InIdiom`, `Subject`,
+`Reported`, `Shared`. Which of them a given model carries is decided per language by measurement, so
+read `nlp.pipe_names` — a `sud_*` pipe is there only where it beat the alternatives.
+
+```python
+doc = nlp("He bought a book and read it in the garden.")
+print([(t.text, t._.sud_misc) for t in doc if t._.sud_misc])
+# [('He', {'Shared': 'Yes'}), ('it', {'Shared': 'No'}), ('in', {'Shared': 'No'})]
+# "He" is the subject of both conjuncts; "it" and "in the garden" belong to the second alone.
+```
+
+⚠ **`Shared` is not in `token.morph`** on a model whose pipeline lists `sud_shared` or
+`sud_shared_rule` (`en`, `fa`, `ar`, `id`, `lzh`, `la`). The treebanks put that feature in FEATS, so
+the morphologiser learned it there and still emits it on the models that carry neither pipe — but
+where one ships it owns the feature and clears the morphologiser's value, so a token has exactly one
+answer rather than two that disagree. `sud_misc.feats_string(token)` renders it back into a FEATS
+cell for a CoNLL-U writer, and `sud_misc.misc_string(token)` does the same for the other four keys,
+which belong in column 10.
+
 A small local web tester is in `webapp/` (`python webapp/server.py`, then open the printed URL);
 it loads whichever model wheels you have installed.
 
