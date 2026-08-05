@@ -56,7 +56,20 @@ def main():
     config = {"punct_tag": args.punct_tag, "sent_scheme": args.sent_scheme}
     if args.sent_punct is not None:
         config["sent_punct"] = args.sent_punct
-    nlp.add_pipe("clause_parser", config=config)
+    # clause_parser MUST come before every `sud_*` pipe. It reassigns every head and deprel, so a
+    # pipe that reads the tree -- `sud_shared`'s coordination mask, `sud_idiom`'s `unk` chains,
+    # the subject/reported rules -- has to see the tree it leaves behind rather than the whole-doc
+    # parse it discards; and it rebuilds the Doc, which can drop annotation written before it.
+    #
+    # Appending used to be enough because the arm being wrapped had no sud pipes yet, and the
+    # invariant held by accident of ordering. It stopped holding the moment lzh started taking a
+    # TRAINED arm as its base (for `sud_shared`) -- the pipeline came out with sud_shared first,
+    # which builds and loads and says nothing. Position it explicitly instead.
+    sud_pipes = [n for n in nlp.pipe_names if n.startswith("sud_")]
+    if sud_pipes:
+        nlp.add_pipe("clause_parser", config=config, before=sud_pipes[0])
+    else:
+        nlp.add_pipe("clause_parser", config=config)
     nlp.to_disk(args.out_model)
     print(f"{args.out_model}: pipeline {nlp.pipe_names}")
 

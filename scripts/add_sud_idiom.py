@@ -59,6 +59,9 @@ def main():
     load_code("sud_subject_rule.py", required=False)
     load_code("sud_reported_data.py", required=False)
     load_code("sud_reported_rule.py", required=False)
+    load_code("sud_shared_data.py", required=False)
+    load_code("sud_shared_frames.py", required=False)
+    load_code("sud_shared_rule.py", required=False)
     # the arm may itself need its custom tokenizer / clause_parser registered to load at all
     try:
         import seg_code  # noqa: F401

@@ -1,6 +1,41 @@
 #!/bin/bash
-# Package the SUD-MISC-equipped wheels: the lemma arms plus SUD's own MISC layer
-# (Idiom / InIdiom / Subject / Reported) on Token._.sud_misc.
+# Package the SUD-annotation-equipped wheels: the lemma arms plus SUD's own layer
+# (Idiom / InIdiom / Subject / Reported / Shared) on Token._.sud_misc.
+#
+# `Shared` is the one key the treebanks put in FEATS rather than MISC, so the released
+# morphologisers have been predicting it all along inside their FEATS bundles -- badly, because a
+# local encoder over word forms cannot see the coordination the feature is about. A pipe that takes
+# it over therefore has to BEAT that, not merely exist, and it deletes the morphologiser's value
+# from `token.morph` when it ships (clear_morph) so the wheel has one answer rather than two.
+#
+# Test, end to end over gold tokens (scripts/eval_sud_shared.py). "mask" is the share of gold that
+# the coordination candidate mask reaches on a PREDICTED parse -- a ceiling on rule and trained
+# alike, and the single number that predicts the whole table:
+#
+#     lang   mask   morph   rule   trained   ships
+#     fa     80.2    27.1   58.3     67.7    trained
+#     en     70.6    24.7   55.1     62.6    trained
+#     lzh    62.7    45.2   54.3     59.6    trained
+#     ar     60.2    37.8   52.6     54.6    trained
+#     id     57.1    36.1   49.1     53.6    trained
+#     la     45.0     8.3   35.9     35.1    RULE     (trained solo; 30.1 in the 3-feature arm)
+#     ko     37.6    11.3   28.6     32.5    NEITHER  (P 40.1)
+#     zh     32.7    37.5   29.1     31.5    NEITHER -- the MORPHOLOGISER wins, uniquely
+#     yue    28.4     6.7   16.0     21.5    NEITHER  (P 27.7, n=74)
+#     sa     17.3     8.6    9.4      3.8    NEITHER
+#
+# TWO DIFFERENT TESTS, and conflating them is a mistake worth not repeating. Whether to ship
+# ANYTHING is a precision question -- an annotation wrong more often than right is worse than none,
+# which is what kept `Subject` out of the zh wheel. WHICH ARM to ship, once both clear that, is
+# decided on F, as every other choice in this layer is (lzh's Subject rule at 75.8 over 68.8;
+# ar/sa/en's Reported rules). An earlier draft applied the precision floor as a tiebreaker and
+# shipped la's trained pipe over its higher-F rule; that was wrong, and la ships the rule.
+# Where nothing ships, the morphologiser's FEATS value is LEFT ALONE -- for zh that is the best arm
+# available, and for ko/yue/sa it is merely the status quo.
+#
+# The mask column also explains the failures, and it is a fact about the PARSER, not the language:
+# the mask is defined over the coordination, so a treebank whose conjuncts are recovered poorly
+# (sa at LAS ~0.51 reaches 17 % of its own gold) starves both arms of the cases they exist for.
 #
 # WHICH ARM PER LANGUAGE IS AN EMPIRICAL CHOICE, not a uniform recipe. Measured end-to-end on
 # test (scripts/eval_sud_subject.py; gold tokens, everything else predicted), `Subject` F is:
@@ -31,6 +66,8 @@ PY=.venv/bin/python
 CODE_BASE="scripts/sud_misc.py,scripts/sud_idiom.py"
 # arms that also ship the Reported rule (en/ar/sa -- see the table below)
 CODE_REP="$CODE_BASE,scripts/sud_reported_data.py,scripts/sud_reported_rule.py"
+# every arm carrying a trained sud_shared pipe needs the candidate mask it looks up by name
+CODE_SHARED="scripts/sud_shared_data.py"
 
 pkg() {  # $1=lang  $2=src model dir  $3=--name value  $4=comma-separated --code files (no flag)
   local lang=$1 src=$2 name=$3 code=""
@@ -50,7 +87,10 @@ add_idiom() { $PY scripts/add_sud_idiom.py "$1" "$2" >/dev/null 2>&1; }
 for lang in "$@"; do
   # Base arm: the trained SUD arm where it won, else the released lemma arm.
   case $lang in
-    en|fa|la|yue) base=training_${lang}_sud/model-best ;;
+    # ar/lzh/id joined this list when `Shared` did: their Subject/Reported layers ship as RULES,
+    # so before that they had no reason to take the trained arm at all. The unwanted trained pipes
+    # are dropped below, so no dead weights travel.
+    en|fa|la|yue|ar|lzh|id) base=training_${lang}_sud/model-best ;;
     # sa ships the JOINT MULTI-TASK arm: ONE shared encoder for tagger + parser + morphologizer +
     # lemmatizer, instead of the three-encoder freeze recipe every other arm uses. 25.85 -> 19.16 MB
     # (-25.9 %), tag/pos/morph/lemma each +0.3 to +0.7, and on HELD-OUT UFAL (classical prose, the
@@ -74,19 +114,31 @@ for lang in "$@"; do
     *)            base=training_${lang}_lemma/model-best ;;
   esac
   work=build_sud/work_$lang
-  rm -rf "$work" && mkdir -p build_sud
+  # Clear the INTERMEDIATES too ("$work".rep/.idiom/.mac/...), not just $work. `nlp.to_disk` writes
+  # the pipes it has and leaves any other subdirectory alone, so a stale `sud_shared/` from a run
+  # when that pipe still shipped survives into the next one -- dead weights in the wheel, and a
+  # spurious "WEIGHTS CHANGED" from la's --verify, which walks the source tree rather than the
+  # pipeline. Found when la switched from the trained pipe to the rule.
+  rm -rf "$work" "$work".* && mkdir -p build_sud
 
 case $lang in
   en)  $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang en >/dev/null 2>&1
        add_idiom "$work.rep" "$work"
-       pkg en  "$work" sud_ewt   "$CODE_REP,scripts/sud_tagger.py" ;;
+       pkg en  "$work" sud_ewt   "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py" ;;
        # fa/la ship NO Reported layer. fa's structural arm does beat its rule (F 40.0 vs 23.5,
        # because fa's gold is 87% LLM-decided and the rule can only reach recall 0.13) -- but at
        # P 0.50 half of what it emits is wrong, which is not worth shipping. la is worse still:
        # F 17.7 by rule, 0.0 trained, a four-deep chain of predicted lemma/deprel/VerbForm/Mood.
        # Both keep the Subject layer and the idiom layer.
-  fa)  $PY scripts/add_sud_idiom.py "$base" "$work" --drop sud_reported >/dev/null 2>&1
-       pkg fa  "$work" sud_perdt "$CODE_BASE,scripts/sud_tagger.py" ;;
+       # fa NOW SHIPS its Reported layer (the STRUCTURAL trained pipe), reversing the earlier
+       # decision. That decision rested on P 0.50 -- "half of what it emits is wrong" -- measured
+       # before the annotating_components fix, when tok2vec was missing and every structural pipe
+       # trained on a degenerate parse. Retrained: F 46.15 at P 54.55, against its own rule's
+       # F 23.53. It stays the one arm where the trained pipe beats the rule for this feature,
+       # because fa's Reported gold is 87 % LLM-decided and a rule can only reach the 13 % it
+       # committed itself (rule P 1.00, R 0.13).
+  fa)  add_idiom "$base" "$work"
+       pkg fa  "$work" sud_perdt "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py" ;;
        # la additionally ships `la_macronise` IN THE PIPELINE, with NO lookup table (--no-lut): the
        # vowel lengths are Morpheus-derived (CC BY-SA 3.0 US) and this wheel is CC BY-NC-SA, so the
        # data cannot travel with it -- but the COMPONENT can, and it starts macronising the moment
@@ -104,18 +156,28 @@ case $lang in
        # end-to-end: TOK 98.25 -> 99.70, UAS 62.97 -> 65.19, LAS 51.31 -> 53.35; ITTB+PROIEL
        # unchanged. It goes LAST because it is the one step that rewrites [nlp.tokenizer] in the
        # config, and it re-verifies the reload rather than trusting `to_disk`.
-  la)  $PY scripts/add_sud_idiom.py "$base" "$work.idiom" --drop sud_reported >/dev/null 2>&1
+       # la ships the RULE for Shared (F 35.85 v 35.10 trained). It is the one language where the
+       # two are level, and the trained pipe was RETRAINED ALONE before the comparison was trusted:
+       # in the three-feature arm `model-best` is picked on the mean of Subject/Reported/Shared, and
+       # la's Shared peaked at dev 37.34 while the saved epoch held 31.90 -- chosen for Subject's
+       # sake. Trained solo it reaches dev 35.91 and test 35.10, and still does not beat the table.
+       # No other language's decision turns on this: the same gap is <= 2.9 everywhere else.
+  la)  $PY scripts/add_sud_shared_rule.py "$base" "$work.shrule" --lang la --drop-trained \
+            >/dev/null 2>&1
+       $PY scripts/add_sud_idiom.py "$work.shrule" "$work.idiom" --drop sud_reported >/dev/null 2>&1
        $PY scripts/add_la_macronise.py "$work.idiom" "$work.mac" --no-lut \
-            --code sud_tagger.py,sud_misc.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py \
+            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py \
             >/dev/null 2>&1
        $PY scripts/add_la_enclitic_tokenizer.py "$work.mac" "$work" --verify \
-            --code sud_tagger.py,sud_misc.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,la_macronise.py \
+            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,la_macronise.py \
             || { echo "  la: enclitic tokeniser swap FAILED — skip"; continue; }
        pkg la  "$work" sud_ittb_proiel_perseus \
-            "$CODE_BASE,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py" ;;
+            "$CODE_BASE,$CODE_SHARED,scripts/sud_shared_frames.py,scripts/sud_shared_rule.py,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py" ;;
+       # ar now takes the TRAINED arm as its base (for sud_shared); add_sud_reported_rule drops
+       # the trained sud_reported it also carries, since ar ships the Reported RULE (73.5 v 46.0).
   ar)  $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang ar >/dev/null 2>&1
        add_idiom "$work.rep" "$work"
-       pkg ar  "$work" sud_padt  "$CODE_REP,scripts/ar_tokenizer.py" ;;
+       pkg ar  "$work" sud_padt  "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py,scripts/ar_tokenizer.py" ;;
   ja)  add_idiom "$base" "$work"
        pkg ja  "$work" sud_gsd   "$CODE_BASE" ;;
        # zh ships NO Subject layer: trained F 27.7 / rule 31.6 on test, both too weak to be worth
@@ -130,12 +192,14 @@ case $lang in
   zh)  $PY scripts/bundle_zh_charseg.py --out "$work" >/dev/null 2>&1
        pkg zh  "$work" sud_gsd_simp_trad \
             "scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py,scripts/zh_jieba_feature.py" ;;
-       # lzh DOES ship the frame rule (F 80.7 vs 59.0 trained -- 可/能/欲 carry it).
+       # lzh DOES ship the frame rule for Subject (F 75.8 vs 68.8 trained -- 可/能/欲 carry it),
+       # and the TRAINED pipe for Shared (59.6 vs 54.3). So it takes the trained arm as its base
+       # and drops only sud_subject; sud_shared stays.
   lzh) $PY scripts/add_clause_parser.py "$base" "$work.seg" >/dev/null 2>&1
        $PY scripts/add_sud_subject_rule.py "$work.seg" "$work.rule" --lang lzh >/dev/null 2>&1
-       add_idiom "$work.rule" "$work"
+       $PY scripts/add_sud_idiom.py "$work.rule" "$work" --drop sud_subject >/dev/null 2>&1
        pkg lzh "$work" sud_kyoto \
-            "$CODE_BASE,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py" ;;
+            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py" ;;
        # sa: Subject is too sparse to ship (142 train / 14 test); the idiom layer still applies.
        # sa_compound must stay FIRST (the encoder reads MORPH); clause_parser before sud_idiom.
        # sa: the whole front end (CSLiser + de-CSLizer + de-sandhifier + Devanagari rendering)
@@ -149,20 +213,32 @@ case $lang in
        add_idiom "$work.rep" "$work"
        pkg sa  "$work" sud_vedic_ufal_dcs \
             "$CODE_REP,scripts/sa_tokenizer.py,scripts/clause_parser.py,scripts/sa_presegment.py,scripts/sud_unsandhi.py,scripts/sud_affix_embed.py,scripts/sa_devanagari.py" ;;
-  yue) $PY scripts/bundle_yue_pkuseg.py --src "$base" --out "$work.pkuseg" >/dev/null 2>&1
+       # yue ships NO Shared layer: trained F 21.5 at P 27.7 on 74 test tokens, with the candidate
+       # mask reaching 28.4 % of gold. The trained pipe is DROPPED rather than left in place, so
+       # the wheel carries no weights it never uses -- and so `Shared` keeps coming out of the
+       # morphologiser's FEATS, since nothing here is good enough to take it over.
+  yue) $PY scripts/drop_pipes.py "$base" "$work.noshared" sud_shared >/dev/null 2>&1
+       $PY scripts/bundle_yue_pkuseg.py --src "$work.noshared" --out "$work.pkuseg" >/dev/null 2>&1
        pkg yue "$work.pkuseg" sud_hk \
-            "$CODE_BASE,scripts/yue_tokenizer.py,scripts/sud_tagger.py" ;;
-       # id/ko annotate none of the four keys, so they are unchanged from package_lemma.sh.
-       # id packages from build_id_charseg, NOT from the generic training_id_lemma fallback. The
-       # released tokeniser is the treebank-trained character segmenter with the enclitics SPLIT
-       # (`-nya` gets its own mod@poss), which lives in the training_id_split_* chain; the plain
-       # `base` above still points at the older COARSENED arm, whose tokenizer is spacy.Tokenizer.v1.
-       # Pointing at the wrong dir is exactly how the v0.1.0 id wheel shipped a generation stale
-       # while CLAUDE.md described the split arm as released -- audited 2026-08-04.
-  id)  $PY scripts/add_id_lemma_case_fix.py build_id_charseg "$work" >/dev/null 2>&1
+            "$CODE_BASE,$CODE_SHARED,scripts/yue_tokenizer.py,scripts/sud_tagger.py" ;;
+       # id annotates none of Idiom/Subject/Reported, but it DOES annotate Shared, so it now
+       # carries a SUD layer for the first time (F 53.6 trained vs 49.1 rule vs 36.1 morph).
+       # `base` is training_id_sud, itself sourced from the SPLIT chain (char segmenter, enclitics
+       # separated) -- not the older COARSENED training_id_lemma. Pointing at the wrong dir is
+       # exactly how the v0.1.0 id wheel shipped a generation stale while CLAUDE.md described the
+       # split arm as released (audited 2026-08-04), so the arm is chosen in src_model()/here and
+       # not left to a fall-through.
+       # The segmenter is NOT in the trained arm: `sud.CharSegTokenizer.v1` builds with no model,
+       # so it has to be loaded in again downstream of training (bundle_id_charseg.py, which
+       # verifies the RELOAD rather than the in-memory object).
+  id)  $PY scripts/bundle_id_charseg.py "$base" "$work.seg" >/dev/null 2>&1 \
+            || { echo "  id: charseg bundling FAILED — skip"; continue; }
+       $PY scripts/add_id_lemma_case_fix.py "$work.seg" "$work" >/dev/null 2>&1
        pkg id  "$work" sud_gsd \
-            "scripts/id_lemma_case_fix.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py" ;;
-  # (ko takes no --code at all)
+            "$CODE_SHARED,scripts/sud_misc.py,scripts/sud_tagger.py,scripts/id_lemma_case_fix.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py" ;;
+       # ko ships NO Shared layer: trained F 32.5 at P 40.1, i.e. wrong three times in five, and
+       # the candidate mask reaches only 37.6 % of its own gold. Same call as zh's Subject.
+       # (ko takes no --code at all)
   ko)  pkg ko  "$base" sud_gsd "" ;;
   *) echo "  unknown lang: $lang" ;;
 esac

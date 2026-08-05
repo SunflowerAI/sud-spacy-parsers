@@ -15,6 +15,11 @@ import spacy
 import char_seg_tokenizer  # noqa: F401 — the id arm's tokenizer is sud.CharSegTokenizer.v1;
 import sud_affix_embed     # noqa: F401   without these spacy.load raises E893
 import gold_tok_corpus     # noqa: F401
+# The id arm now also carries a trained `sud_shared` pipe, so its factory has to be registered
+# here too or spacy.load raises E002 before this script gets to do anything.
+import sud_misc            # noqa: F401
+import sud_shared_data     # noqa: F401
+import sud_tagger          # noqa: F401
 
 
 def load_code(path):

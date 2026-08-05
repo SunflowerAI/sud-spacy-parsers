@@ -41,7 +41,8 @@ for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            # registers sud.SamplingCorpus.v1 — rebalance by SAMPLING rather than
            # duplicating docs, which inflates the parser's workload 10x
            "sampling_corpus.py",
-           # sud_misc first: sud_tagger imports it. (sud_idiom is packaging-time only and needs
-           # no registration here, as with id_lemma_case_fix.)
-           "sud_misc.py", "sud_tagger.py"):
+           # sud_misc first: sud_tagger imports it. sud_shared_data holds the coordination
+           # candidate mask, which sud_tagger looks up by name. (sud_idiom is packaging-time only
+           # and needs no registration here, as with id_lemma_case_fix.)
+           "sud_misc.py", "sud_shared_data.py", "sud_tagger.py"):
     _load(_f)

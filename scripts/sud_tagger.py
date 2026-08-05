@@ -36,7 +36,16 @@ TWO THINGS THAT ARE EASY TO GET WRONG:
 2. Gold arrives through FEATS, not MISC. `spacy convert` discards MISC, so `hoist_sud_gold.py`
    copies the gold into the FEATS column under a `Sud` prefix (`SudSubject=SubjRaising`). This
    pipe reads only `Sud`-prefixed keys -- it therefore cannot train on a genuine morphological
-   feature by accident -- and at inference writes to MISC (`Token._.sud_misc`), never to FEATS.
+   feature by accident -- and at inference writes to the slot (`Token._.sud_misc`), never to
+   `token.morph`.
+
+`clear_morph` is the one exception to that last point, and it exists for `Shared`. Unlike the
+other SUD keys, `Shared` is a FEATS feature in the treebanks, so the morphologiser has been
+learning it all along as part of its FEATS bundles -- badly (en test P 0.68 / R 0.15; `Shared=Yes`
+correct 4 times in 247), because a small local encoder over word forms cannot see the coordination
+the feature is about. With `clear_morph = true` this pipe DELETES its own feature from
+`token.morph` before writing the slot, so the arm has exactly one answer for it instead of two
+contradictory ones. Set it only where this pipe genuinely takes a FEATS feature over.
 
 Load with `spacy ... --code scripts/seg_code.py` (which imports this module).
 """
@@ -90,6 +99,27 @@ get_misc = sud_misc.get_misc
 
 # The explicit negative class. See note 1 in the module docstring: it must not be "".
 NEG = "O"
+
+
+# --------------------------------------------------------------------------------------------
+# Candidate masks. A mask says WHERE in the doc the feature's question is even asked; outside it
+# the answer is `O` by construction, and the pipe neither predicts nor takes gradient.
+#
+# This is the same move `sud_reported_gold` makes with its `clausal` flag -- a speech verb also
+# takes ordinary nominal objects, and letting those reach the model wastes it on cases that have
+# no answer. For `Shared` the effect is larger, because the mask is not a filter on a minority: it
+# cuts English train from 204 578 tokens to 15 499, of which 63 % carry the feature. Without it
+# the pipe is choosing `O` 95 times in 100 and learns to say `O`.
+#
+# A mask is named in the config rather than passed as a function so it serialises with the model.
+# --------------------------------------------------------------------------------------------
+def _coordination_mask(doc):
+    """Dependents of a conjunct that lie outside the coordination -- see sud_shared_data."""
+    data = _sibling("sud_shared_data")
+    return {i for i, _position in data.doc_candidates(doc)}
+
+
+MASKS = {"coordination": _coordination_mask}
 
 # Same encoder as every other added layer in this project (morphologiser, lemmatiser): a small
 # DEDICATED HashEmbedCNN rather than a listener on the frozen shared tok2vec, so the frozen
@@ -154,8 +184,9 @@ def _hoisted(token, feat):
     return values[0] if values else ""
 
 
-def make_sud_tagger(nlp, name, model, feat, overwrite):
-    return SudTagger(nlp.vocab, model, name, feat=feat, overwrite=overwrite)
+def make_sud_tagger(nlp, name, model, feat, overwrite, clear_morph, mask):
+    return SudTagger(nlp.vocab, model, name, feat=feat, overwrite=overwrite,
+                     clear_morph=clear_morph, mask=mask)
 
 
 # Guarded, like clause_parser's: loading two models in one process -- or a wheel that imports this
@@ -167,6 +198,8 @@ if not Language.has_factory("sud_tagger"):
             "feat": "Subject",
             "model": DEFAULT_SUD_MODEL,
             "overwrite": True,
+            "clear_morph": False,
+            "mask": "",
         },
         default_score_weights={},
     )(make_sud_tagger)
@@ -175,16 +208,42 @@ if not Language.has_factory("sud_tagger"):
 class SudTagger(Tagger):
     """Predict one SUD MISC feature per token and write it to `Token._.sud_misc`."""
 
-    def __init__(self, vocab, model, name="sud_tagger", *, feat="Subject", overwrite=True):
+    def __init__(self, vocab, model, name="sud_tagger", *, feat="Subject", overwrite=True,
+                 clear_morph=False, mask=""):
         super().__init__(vocab, model, name, overwrite=overwrite,
                          scorer=make_sud_scorer(feat))
         # `feat` lives in cfg so it is serialised with the component and survives save/load --
-        # the annotation would silently go to the wrong key otherwise.
+        # the annotation would silently go to the wrong key otherwise. Same for `clear_morph` and
+        # `mask`: a reloaded model that forgot either would quietly change what it emits, and
+        # nothing would raise.
         self.cfg["feat"] = feat
+        self.cfg["clear_morph"] = clear_morph
+        self.cfg["mask"] = mask
+        if mask and mask not in MASKS:
+            raise ValueError(f"unknown mask {mask!r}; known: {sorted(MASKS)}")
 
     @property
     def feat(self):
         return self.cfg["feat"]
+
+    def _mask(self, doc):
+        """Indices where this pipe may answer, or None when it may answer anywhere."""
+        name = self.cfg.get("mask") or ""
+        return MASKS[name](doc) if name else None
+
+    def _clear_morph(self, token):
+        """Delete this pipe's feature from `token.morph` (see `clear_morph` in the docstring).
+
+        Only touches a token that actually carries the key, and unsets MORPH entirely rather than
+        stamping an empty one when nothing is left: `set_morph({})` yields morph key 456 and an
+        untouched token key 0, both of which render as `''`, so the difference is invisible to
+        every string-level check but not to an encoder that reads MORPH. That distinction has
+        already cost this project 6.8 LAS once (see CLAUDE.md).
+        """
+        if not token.morph.get(self.feat):
+            return
+        rest = {k: v for k, v in token.morph.to_dict().items() if k != self.feat}
+        token.set_morph(rest or None)
 
     def _gold_labels(self, eg):
         """Per predicted token: the gold label, or None where alignment is not 1:1.
@@ -196,9 +255,15 @@ class SudTagger(Tagger):
         """
         align = eg.alignment.x2y
         reference = eg.reference
+        mask = self._mask(eg.predicted)
         out = []
         for token in eg.predicted:
-            if align.lengths[token.i] != 1:
+            if align.lengths[token.i] != 1 or (mask is not None and token.i not in mask):
+                # Outside the mask is `None`, i.e. MISSING, not `O`: the answer there is fixed by
+                # construction, so training on it would spend the model's capacity learning to
+                # reproduce a rule it is already being given. The cost is a recall ceiling -- the
+                # mask misses 7.1 % of English gold `Shared` -- which is why it is worth measuring
+                # against the unmasked arm rather than assuming.
                 out.append(None)
                 continue
             gold_token = reference[align[token.i][0]]
@@ -209,12 +274,18 @@ class SudTagger(Tagger):
         if isinstance(docs, Doc):
             docs = [docs]
         labels = self.labels
+        clear = self.cfg.get("clear_morph", False)
         for i, doc in enumerate(docs):
             doc_tag_ids = batch_tag_ids[i]
             if hasattr(doc_tag_ids, "get"):
                 doc_tag_ids = doc_tag_ids.get()
+            mask = self._mask(doc)
             for j, tag_id in enumerate(doc_tag_ids):
                 label = labels[tag_id]
+                if mask is not None and j not in mask:
+                    label = NEG        # outside the mask the answer is fixed, not predicted
+                if clear:
+                    self._clear_morph(doc[j])
                 set_misc(doc[j], self.feat, None if label == NEG else label)
 
     def get_loss(self, examples, scores):
@@ -296,9 +367,21 @@ CLOSED_CLASS = frozenset(("PUNCT", "PART", "ADP", "SCONJ", "CCONJ", "DET",
                           "AUX", "PRON", "INTJ", "ADV"))
 
 
+def _parsed(doc):
+    """Whether the tree slices can be read at all.
+
+    `Token.children` walks the parser's own left/right kid pointers, and on a doc that carries NO
+    parse those are uninitialised -- reading them SEGFAULTS, with no Python-level error to catch.
+    That is not a hypothetical: `initialize` samples `example.x`, which the corpus readers build
+    from gold words alone, and `annotating_components` only runs during the training loop, so the
+    very first thing this layer ever sees is an unparsed doc. Guard, do not assume.
+    """
+    return doc.has_annotation("DEP")
+
+
 def _pool_indices(doc, mode, xp):
     """Per token, the indices whose vectors get averaged into the third slice."""
-    if mode == "none":            # diagnostic: no tree information at all
+    if mode == "none" or not _parsed(doc):   # "none" is the diagnostic: no tree information
         return [xp.zeros((0,), dtype="i") for _ in doc]
     out = []
     for t in doc:
@@ -340,7 +423,7 @@ def _head_deps_forward(model, docs, is_train):
             metas.append((None, None, 0, w))
             continue
         mode = model.attrs["pool"]
-        heads = (xp.arange(n, dtype="i") if mode == "none"
+        heads = (xp.arange(n, dtype="i") if mode == "none" or not _parsed(doc)
                  else xp.asarray([t.head.i for t in doc], dtype="i"))
         kids = _pool_indices(doc, mode, xp)
         D = ops.alloc2f(n, w)          # leaves keep a zero vector: "nothing hangs off me"
