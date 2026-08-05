@@ -53,13 +53,23 @@ def lemma_arm(lang):
     return LEMMA_ARM.get(lang, f"training_{lang}_lemma/model-best")
 
 
+# Which trained arm to score, named EXPLICITLY rather than "whichever directory happens to exist".
+# The positional version silently preferred any `training_<lang>_shared/`, so a solo pilot left on
+# disk displaced the arm that ships -- en's solo arm scores test 62.23 against the shipped 62.62,
+# and the eval would have quietly reported the worse one.
+SHARED_ARM = {
+    # lzh's Shared pipe rides the rule-merged punctuation chain (see package_sud.sh).
+    "lzh": "training_lzh_rm_sud/model-best",
+    # la ships the RULE, so its trained arm is a comparison point only -- and the FAIR one is the
+    # solo-checkpointed arm (test 35.10), not the three-feature arm whose checkpoint was chosen for
+    # Subject's sake (30.06). Deleting training_la_shared would silently restore the worse number.
+    "la": "training_la_shared/model-best",
+}
+
+
 def trained_arm(lang):
-    """Prefer a Shared-only arm, else the combined SUD arm."""
-    for cand in (f"training_{lang}_shared/model-best", f"training_{lang}_rm_sud/model-best",
-                 f"training_{lang}_sud/model-best"):
-        if pathlib.Path(cand).exists():
-            return cand
-    return None
+    cand = SHARED_ARM.get(lang, f"training_{lang}_sud/model-best")
+    return cand if pathlib.Path(cand).exists() else None
 
 
 def score(nlp, rows_iter, source):
