@@ -119,3 +119,13 @@ archive_residue_pass2/
 sa_joint_tok2vec.bin
 sa_joint_tok2vec_w96.bin
 dist_la_perseus/
+
+
+# Kanripo editions: the punctuated Classical Chinese texts the lzh aligner reads.
+# Re-fetch with scripts/fetch_kanripo.sh.
+assets_kanripo/
+corpus_sa_tokens.txt
+corpus_sa_unsandhied.txt
+corpus_sa_lemmas.txt
+vectors_sa_*.vec
+kanripo_repos.txt

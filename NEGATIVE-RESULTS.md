@@ -304,6 +304,10 @@ our `parataxis` or its `comp:obj`.
 
 ## Meta-lessons worth more than the individual results
 
+- **`pgrep -f` matches the wait-loop's own command line.** Three wait-loops in one session spun
+  forever against themselves, one of them wasting 37 minutes of an idle machine. Match on `comm`,
+  chain the commands directly, or wait on a log marker.
+
 - **Always run a capacity control.** Adding a feature usually also adds parameters. The zeroed-channel
   control (zh lexicon, zh jieba, sa affix `w96`) is what separates "the feature works" from "the
   extra width works" — and in the sa affix case it showed the gain was the feature (Voice +17 vs

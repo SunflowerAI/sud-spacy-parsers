@@ -821,12 +821,24 @@ are real.
 ## SUD's own MISC layer (`sud_misc.py`, `sud_idiom.py`, `sud_tagger.py`)
 
 Output slot: **`Token._.sud_misc`** (a dict; `sud_misc.py` owns it with `set_misc`/`get_misc`/
-`misc_string`, `has_extension`-guarded). `token.morph` is deliberately **not** touched, so a MISC
-feature never masquerades as a morphological one. All keys go to MISC, following the treebanks — note
-SUD's guidelines list `Subject` among the FEATS features, so data and prose disagree; we follow the
-data. Gold transport is via `hoist_sud_gold.py` (see the MISC/convert gotcha above). Side effect: the
-frozen morphologiser is then scored against gold FEATS carrying keys it never learned, so
-**`morph_acc` in these arms' logs reads artificially low** — cosmetic, score weight 0.
+`misc_string`/`feats_string`, `has_extension`-guarded). `token.morph` is deliberately **not** used as
+the slot, so a predicted SUD feature never has to compete for room with a morphological one.
+
+**Which CoNLL-U column a key belongs to is a property of the KEY.** `Idiom`/`InIdiom`/`Reported`/
+`Subject` are MISC (column 10) features in every treebank here; **`Shared` is a FEATS (column 6)
+one** — 10 178 tokens in SUD_English-EWT train, all in field 6, none in field 10. We follow the data
+rather than the prose throughout (SUD's guidelines list `Subject` among the FEATS features and the
+data does not), so the two groups are declared separately in `sud_misc.py` (`SUD_MISC_KEYS` /
+`SUD_FEATS_KEYS`) and serialised by `misc_string` / `feats_string`. At runtime both live in the one
+dict.
+
+Gold transport is via `hoist_sud_gold.py` (see the MISC/convert gotcha above), which now reads
+**both** source columns: a key is looked for in MISC, then in FEATS, and one found in FEATS is
+*consumed* — leaving `Shared` beside `SudShared` would make the reference carry the same gold twice.
+Carrying an already-hoisted key forward is what keeps the script idempotent for the FEATS-sourced
+keys; without it a second run finds no bare `Shared` to re-derive from and silently deletes the gold.
+Side effect: the frozen morphologiser is then scored against gold FEATS carrying keys it never
+learned, so **`morph_acc` in these arms' logs reads artificially low** — cosmetic, score weight 0.
 
 ### `Idiom`/`InIdiom` — exact, no training
 
@@ -941,13 +953,120 @@ A rule reproduces the rule-committed portion almost by definition and cannot tou
 remainder; a trained model can learn either. So the rule wins where the gold is mostly rule-derived
 and loses in Persian, whose gold is 87 % LLM-decided (rule P 1.00, R 0.13 — it only fires on the 110
 cases it committed itself). This is a property of how the class was built, not a fact about the
-languages. **ar/sa/en ship the rule; fa and la ship no `Reported` layer** — Persian's structural arm
-beats its own rule but at P 0.50, and Latin needs a four-deep chain of predicted
-lemma/deprel/VerbForm/Mood that compounds too badly. `add_sud_reported_rule.py` removes the trained
+languages. **ar/sa/en ship the rule; fa ships the STRUCTURAL trained pipe; la ships no `Reported`
+layer** — Latin needs a four-deep chain of predicted lemma/deprel/VerbForm/Mood that compounds too
+badly. (fa's figures below predate the `annotating_components` fix; retrained it is F 46.15 at
+P 54.55 against its rule's 23.53, which is why it now ships.) `add_sud_reported_rule.py` removes the trained
 pipe when it adds the rule, so no dead weights ship. Lexicons live in `sud_reported_data.py`,
 imported by BOTH the gold builder and the runtime component so they cannot drift.
 **Read these numbers with care:** there is no independent gold for `Reported` — the target is itself
 these rules plus an LLM pass — so they measure *reproducibility at inference*, not correctness.
+
+### `Shared` — the one key the morphologiser was already predicting
+
+`Shared=Yes|No` says whether a dependent of a conjunct is shared with the other conjuncts — in
+`identifying and breaking up terror cells`, `up` is `Shared=No` (it belongs to the second conjunct)
+and `cells` is `Shared=Yes` (the object of both). It is the **broadest** of the five keys: every
+treebank here annotates it, so the language list is no longer the `Subject` list. Only ja is left out
+(27 `Yes` in 168 333 tokens — the call made for sa's `Subject`).
+
+**It differs from the other four in being a FEATS feature**, which means the released morphologisers
+have been predicting it all along inside their FEATS bundles, and badly: en test P 0.68 / R 0.15,
+with `Shared=Yes` correct **4 times out of 247**, and 253 of en's 572 morph labels contain the key
+(la 2110 of 6170), so it roughly doubles the label inventory it is carried in. A pipe therefore has
+to *beat* that rather than merely exist, and where one ships it takes the feature over —
+`clear_morph` deletes `Shared` from `token.morph` so the wheel has one answer rather than two.
+
+**The candidate mask is the whole design** (`sud_shared_data.py`, shared by the harvester, the rule
+and the eval so they cannot drift). A token is a candidate iff its head is a conjunct, its own
+relation is neither `cc` nor `conj`, and it lies **outside** the span between the first and last
+conjunct — a dependent sitting between two conjuncts is inside its own conjunct's territory and SUD
+does not mark it. On en train that reaches 92.9 % of gold `Shared` while cutting the field from
+204 578 tokens to 15 499, of which 63 % carry the feature. It is a recall device, not a rule (39 % of
+what it admits is unmarked), and `sud_tagger` takes it as a `mask`: outside it the gold is *missing*,
+not `O`, so the model spends no capacity reproducing a constraint it is being given.
+
+Test, end to end over gold tokens (`eval_sud_shared.py`; "mask" = the share of gold the mask reaches
+on a **predicted** parse, a ceiling on rule and trained alike):
+
+| lang | mask | morph | rule | trained | ships |
+|---|---|---|---|---|---|
+| fa | 80.2 | 27.1 | 58.3 | **67.7** | trained |
+| en | 70.6 | 24.7 | 55.1 | **62.6** | trained |
+| lzh | 62.7 | 45.2 | 54.3 | **59.6** | trained |
+| ar | 60.2 | 37.8 | 52.6 | **54.6** | trained |
+| id | 57.1 | 36.1 | 49.1 | **53.6** | trained |
+| la | 45.0 | 8.3 | **35.9** | 35.1 | rule (trained solo; 30.1 in the 3-feature arm — see below) |
+| ko | 37.6 | 11.3 | 28.6 | 32.5 | neither (P 40.1) |
+| zh | 32.7 | **37.5** | 29.1 | 31.5 | neither — the MORPHOLOGISER wins, uniquely |
+| yue | 28.4 | 6.7 | 16.0 | 21.5 | neither (P 27.7, n=74) |
+| sa | 17.3 | 8.6 | 9.4 | 3.8 | neither |
+
+**Two different tests, and conflating them is a mistake worth not repeating.** Whether to ship
+*anything* is a precision question — an annotation wrong more often than right is worse than none,
+which is what kept `Subject` out of the zh wheel. *Which arm*, once both clear that, is decided on
+**F**, as every other choice in this layer is (lzh's `Subject` rule at 75.8 over 68.8; ar/sa/en's
+`Reported` rules). An earlier draft used the precision floor as a tiebreaker and shipped la's
+trained pipe over its higher-F rule; that was wrong. Where nothing ships the
+morphologiser's FEATS value is left alone: for zh that is the best arm available, for ko/yue/sa it is
+merely the status quo. **id and ko had no SUD layer at all before this**; id now has one.
+
+**The mask column predicts the whole table, and it is a fact about the PARSER.** The mask is defined
+over the coordination, so its quality is parse quality on exactly that structure — not on the
+sentence at large. Sanskrit is the worked example: on GOLD trees the harvested table reaches dev
+F 52, but on sa's own predicted trees (LAS ~0.51) the mask covers 17 % of its gold, the trained pipe
+saw almost no positive example, and it learnt nothing (F 3.8). Read the mask line before either arm.
+
+**Architecture, measured on en (dev F, `sud_tagger`'s own scorer).** The encoder is a property of the
+FEATURE, not of the language, so `make_sud_config.py` takes `--encoder` and `--mask` **per feature**:
+en trains `Subject` (local), `Reported` (structural) and `Shared` (tree) in one arm.
+
+    default encoder, no mask   0.323        structural + mask   0.586
+    structural, no mask        0.547        tree + mask         0.616   <- ships
+    tree, no mask              0.609
+
+**⚠ `model-best` in a multi-feature arm is picked on the WEIGHTED MEAN of its features' scores**, so
+a pipe can be checkpointed at an epoch that suited its neighbours. Latin is the case that matters:
+its `Shared` peaked at dev F 37.34 while the saved epoch holds 31.90, chosen for `Subject`'s sake —
+and la is precisely where the trained arm lost to the rule. Retrained ALONE
+(`SUD_FEATS=Shared SUD_SUFFIX=_shared`, which `eval_sud_shared.py` then prefers) it reaches dev 35.91
+/ test 35.10, and **still** does not beat the table's 35.85, so la ships the rule on a fair
+comparison rather than a handicapped one. **No other decision turns on this** — the same gap is
+≤ 2.9 everywhere else (zh 2.27, yue 2.85, sa 2.79, lzh 1.88, en 1.01, ar 0.53, fa 0.06), and the
+single-feature id/ko arms have none by construction. `graft_pipe.py` puts a solo-trained pipe back
+into a multi-feature arm, checking first that the two share a base.
+
+`sud.HeadDepsTagger.v1` wins because the evidence is not linear at any width: what matters is which
+token is my head and what else hangs off it, which `[own | head | mean of dependents]` reads
+directly. The rule (`sud_shared_rule.py` + `build_sud_shared_frames.py`, a backoff table over
+(deprel, head UPOS, position)) is the comparison arm; its threshold defaults to a plain **majority**,
+not the 0.90 dominance test `apply_udep_rules.py` uses — that script commits annotation to a
+treebank, this one has to answer wherever the mask asks (en dev F 63.7 at 0.90 vs 75.7 at 0.50, and
+zh/yue collapse to nothing at 0.90).
+
+### ⚠ `annotating_components` was missing `tok2vec` — every structural arm was trained on noise
+
+Found while building `Shared`, and it **fails silently**. The tagger/parser/morphologizer/lemmatizer
+in these arms are listeners on the shared encoder, so running them without `tok2vec` feeds them a
+stale buffer. Nothing raises. On a 298-token dev doc the predicted parse came out with three distinct
+deprels (`ROOT`, `comp:obj`, `goeswith`) and **no `conj` at all**, against twelve and four once
+`tok2vec` runs — so a pipe reading DEP/POS/MORPH was reading noise, and the `Shared` mask was EMPTY on
+every training doc, its loss a flat 0.00.
+
+Fixed in `make_sud_config.py`; all arms retrained. What it moved, end-to-end on test:
+
+    Reported  fa 40.0 -> 46.15 (structural, the one shipped)   ar 46.7 -> 45.98   sa 58.0 -> 52.17
+    Subject   lzh 59.0 -> 68.83   en 80.0 -> 82.01   fa 89.5 -> 90.67   la 66.3 -> 62.60
+
+**Every ship decision survives** (lzh still prefers its `Subject` rule at 75.82; ar/sa/en still prefer
+their `Reported` rules). The `Subject` moves are seed noise, not the fix — that pipe uses the default
+encoder and reads nothing structural, and model init here is unseeded.
+
+**fa now SHIPS its `Reported` layer**, reversing an earlier decision (user decision, 2026-08-05).
+That decision rested on P 0.50 — "half of what it emits is wrong" — measured before this fix.
+Retrained it is **F 46.15 at P 54.55**, against its own rule's 23.53. fa remains the one language
+where the trained pipe beats the rule for `Reported`, because its gold is 87 % LLM-decided and a
+rule can only reach the 13 % it committed itself.
 
 ### The MISC layer is COUPLED to the arm underneath it
 
@@ -966,11 +1085,22 @@ complements are `comp:obj`/`comp:obl`/`comp:pred`, never `udep`).
 `scripts/package_sud.sh` is the current entry point: it picks the winning arm per language, adds
 `sud_idiom` to the seven idiom-annotating arms (en/lzh/ja/fa/ar/la/sa), and keeps the per-arm
 surgery — `add_clause_parser.py` for lzh/sa, `add_id_lemma_case_fix.py` for id,
-`bundle_yue_pkuseg.py` for yue, `bundle_zh_charseg.py` for zh, `add_la_macronise.py --no-lut` for
-la, `add_sa_frontend.py` for sa.
+`bundle_yue_pkuseg.py` for yue, `bundle_zh_charseg.py` / `bundle_id_charseg.py` for zh/id,
+`add_la_macronise.py --no-lut` for la, `add_sa_frontend.py` for sa.
+
+**An arm trains more pipes than its wheel ships**, so trimming is part of packaging: en/fa/la/yue/ar/
+lzh/id now all take `training_<lang>_sud` as their base (ar/lzh/id joined when `Shared` did), and the
+pipes that lost their comparison are removed so no dead weights travel. `add_sud_reported_rule.py`
+and `add_sud_idiom.py --drop` both remove pipes but both also ADD one, which is wrong wherever the
+language does not want the thing being added — `drop_pipes.py` is the plain version, and yue is the
+case in point (ships trained `Subject`, annotates no idioms, must not ship `Shared`).
 **The `sud_*` pipes go LAST, after `clause_parser`** on lzh/sa: `clause_parser` reassigns every head
-and deprel, so a rule reading `unk` must see the tree it leaves behind, and running last also means
-the Doc rebuild cannot drop the annotation.
+and deprel, so a rule reading `unk` — or `sud_shared`'s coordination mask — must see the tree it
+leaves behind, and running last also means the Doc rebuild cannot drop the annotation.
+⚠ This held **by accident of ordering** until lzh started taking a trained arm as its base:
+`add_clause_parser.py` simply appended, which put `clause_parser` *after* `sud_shared`. It builds,
+loads, and says nothing. It now positions itself `before=` the first `sud_*` pipe, so the invariant
+is enforced rather than assumed — check `pipeline` in the built wheel's `config.cfg`, not the script.
 
 Wheels live on the GitHub Release (v0.1.0, re-clobbered as layers landed), not in git (`dist/`
 gitignored). Rebuild a custom-code wheel with
@@ -1020,6 +1150,13 @@ chains are internally consistent. A stale sibling directory is not a stale relea
 **The general lesson, now twice-learned: a directory is not a release.** Neither `build_*/` nor
 `training_*/` says anything about what users have. `gh release view v0.1.0 --json assets`, the asset
 size, and the wheel's own `config.cfg` do.
+
+**Corollary, found 2026-08-05: `build_sud/` can hold two wheels with the SAME name.** A stale
+`build_sud/lzh_rel_pkg/` sat beside `build_sud/lzh/`, each with its own `lzh_sud_kyoto-0.1.0-py3-none-any.whl`
+(9.1 MB vs 14.5 MB, one a `han_lemma_lut` generation behind). The documented upload line is
+`gh release upload v0.1.0 $(find build_sud -name '*.whl') --clobber` — which would have uploaded both,
+and `--clobber` makes the winner whichever `find` yields last. Removed. **Count the wheels before
+uploading**: one per language, or the release is a coin toss.
 
 ## Operational notes
 
