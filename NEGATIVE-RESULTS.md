@@ -305,6 +305,10 @@ our `parataxis` or its `comp:obj`.
 
 ## Meta-lessons worth more than the individual results
 
+- **A smoke test that pipes to `head` kills the run.** SIGPIPE truncated an arm at its best
+  checkpoint, and `model-best == model-last` is the tell -- a patience-terminated run always differs,
+  because it trains 1600 steps past its best. The truncated number was reported as converged and was
+  6 points low.
 - **`pgrep -f` matches the wait-loop's own command line.** Three wait-loops in one session spun
   forever against themselves, one of them wasting 37 minutes of an idle machine. Match on `comm`,
   chain the commands directly, or wait on a log marker.
