@@ -54,5 +54,7 @@ for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            # sud_idiom) has to be able to LOAD a model that already carries it, and each of those
            # loads through this file. Omitting it made add_clause_parser die with E002 while
            # package_sud.sh's `>/dev/null 2>&1` swallowed the error and shipped the old pipeline.
-           "han_lemma_lut.py"):
+           "han_lemma_lut.py",
+           # registers sud.SplitTok2Vec.v1 — the part-learned/part-frozen encoder
+           "sud_split_tok2vec.py"):
     _load(_f)

@@ -137,3 +137,13 @@ kanripo_repos.txt
 scripts/la_glide_lut.json.gz
 labels_la_aug*/
 build_lzh_eval_lut/
+
+# floret vectors and the plain-text corpora they are trained from. Hundreds of MB, and every
+# one is reproducible from the treebank by scripts/train_floret.sh. vectors_*_sem48/ is the
+# PCA'd table configs/config_en_split48*.cfg reads.
+vectors_*_floret/
+vectors_*_floret.bin
+vectors_*_floret.vec
+vectors_*_sem48/
+corpus_en_tokens.txt
+corpus_la_tokens.txt
