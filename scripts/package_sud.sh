@@ -63,6 +63,12 @@
 cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
 export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
 PY=.venv/bin/python
+# Wheel version. This was hardcoded to 0.1.0, so every release that ADDED a layer had to be packaged
+# by hand -- and the hand-built path is where the v0.2.0 near-miss came from (a wheel built straight
+# from the base arm, shipping the trained `sud_reported` at F 35.0 instead of the rule at 66.7 and
+# omitting `sud_idiom` entirely). Overridable so the driver can do those releases itself:
+#   VERSION=0.2.1 bash scripts/package_sud.sh en
+VERSION="${VERSION:-0.1.0}"
 CODE_BASE="scripts/sud_misc.py,scripts/sud_idiom.py"
 # arms that also ship the Reported rule (en/ar/sa -- see the table below)
 CODE_REP="$CODE_BASE,scripts/sud_reported_data.py,scripts/sud_reported_rule.py"
@@ -83,7 +89,7 @@ pkg() {  # $1=lang  $2=src model dir  $3=--name value  $4=comma-separated --code
   $PY scripts/stamp_model_meta.py "$src" --lang "$lang" ${DESCRIPTION:+--description "$DESCRIPTION"} \
     >/dev/null || { echo "  $lang: meta stamp FAILED"; return; }
   rm -rf build_sud/$lang && mkdir -p build_sud/$lang
-  $PY -m spacy package "$src" build_sud/$lang --name "$name" --version 0.1.0 $code \
+  $PY -m spacy package "$src" build_sud/$lang --name "$name" --version "$VERSION" $code \
     --build wheel --force >build_sud/$lang.log 2>&1
   local whl=$(find build_sud/$lang -name '*.whl')
   echo "  $lang -> ${whl:-FAILED}"
