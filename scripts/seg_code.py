@@ -31,6 +31,10 @@ def _load(fname):
 
 for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            "sa_tokenizer.py", "clause_parser.py", "sud_unsandhi.py", "sa_devanagari.py",
+           # registers sud.LatinEncliticTokenizer.v1. Its absence here meant every script that
+           # loads a released la model through this file died with E893 -- found only once
+           # something finally tried to OPEN the la wheel's own arm.
+           "la_tokenizer.py", "la_enclitics.py",
            # registers sud.MultiHashEmbedAffix.v1 (per-component affix windows; sa morph/lemma)
            "sud_affix_embed.py",
            # registers sud.CharSegTokenizer.v1 — the treebank-trained character segmenter used as
@@ -49,6 +53,9 @@ for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            # candidate mask, which sud_tagger looks up by name. (sud_idiom is packaging-time only
            # and needs no registration here, as with id_lemma_case_fix.)
            "sud_misc.py", "sud_shared_data.py", "sud_tagger.py",
+           # the RULE variants: la ships sud_shared_rule and lzh sud_subject_rule instead of the
+           # trained pipes, so a released arm cannot be opened without them.
+           "sud_shared_rule.py", "sud_subject_rule.py", "sud_idiom.py",
            # han_lemma_lut IS needed here, unlike the other packaging-time components: it sits in
            # the lzh pipeline, so every later packaging step (add_clause_parser, the subject rule,
            # sud_idiom) has to be able to LOAD a model that already carries it, and each of those
