@@ -123,3 +123,17 @@ if Language is not None:
     @Language.factory("zh_script")
     def _make_zh_script(nlp, name):
         return ZhScript(nlp, name)
+
+    # lzh gets the SAME component under its own factory name. The argument is identical and was
+    # already measured for zh: a both-scripts inventory never pools 個 with 个, so every character
+    # competes with its own variant and a ranking over types splits across scripts. lzh's qualitative
+    # output showed exactly that -- 遠 and 远, 禮 and 礼, 諸 and 诸 all inside one top-10 list.
+    #
+    # The traditional-only treebank already exists at the released generation
+    # (SUD_Classical_Chinese-Kyoto/*.relabeled_ext.udep_ruled.punct.rulemerged.conllu), so this is a
+    # retrain plus this component, not a data rebuild. A separate factory name rather than a
+    # parameter because spaCy configs name factories, and lzh's wheel should not carry a pipe called
+    # `zh_script`.
+    @Language.factory("lzh_script")
+    def _make_lzh_script(nlp, name):
+        return ZhScript(nlp, name)
