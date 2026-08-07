@@ -134,7 +134,11 @@ src_model() {
   case "$1" in
     # The rule-merged punctuation arm, and the MORPH storey of it: lzh has no trained lemmatizer
     # any more (han_lemma_lut replaces it at packaging), so _morph is the top of its chain.
-    lzh) echo "training_lzh_rm_morph/model-best" ;;
+    # LZH_BASE_ARM: lzh is going TRADITIONAL-ONLY end to end, with s2t/t2s adapters at the
+    # pipeline boundary (`lzh_script`), so the SUD pipes stack on the traditional base rather
+    # than the both-scripts one. Costs 2.4 parser LAS (79.0 -> 76.57) -- accepted, because a
+    # both-scripts inventory never pools 遠 with 远 and the ranking layers pay for it.
+    lzh) echo "${LZH_BASE_ARM:-training_lzh_rm_morph/model-best}" ;;
     sa) echo "training_sa_multitask/model-best" ;;
     ko) echo "training_ko_eojeol_lemma/model-best" ;;
     # id's released arm is the SPLIT chain (char segmenter, enclitics separated). The generic
