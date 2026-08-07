@@ -97,7 +97,12 @@ src_conllu() {
     # lzh trains on the PUNCTUATION-RESTORED, rule-merged chain -- the generation its released arm
     # (training_lzh_rm_morph) was trained on. The plain .relabeled_ext files have no PUNCT tokens,
     # so a corpus built from them would not even align with that arm under gold_preproc.
-    lzh) echo "assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-$2.relabeled_ext.udep_ruled.punct.rulemerged.conllu" ;;
+    # LZH_SRC lets the SUD pipes be retrained on the TRADITIONAL-ONLY treebank while the parser
+    # underneath stays the both-scripts arm. Kyoto-Both is the same text plus its OpenCC conversion,
+    # and dropping the augmentation costs the PARSER 2.4 LAS (79.0 -> 76.57 measured), so the base is
+    # kept; but the layers above it want one script so 遠 pools with itself instead of
+    # competing with 远.
+    lzh) echo "${LZH_SRC:-assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-$2.relabeled_ext.udep_ruled.punct.rulemerged.conllu}" ;;
     fa)  echo "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-$2.relabeled_ext.conllu" ;;
     ar)  echo "assets_ar/SUD_Arabic-PADT/ar_padt-sud-$2.relabeled_ext.conllu" ;;
     la)  echo "assets_la/la_ittbproiel-sud-$2.relabeled_ext.conllu" ;;
