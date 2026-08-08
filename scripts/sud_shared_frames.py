@@ -107,7 +107,6 @@ TABLE = {
   "flat\tafter": "O",
   "list\tPROPN\tafter": "O",
   "list\tafter": "O",
-  "mod\tADJ\tafter": "No",
   "mod\tADJ\tbefore": "O",
   "mod\tAUX\tafter": "No",
   "mod\tAUX\tbefore": "O",
