@@ -35,7 +35,7 @@
 #   bash scripts/build_la_macron.sh [SRC_MODEL] [OUT_MODEL]
 # Defaults: training_la_lemma/model-best -> build_la_macron/model
 set -e
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 SRC=${1:-training_la_lemma/model-best}

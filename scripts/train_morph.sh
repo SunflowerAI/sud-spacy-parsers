@@ -9,9 +9,9 @@
 # re-added at packaging time). Mirrors the per-language tables in retrain_seg.sh / package_seg.sh.
 #
 # Usage: bash scripts/train_morph.sh en ar fa ja id ko la zh yue lzh sa
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 PY=.venv/bin/python
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 CODE="--code scripts/seg_code.py"
 # Arms whose derived config is HAND-MAINTAINED and must not be regenerated: sa's morphologiser uses
 # spacy.Tok2Vec.v2 + MultiHashEmbed so it can read MORPH (the tokeniser's Compound=Yes) as an INPUT
@@ -39,6 +39,9 @@ train() {  # $1=lang $2=base_cfg $3=src_model $4=train $5=dev
 for lang in "$@"; do
 case $lang in
  en)  train en  configs/config.cfg             training_en_ewt_ext/model-best  corpus_en_ewt_ext/en_ewt-sud-train.relabeled_ext.spacy  corpus_en_ewt_ext/en_ewt-sud-dev.relabeled_ext.spacy ;;
+ # en_gum is EWT + the non-NonCommercial part of GUM: a SECOND English arm, not a replacement.
+ # Same architecture as en (configs/config.cfg, gold_preproc=false); only the corpus differs.
+ en_gum) train en_gum configs/config.cfg       training_en_gum_ext/model-best  corpus_en_gum_ext/en_ewtgum-sud-train.relabeled_ext.spacy corpus_en_gum_ext/en_ewtgum-sud-dev.relabeled_ext.spacy ;;
  ar)  train ar  configs/config_ar_seg.cfg      training_ar_seg/model-best      corpus_ar_ext/ar_padt-sud-train.relabeled_ext.spacy    corpus_ar_ext/ar_padt-sud-dev.relabeled_ext.spacy ;;
  fa)  train fa  configs/config_fa_seg.cfg      training_fa_seg/model-best      corpus_fa_ext/fa_perdt-sud-train.relabeled_ext.spacy   corpus_fa_ext/fa_perdt-sud-dev.relabeled_ext.spacy ;;
  ja)  train ja  configs/config_ja_seg.cfg      training_ja_seg/model-best      corpus_ja_ext/ja_gsd-sud-train.relabeled_ext.spacy     corpus_ja_ext/ja_gsd-sud-dev.relabeled_ext.spacy ;;

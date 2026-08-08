@@ -4,7 +4,7 @@
 # gold tokens, so the rule/char tokenisers don't break alignment.
 #   fa  Persian-PerDT          ar  Arabic-PADT         la  Latin-ITTB+PROIEL (merged)
 #   sa  Sanskrit-Vedic         lzh Classical_Chinese-Kyoto (custom char tokeniser, needs --code)
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY=.venv/bin/python
 
 declare -A PREF=( [fa]=fa_perdt-sud [ar]=ar_padt-sud [la]=la_ittbproiel-sud \

@@ -4,7 +4,7 @@
 # on the UNION of plain-ext and macronised-ext data, so the released model keeps the ext
 # udep disambiguation AND is robust to macronised input.  Macrons come from
 # transfer_macrons.py (FORM transform composed onto the ext deprels) -- no macroniser needed.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 

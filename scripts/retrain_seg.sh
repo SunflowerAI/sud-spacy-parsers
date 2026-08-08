@@ -9,9 +9,9 @@
 # Usage: bash scripts/retrain_seg.sh fa ja la zh yue id ko
 # (ar already done as the pilot. id/ko need their coarse/retok corpora regenerated first —
 #  see scripts/regen_idko_corpora.sh.)
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 PY=.venv/bin/python
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 CODE="--code scripts/seg_code.py"
 
 train() {  # $1=lang ; expects CFG/TRAIN/DEV set ; $2.. extra spacy-train args

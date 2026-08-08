@@ -8,7 +8,14 @@ the preposition, builds the prompt, and asks qwen3:8b (no thinking) via Ollama.
 """
 import argparse, json, os, random, urllib.request
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+# Endpoint follows the ecosystem convention: OLLAMA_HOST is what the `ollama` CLI itself
+# reads (often written bare as host:port), so one variable points client and server at the
+# same place -- which is what lets a relabel run on a remote GPU box unchanged. OLLAMA_URL
+# overrides the full path if ever needed. The default is the historical localhost value.
+_OLLAMA_HOST = os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
+if not _OLLAMA_HOST.startswith(("http://", "https://")):
+    _OLLAMA_HOST = "http://" + _OLLAMA_HOST
+OLLAMA_URL = os.environ.get("OLLAMA_URL") or _OLLAMA_HOST.rstrip("/") + "/api/generate"
 # Default kept at qwen3:8b so the existing en/zh/ko/id caches stay valid; override with
 # OLLAMA_MODEL (e.g. gemma4) for the new languages. Benchmarked per-language in Phase 3.
 MODEL = os.environ.get("OLLAMA_MODEL", "qwen3:8b")

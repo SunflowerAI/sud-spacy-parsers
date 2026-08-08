@@ -33,6 +33,10 @@ from sud_misc import get_misc  # noqa: E402
 # not added to them at packaging time and there is nothing here to score.
 FILES = {
     "en":  "assets/en_ewt-sud-{split}.relabeled_ext.conllu",
+    # en_gum: the second English arm (EWT + the ten non-NonCommercial GUM genres).
+    # A separate key, not a replacement -- `en` must keep pointing at the EWT-only files
+    # that the released CC BY-SA en_sud_ewt wheel was built from.
+    "en_gum": "assets/en_ewtgum-sud-{split}.relabeled_ext.conllu",
     "lzh": "assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-{split}.relabeled_ext.conllu",
     "ja":  "assets_ja/SUD_Japanese-GSD/ja_gsd-sud-{split}.relabeled_ext.conllu",
     "fa":  "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-{split}.relabeled_ext.conllu",

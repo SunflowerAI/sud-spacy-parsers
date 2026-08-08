@@ -7,7 +7,7 @@
 #   * union model on macronised test             (metrics_la_macron_union_macron.json)
 #   * baseline (plain-only) model on macron test (metrics_la_baseline_on_macron.json)
 # compared to the existing plain baseline metrics_la.json.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 

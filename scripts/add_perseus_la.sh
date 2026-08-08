@@ -18,7 +18,7 @@
 #
 # Phases (run all, or pass a phase name: merge | macron | relabel | train):
 set -euo pipefail
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 A=assets_la

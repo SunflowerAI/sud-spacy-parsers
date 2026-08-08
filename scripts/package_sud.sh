@@ -60,8 +60,8 @@
 # and deprel, so sud_idiom (which reads `unk`) has to see the tree it leaves behind.
 #
 # Usage: bash scripts/package_sud.sh en ar fa ja id ko la zh yue lzh sa
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 # Wheel version. This was hardcoded to 0.1.0, so every release that ADDED a layer had to be packaged
 # by hand -- and the hand-built path is where the v0.2.0 near-miss came from (a wheel built straight
@@ -79,21 +79,25 @@ CODE_SHARED="scripts/sud_shared_data.py"
 # punctuation-restored chain (.relabeled_ext.udep_ruled.punct.rulemerged.conllu).
 LZH_TRAIN_CONLLU="${LZH_TRAIN_CONLLU:-assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-train.relabeled_ext.udep_ruled.punct.rulemerged.conllu}"
 
-pkg() {  # $1=lang  $2=src model dir  $3=--name value  $4=comma-separated --code files (no flag)
-  local lang=$1 src=$2 name=$3 code=""
+pkg() {  # $1=arm  $2=src model dir  $3=--name value  $4=comma-separated --code files (no flag)
+         # $5=the model's own language code, if it differs from the arm name (en_gum -> en)
+  local arm=$1 src=$2 name=$3 code="" lang=${5:-$1}
   [ -n "$4" ] && code="--code $4"
-  if [ ! -d "$src" ]; then echo "  $lang: SRC $src missing — skip"; return; fi
+  if [ ! -d "$src" ]; then echo "  $arm: SRC $src missing — skip"; return; fi
   # An arm straight out of `spacy train` has an EMPTY license field, and `spacy package` copies it
   # through without complaint -- so a rebuilt arm ships unlicensed unless this runs. Every model
-  # here derives from CC BY-SA treebanks (la from NonCommercial ones), so this is an obligation.
-  $PY scripts/stamp_model_meta.py "$src" --lang "$lang" ${DESCRIPTION:+--description "$DESCRIPTION"} \
-    >/dev/null || { echo "  $lang: meta stamp FAILED"; return; }
-  rm -rf build_sud/$lang && mkdir -p build_sud/$lang
-  $PY -m spacy package "$src" build_sud/$lang --name "$name" --version "$VERSION" $code \
-    --build wheel --force >build_sud/$lang.log 2>&1
-  local whl=$(find build_sud/$lang -name '*.whl')
-  echo "  $lang -> ${whl:-FAILED}"
-  [ -z "$whl" ] && tail -8 build_sud/$lang.log
+  # here derives from CC BY-SA treebanks (la, and en_gum, from NonCommercial ones), so this is an
+  # obligation. --arm keys the licence/sources tables, --lang goes into the meta: en ships TWO
+  # wheels at two licences, so keying on the language code alone would flip both.
+  $PY scripts/stamp_model_meta.py "$src" --lang "$lang" --arm "$arm" \
+    ${DESCRIPTION:+--description "$DESCRIPTION"} \
+    >/dev/null || { echo "  $arm: meta stamp FAILED"; return; }
+  rm -rf build_sud/$arm && mkdir -p build_sud/$arm
+  $PY -m spacy package "$src" build_sud/$arm --name "$name" --version "$VERSION" $code \
+    --build wheel --force >build_sud/$arm.log 2>&1
+  local whl=$(find build_sud/$arm -name '*.whl')
+  echo "  $arm -> ${whl:-FAILED}"
+  [ -z "$whl" ] && tail -8 build_sud/$arm.log
 }
 
 # add_idiom <in> <out> -- deterministic Idiom=Yes / InIdiom=Yes, last in the pipeline
@@ -105,7 +109,7 @@ for lang in "$@"; do
     # ar/lzh/id joined this list when `Shared` did: their Subject/Reported layers ship as RULES,
     # so before that they had no reason to take the trained arm at all. The unwanted trained pipes
     # are dropped below, so no dead weights travel.
-    en|fa|la|yue|ar|id) base=training_${lang}_sud/model-best ;;
+    en|en_gum|fa|la|yue|ar|id) base=training_${lang}_sud/model-best ;;
     # sa ships the JOINT MULTI-TASK arm: ONE shared encoder for tagger + parser + morphologizer +
     # lemmatizer, instead of the three-encoder freeze recipe every other arm uses. 25.85 -> 19.16 MB
     # (-25.9 %), tag/pos/morph/lemma each +0.3 to +0.7, and on HELD-OUT UFAL (classical prose, the
@@ -149,6 +153,16 @@ case $lang in
   en)  $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang en >/dev/null 2>&1
        add_idiom "$work.rep" "$work"
        pkg en  "$work" sud_ewt   "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py" ;;
+       # en_gum: the SECOND English wheel, EWT + the ten non-NonCommercial GUM genres. Same pipe
+       # surgery as en, different corpus and a different licence -- CC BY-NC-SA 4.0, keyed off the
+       # ARM name so plain `en_sud_ewt` stays CC BY-SA and commercially usable. The two wheels
+       # coexist deliberately; users choose. See scripts/build_en_ewt_gum.sh for the data build.
+       # ⚠ Which Reported arm ships here is NOT inherited from en: the MISC layer reads the base
+       # arm's own predictions, so the rule-vs-trained comparison must be re-run on this arm
+       # (eval_sud_reported.py) before this line is trusted.
+  en_gum) $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang en >/dev/null 2>&1
+       add_idiom "$work.rep" "$work"
+       pkg en_gum "$work" sud_ewt_gum "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py" en ;;
        # fa/la ship NO Reported layer. fa's structural arm does beat its rule (F 40.0 vs 23.5,
        # because fa's gold is 87% LLM-decided and the rule can only reach recall 0.13) -- but at
        # P 0.50 half of what it emits is wrong, which is not worth shipping. la is worse still:

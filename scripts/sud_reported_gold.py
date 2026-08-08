@@ -55,6 +55,10 @@ _spec.loader.exec_module(d)
 # Source files per language, mirroring what the released arm trains on.
 FILES = {
     "en": ["assets/en_ewt-sud-%s.relabeled_ext.conllu" % s for s in ("train", "dev", "test")],
+    # en_gum: the second English arm (EWT + the ten non-NonCommercial GUM genres).
+    # A separate key, not a replacement -- `en` must keep pointing at the EWT-only files
+    # that the released CC BY-SA en_sud_ewt wheel was built from.
+    "en_gum": ["assets/en_ewtgum-sud-%s.relabeled_ext.conllu" % s for s in ("train", "dev", "test")],
     "ar": ["assets_ar/SUD_Arabic-PADT/ar_padt-sud-%s.relabeled_ext.conllu" % s for s in ("train", "dev", "test")],
     "fa": ["assets_fa/SUD_Persian-PerDT/fa_perdt-sud-%s.relabeled_ext.conllu" % s for s in ("train", "dev", "test")],
     # Latin's released arm trains on the plain ∪ macron union, so the macron half needs the same
@@ -73,6 +77,7 @@ _dspec = importlib.util.spec_from_file_location("sud_reported_data",
 _data = importlib.util.module_from_spec(_dspec)
 _dspec.loader.exec_module(_data)
 
+base_lang = _data.base_lang
 SPEECH_VERBS = _data.SPEECH_VERBS
 COMPLEMENTISERS = _data.COMPLEMENTISERS
 LA_INTERROGATIVE = _data.LA_INTERROGATIVE
@@ -92,7 +97,7 @@ def _feat(feats, key):
 
 
 def is_complementiser(lang, tok):
-    return (tok["lemma"] in COMPLEMENTISERS.get(lang, set())
+    return (tok["lemma"] in COMPLEMENTISERS.get(base_lang(lang), set())
             and tok["upos"] in ("SCONJ", "ADP", "PART"))
 
 
@@ -158,7 +163,7 @@ def indirect_evidence(lang, by_id, ids, comp):
 def candidates(lang, path):
     """Speech-verb complements, with whatever direct/indirect evidence each carries."""
     out = []
-    verbs = SPEECH_VERBS[lang]
+    verbs = SPEECH_VERBS[base_lang(lang)]
     for sent_id, tokens in d.parse_conllu(path):
         by_id = {t["id"]: t for t in tokens}
         for t in tokens:
@@ -230,7 +235,7 @@ def main():
     args = ap.parse_args()
 
     lang = args.lang
-    cachep = f"relabel_cache_reported_{lang}.jsonl"
+    cachep = f"relabel_cache_reported_{base_lang(lang)}.jsonl"
     cache = {}
     if os.path.exists(cachep):
         for line in open(cachep, encoding="utf-8"):

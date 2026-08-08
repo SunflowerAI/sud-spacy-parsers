@@ -9,7 +9,8 @@ multi-way relabelling, data upsampling, tree-aware encoders) and the meta-lesson
 ## What this project is
 
 Two coupled pieces of work over **Surface-Syntactic Universal Dependencies (SUD)** treebanks, now
-eleven languages: en, zh, yue, lzh, ja, ko, id, fa, ar, la, sa.
+eleven languages: en, zh, yue, lzh, ja, ko, id, fa, ar, la, sa — in **twelve** wheels, since
+English ships twice (see the English section: `en_sud_ewt` CC BY-SA, `en_sud_ewt_gum` CC BY-NC-SA).
 
 1. **Small CPU spaCy pipelines** trained from SUD CoNLL-U and released as wheels
    (`[tokenizer, tok2vec, tagger, parser, morphologizer, lemmatizer, …language extras…, sud_*]`).
@@ -426,6 +427,45 @@ and the other language-specific semantic subtypes are legitimate SUD conventions
 on.
 
 ## Language-specific notes
+
+### English — TWO arms, two licences (`en_sud_ewt`, `en_sud_ewt_gum`)
+
+`en_sud_ewt` (CC BY-SA 4.0, EWT only) is unchanged and stays the commercially usable wheel.
+`en_sud_ewt_gum` (**CC BY-NC-SA 4.0**) adds the ten non-NonCommercial GUM genres — 340,324 train
+tokens, +66 % on EWT. Built by `scripts/build_en_ewt_gum.sh` (steps `merge relabel fix verify filter
+corpus base`), then the ordinary `train_morph → train_lemma → train_sud → package_sud` chain, which
+all take `en_gum` as an arm name.
+
+**Why two wheels rather than a filter.** GUM's LICENSE says the treebank is CC BY-NC-SA *and* that
+the NC comes from the individual sources; the second reading supports filtering, the first offers
+the ANNOTATIONS under NC whatever the document — and annotations are what a model absorbs. So the
+merged wheel ships NC regardless of the filter, and users choose. **GUM's NC genres are FIVE**
+(essay, fiction, letter, podcast, whow), not two.
+
+**The relabel is free if the ORDER is right.** The original development corpus was EWT+GUM
+concatenated, so `relabel_cache*.jsonl` already holds every GUM decision — but the keys are
+POSITIONAL (`path|sentence_index|token_id`). Relabel the unfiltered EWT-first concatenation, filter
+the NC genres LAST: 34,461 targets at **zero** model calls. Filtering first shifts every later index
+and throws away half the cache. `build_en_ewt_gum.sh` step 2 refuses to run if the dry run bills
+anything. The Perseus XPOS trap does NOT apply — GUM's 46 tags are a strict subset of EWT's 49.
+
+**`Reported` gold keys differently and that is what makes IT cheap** — `sent_id|comp_id`, not
+positional — so `base_lang()` pointing en_gum at `relabel_cache_reported_en.jsonl` makes the EWT
+half free: of 565 residue decisions 394 hit, and all 171 misses were GUM. See the `Reported`
+section; an arm name is not a language, and the two places that confused them both failed silently.
+
+**Apples-to-apples on the EWT-only test** (identical gold — the EWT half of the en_gum test is
+byte-identical to it, 2077/2077 blocks): LAS **79.63 → 80.26**, UAS 84.40 → 84.82, TAG 93.09 →
+93.20, `comp:obl` F **+1.52**, `udep` +4.56; against LEMMA −0.12, MORPH −0.19, SENT F −0.41. Same
+shape as Perseus for Latin — the extra treebank IMPROVES the original domain. ⚠ Single seed each and
+init is unseeded, so read +0.63 as suggestive. Do NOT quote the arm's own dev LAS (0.8125) against
+EWT's (0.7969): different dev sets.
+
+Released metrics (en_gum, its own test): pos_acc 0.9464, lemma_acc 0.9615; MISC layer Subject
+**77.95** (trained), Shared **58.15** (trained, mask ceiling 68.82), Reported **57.58** (RULE, v
+trained 35.64), Idiom/InIdiom 79.81/79.11 — every ship decision the same as en's, but re-measured on
+this arm rather than inherited, as `package_sud.sh` warns. This arm never had the `reparandum` gap:
+no such label in its parser's inventory.
 
 ### Latin (`la_sud_ittb_proiel_perseus`)
 
@@ -1241,6 +1281,56 @@ directly. The rule (`sud_shared_rule.py` + `build_sud_shared_frames.py`, a backo
 not the 0.90 dominance test `apply_udep_rules.py` uses — that script commits annotation to a
 treebank, this one has to answer wherever the mask asks (en dev F 63.7 at 0.90 vs 75.7 at 0.50, and
 zh/yue collapse to nothing at 0.90).
+
+#### The pooling is a SEGMENTED REDUCTION, not a loop over tokens
+
+`HeadDeps` originally built the third slice with a Python loop — `D[i] = X[idx].mean(axis=0)` once
+per token, over a list of per-token index arrays walked off `Token.children`. That loop was never
+inherent to the computation, only to writing it against the token API, and it is what made the
+whole arm look like a bad fit for a GPU.
+
+**`pool="deps"` — what the shipped pipe uses — needs no tree walk at all.** "All immediate
+dependents" is exactly the INVERSE of the heads array: the edge list is `src = arange(n)`,
+`seg = heads`, minus the root's self-loop. A ragged mean over that is a segmented reduction — one
+gather, one `scatter_add`, one divide by the counts — so the layer costs O(1) array ops per document
+instead of O(n). The backward is the same shape, because the gradient of a mean splits evenly:
+dividing the PARENT row once and gathering it to each child is the identical arithmetic the loop did
+as `dY[i, 2w:] / len(idx)`. Heads themselves come from `doc.to_array(HEAD)` (relative offsets stored
+unsigned — view as signed and add the position) rather than a comprehension over `t.head.i`.
+
+The other three modes vectorise too, and one detail is easy to get wrong: under `closed2` the
+original filtered the GRANDCHILD's UPOS but left the intermediate link unfiltered
+(`for c in t.children for g in c.children if g.pos_ in CLOSED_CLASS`). Filtering the middle link as
+well would be a different feature. Multiplicity is likewise preserved rather than deduplicated — the
+two-level modes can reach a token twice and the loop counted it twice, so the mean must too.
+
+**Measured, on real parsed docs: 4.8–5.0x** for the layer (synthetic 5.5x). The counts are
+accumulated with `scatter_add` on a vector of ones rather than `xp.bincount`, so no second backend
+op has to exist and agree, and the denominator is clamped at 1 so a leaf divides to zeros not NaN.
+
+**`scripts/check_head_deps.py` is the equivalence proof, and its reference is
+`git show <ref>:scripts/sud_tagger.py`** — taken from git, not transcribed, so the check cannot
+drift from what was actually there. Both wrappers get the SAME stub encoder, so only the pooling is
+under test. Forward is BIT-IDENTICAL on all five modes; backward is bit-identical except `deps2` and
+`closed2`, which differ by 4.768e-07. That was chased rather than waved through: against an exact
+float64 accumulation the two implementations are **equidistant** (4.172e-07 each) and differ from
+each other by exactly one float32 ULP at that magnitude, i.e. summation order, since a token there
+receives several pooled contributions and the loop summed them per-parent while the edge list sums
+them in edge order. The checker therefore demands exactness for the single-level modes and allows a
+data-scaled 4-ULP budget for the two-level ones — a bound in ULPs of the largest gradient, not a
+magic constant.
+
+**A pure speed change, and verified as one**: no parameter shape moves, so existing weights are
+untouched and every published `Shared` figure reproduces to the decimal (en_gum 58.15, en 63.10,
+fa 67.71, lzh 58.78, with the mask and rule rows unchanged). A 400-step run confirms the TRAINING
+path, which the eval never exercises (`SUD_SHARED_F` 13.41 -> 55.24 on a real loss). ⚠ Released
+wheels BUNDLE `sud_tagger.py`, so a wheel keeps the old layer until it is re-packaged — a code-only
+re-release is what hands users the faster inference.
+
+**It does not overturn the GPU verdict.** It removes the specific blocker (O(n) kernel launches, and
+one host->device copy per token to ship each index array across), but these remain small CNNs at
+width 64–96 where transfer dominates, so the dependable payoff is faster CPU training — which is
+where the pipe actually ships. Treat "makes GPU viable" as a hypothesis needing a probe.
 
 ### ⚠ `annotating_components` was missing `tok2vec` — every structural arm was trained on noise
 

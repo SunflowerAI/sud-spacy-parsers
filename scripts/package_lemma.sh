@@ -8,8 +8,8 @@
 # zh/la/sa also carry the renamed package names (sud_gsd_simp_trad / sud_ittb_proiel_perseus /
 # sud_vedic_ufal_dcs).
 # Usage: bash scripts/package_lemma.sh en ar fa ja id ko la zh yue lzh sa
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
 pkg() {  # $1=lang  $2=src model dir  $3=--name value  $4=optional --code arg

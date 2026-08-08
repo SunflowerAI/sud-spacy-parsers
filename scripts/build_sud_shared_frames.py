@@ -38,6 +38,10 @@ from sud_shared_data import backoff_keys, candidates  # noqa: E402
 # call made for sa's `Subject`.
 TRAIN = {
     "en":  "assets/en_ewt-sud-{split}.relabeled_ext.conllu",
+    # en_gum: the second English arm (EWT + the ten non-NonCommercial GUM genres).
+    # A separate key, not a replacement -- `en` must keep pointing at the EWT-only files
+    # that the released CC BY-SA en_sud_ewt wheel was built from.
+    "en_gum": "assets/en_ewtgum-sud-{split}.relabeled_ext.conllu",
     "zh":  "assets_zh/SUD_Chinese-GSDBoth/zh_gsdboth-sud-{split}.relabeled_ext.conllu",
     "yue": "assets_yue/SUD_Cantonese-HK/yue_hk-sud-{split}.relabeled_ext.conllu",
     # lzh: the PUNCTUATION-RESTORED, rule-merged generation its released arm is trained on. A

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Relabel udep -> comp:obl/mod, then convert + retrain + evaluate, per language.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 declare -A DIR=( [zh]=assets_zh/SUD_Chinese-GSDSimp [ko]=assets_ko/SUD_Korean-GSD [id]=assets_id/SUD_Indonesian-GSD )
 declare -A PREF=( [zh]=zh_gsdsimp-sud [ko]=ko_gsd-sud [id]=id_gsd-sud )

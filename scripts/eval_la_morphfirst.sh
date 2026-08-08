@@ -18,7 +18,7 @@
 #    is optimistic. These TEST numbers are the honest comparison.
 #  * TAG runs ~80 on the combined test but ~91 on dev purely because Perseus's XPOS is blanked
 #    (20 % of combined-test tokens, 0 % of dev) and scores as error. It hits every arm equally.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 S=corpus_la_eval_slices

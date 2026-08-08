@@ -66,9 +66,12 @@ class SudReportedRule:
     """Stamp `Reported=Yes` on the head of a directly-reported clause."""
 
     def __init__(self, nlp, name, lang):
-        self.lang = lang
-        self.speech = data.SPEECH_VERBS.get(lang, set())
-        self.marks = data.COMPLEMENTISERS.get(lang, set())
+        # Resolve the ARM name to its language before touching a lexicon: `en_gum` must get
+        # English's. `.get(lang, set())` on an unresolved name yields an empty set and a rule that
+        # silently never fires.
+        self.lang = data.base_lang(lang)
+        self.speech = data.SPEECH_VERBS[self.lang]
+        self.marks = data.COMPLEMENTISERS.get(self.lang, set())
 
     def _is_complementiser(self, tok):
         return tok.lemma_ in self.marks and tok.pos_ in ("SCONJ", "ADP", "PART")

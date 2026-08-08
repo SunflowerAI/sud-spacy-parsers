@@ -2,8 +2,8 @@
 # Watch the three training logs; as each finishes ("Saved pipeline"), evaluate its
 # model-best on the test split both WITH --gold-preproc (gold tokens) and WITHOUT
 # (raw end-to-end: model re-tokenises). raw token_acc shows the tokeniser match.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
 langs="zh_simp id_coarse ko_retok"

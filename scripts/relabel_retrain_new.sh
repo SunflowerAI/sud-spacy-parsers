@@ -2,7 +2,7 @@
 # Baseline (verb-ADP scope) relabel udep -> comp:obl/mod, then convert + retrain + evaluate,
 # for the new prepositional languages. Sanskrit is case-based (negligible ADP udep) so it is
 # handled only by the extended-scope driver. Set OLLAMA_MODEL to the Phase-3 winner per run.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 PY=.venv/bin/python
 declare -A DIR=( [fa]=assets_fa/SUD_Persian-PerDT [ar]=assets_ar/SUD_Arabic-PADT \
                  [la]=assets_la [lzh]=assets_lzh/SUD_Classical_Chinese-Kyoto \
