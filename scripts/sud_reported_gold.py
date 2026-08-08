@@ -77,6 +77,7 @@ _dspec = importlib.util.spec_from_file_location("sud_reported_data",
 _data = importlib.util.module_from_spec(_dspec)
 _dspec.loader.exec_module(_data)
 
+base_lang = _data.base_lang
 SPEECH_VERBS = _data.SPEECH_VERBS
 COMPLEMENTISERS = _data.COMPLEMENTISERS
 LA_INTERROGATIVE = _data.LA_INTERROGATIVE
@@ -96,7 +97,7 @@ def _feat(feats, key):
 
 
 def is_complementiser(lang, tok):
-    return (tok["lemma"] in COMPLEMENTISERS.get(lang, set())
+    return (tok["lemma"] in COMPLEMENTISERS.get(base_lang(lang), set())
             and tok["upos"] in ("SCONJ", "ADP", "PART"))
 
 
@@ -162,7 +163,7 @@ def indirect_evidence(lang, by_id, ids, comp):
 def candidates(lang, path):
     """Speech-verb complements, with whatever direct/indirect evidence each carries."""
     out = []
-    verbs = SPEECH_VERBS[lang]
+    verbs = SPEECH_VERBS[base_lang(lang)]
     for sent_id, tokens in d.parse_conllu(path):
         by_id = {t["id"]: t for t in tokens}
         for t in tokens:
@@ -234,7 +235,7 @@ def main():
     args = ap.parse_args()
 
     lang = args.lang
-    cachep = f"relabel_cache_reported_{lang}.jsonl"
+    cachep = f"relabel_cache_reported_{base_lang(lang)}.jsonl"
     cache = {}
     if os.path.exists(cachep):
         for line in open(cachep, encoding="utf-8"):

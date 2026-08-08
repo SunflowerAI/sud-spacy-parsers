@@ -10,6 +10,19 @@ the raw ranking also surfaces `be`/`have`/`do` in English and modals in Latin, b
 marks mark scare quotes and titles as well as speech.
 """
 
+# An ARM name is not always a language. `en_gum` is a second English arm (EWT + the ten
+# non-NonCommercial GUM genres), so every lexicon below should answer for English. This lives here,
+# beside the lexicons, because the gold builder, the runtime rule and the eval all key into them --
+# and a rule handed an unknown key gets an EMPTY set, fires on nothing, and scores a flat 0.00 that
+# reads as a finding. That is what it did for en_gum until 2026-08-08.
+BASE_LANG = {"en_gum": "en"}
+
+
+def base_lang(lang):
+    """The language whose lexicons an arm should use."""
+    return BASE_LANG.get(lang, lang)
+
+
 SPEECH_VERBS = {
     "en": {"say", "tell", "ask", "reply", "answer", "state", "write", "add", "explain",
            "declare", "announce", "note", "remark", "question", "complain", "conclude",
