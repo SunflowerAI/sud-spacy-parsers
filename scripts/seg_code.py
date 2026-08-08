@@ -56,6 +56,7 @@ for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            # the RULE variants: la ships sud_shared_rule and lzh sud_subject_rule instead of the
            # trained pipes, so a released arm cannot be opened without them.
            "sud_shared_rule.py", "sud_subject_rule.py", "sud_idiom.py",
+           "sud_reported_rule.py", "sud_reported_data.py",
            # la_macronise sits in the released la PIPELINE, so the la wheel cannot be opened
            # without it -- the third such gap.
            "la_macronise.py", "id_lemma_case_fix.py",
