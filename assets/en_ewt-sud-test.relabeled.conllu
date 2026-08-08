@@ -4180,7 +4180,7 @@
 13	,	,	PUNCT	,	_	15	punct	_	_
 14	rather	rather	ADV	RB	_	15	mod	_	_
 15	as	as	SCONJ	IN	_	6	mod	_	_
-16	the	the	DET	DT	Definite=Def|PronType=Art	30	reparandum	_	_
+16	the	the	DET	DT	Definite=Def|PronType=Art	30	conj:dicto	_	_
 17	the	the	DET	DT	Definite=Def|PronType=Art	18	det	_	_
 18	leaders	leader	NOUN	NNS	Number=Plur	30	subj	_	_
 19	of	of	ADP	IN	_	18	udep	_	_
@@ -12369,7 +12369,7 @@
 6	environment	environment	NOUN	NN	Number=Sing	3	comp:pred	_	_
 7	from	from	ADP	IN	_	16	udep	_	_
 8	which	which	PRON	WDT	PronType=Rel	7	comp:obj	_	_
-9	to	to	ADP	IN	_	16	reparandum	_	_
+9	to	to	ADP	IN	_	16	conj:dicto	_	_
 10	the	the	DET	DT	Definite=Def|PronType=Art	12	det	_	_
 11	concept	concept	NOUN	NN	Number=Sing	12	compound	_	_
 12	enhancement	enhancement	NOUN	NN	Number=Sing	16	subj@pass	_	_
@@ -13948,7 +13948,7 @@
 18	new	new	ADJ	JJ	Degree=Pos	19	mod	_	_
 19	series	series	NOUN	NN	Number=Sing	16	comp:obj	_	_
 20	called	call	VERB	VBN	Tense=Past|VerbForm=Part|Voice=Pass	19	mod	_	_
-21	the	the	DET	DT	Definite=Def|PronType=Art	23	reparandum	_	_
+21	the	the	DET	DT	Definite=Def|PronType=Art	23	conj:dicto	_	_
 22	The	the	DET	DT	Definite=Def|PronType=Art	23	det	_	_
 23	Tale	Tale	PROPN	NNP	Number=Sing	20	comp:pred	_	_
 24	of	of	ADP	IN	_	23	udep	_	_
@@ -31192,7 +31192,7 @@
 7	steps	step	NOUN	NNS	Number=Plur	4	comp:obj	_	Supersense=n.ATTRIBUTE
 8	involved	involved	ADJ	JJ	Degree=Pos	7	mod	_	_
 9	in	in	ADP	IN	_	8	udep	_	PRel[config]=default|PRel[gov]=8:involved|PRel[obj]=13:project|Supersense[coding]=p.Circumstance|Supersense[scene]=p.Whole
-10	the	the	DET	DT	Definite=Def|PronType=Art	13	reparandum	_	_
+10	the	the	DET	DT	Definite=Def|PronType=Art	13	conj:dicto	_	_
 11	the	the	DET	DT	Definite=Def|PronType=Art	13	det	_	_
 12	installation	installation	NOUN	NN	Number=Sing	13	compound	_	Supersense=n.ACT
 13	project	project	NOUN	NN	Number=Sing	9	comp:obj	_	Supersense=n.ACT
