@@ -55,6 +55,10 @@ _spec.loader.exec_module(d)
 # Source files per language, mirroring what the released arm trains on.
 FILES = {
     "en": ["assets/en_ewt-sud-%s.relabeled_ext.conllu" % s for s in ("train", "dev", "test")],
+    # en_gum: the second English arm (EWT + the ten non-NonCommercial GUM genres).
+    # A separate key, not a replacement -- `en` must keep pointing at the EWT-only files
+    # that the released CC BY-SA en_sud_ewt wheel was built from.
+    "en_gum": ["assets/en_ewtgum-sud-%s.relabeled_ext.conllu" % s for s in ("train", "dev", "test")],
     "ar": ["assets_ar/SUD_Arabic-PADT/ar_padt-sud-%s.relabeled_ext.conllu" % s for s in ("train", "dev", "test")],
     "fa": ["assets_fa/SUD_Persian-PerDT/fa_perdt-sud-%s.relabeled_ext.conllu" % s for s in ("train", "dev", "test")],
     # Latin's released arm trains on the plain ∪ macron union, so the macron half needs the same

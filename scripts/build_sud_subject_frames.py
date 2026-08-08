@@ -22,6 +22,10 @@ import json
 # The train split each released arm actually uses.
 TRAIN = {
     "en":  "assets/en_ewt-sud-train.relabeled_ext.conllu",
+    # en_gum: the second English arm (EWT + the ten non-NonCommercial GUM genres).
+    # A separate key, not a replacement -- `en` must keep pointing at the EWT-only files
+    # that the released CC BY-SA en_sud_ewt wheel was built from.
+    "en_gum": "assets/en_ewtgum-sud-train.relabeled_ext.conllu",
     "zh":  "assets_zh/SUD_Chinese-GSDBoth/zh_gsdboth-sud-train.relabeled_ext.conllu",
     "yue": "assets_yue/SUD_Cantonese-HK/yue_hk-sud-train.relabeled_ext.conllu",
     "lzh": "assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-train.relabeled_ext.conllu",

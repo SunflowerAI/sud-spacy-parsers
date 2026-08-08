@@ -87,6 +87,98 @@ FRAMES = {
    "VERB"
   ]
  ],
+ "en_gum": [
+  [
+   "Keep",
+   "comp:obj",
+   "VERB"
+  ],
+  [
+   "construe",
+   "comp:obj",
+   "VERB"
+  ],
+  [
+   "end",
+   "comp:obj",
+   "VERB"
+  ],
+  [
+   "fear",
+   "comp:pred",
+   "VERB"
+  ],
+  [
+   "feel",
+   "comp:obl",
+   "VERB"
+  ],
+  [
+   "have",
+   "comp:pred",
+   "VERB"
+  ],
+  [
+   "help",
+   "comp:obl",
+   "VERB"
+  ],
+  [
+   "let",
+   "comp:obl",
+   "VERB"
+  ],
+  [
+   "let",
+   "comp:pred",
+   "VERB"
+  ],
+  [
+   "make",
+   "comp:obl",
+   "VERB"
+  ],
+  [
+   "notice",
+   "comp:obl",
+   "VERB"
+  ],
+  [
+   "picture",
+   "comp:obl",
+   "VERB"
+  ],
+  [
+   "resist",
+   "comp:obj",
+   "VERB"
+  ],
+  [
+   "see",
+   "comp:pred",
+   "VERB"
+  ],
+  [
+   "stop",
+   "comp:obj",
+   "VERB"
+  ],
+  [
+   "to",
+   "comp:obj",
+   "PART"
+  ],
+  [
+   "watch",
+   "comp:obl",
+   "VERB"
+  ],
+  [
+   "witness",
+   "comp:obl",
+   "VERB"
+  ]
+ ],
  "zh": [
   [
    "上表",
@@ -1448,6 +1540,15 @@ FRAMES = {
 
 VALUES = {
  "en": {
+  "comp:obl\tVERB": "ObjRaising",
+  "comp:obj\tPART": "SubjRaising",
+  "comp:obj\tVERB": "SubjRaising",
+  "comp:pred\tVERB": "SubjRaising",
+  "comp:obj\tSCONJ": "SubjRaising",
+  "comp:obl\tADJ": "SubjRaising",
+  "comp:obj\tADP": "SubjRaising"
+ },
+ "en_gum": {
   "comp:obl\tVERB": "ObjRaising",
   "comp:obj\tPART": "SubjRaising",
   "comp:obj\tVERB": "SubjRaising",

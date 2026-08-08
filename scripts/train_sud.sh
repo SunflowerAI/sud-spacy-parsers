@@ -52,7 +52,7 @@ LANGS=${*:-$ALL_LANGS}
 feats_for() {
   if [ -n "${SUD_FEATS:-}" ]; then echo "$SUD_FEATS"; return; fi
   case "$1" in
-    en|fa|la) echo "Subject Reported Shared" ;;
+    en|en_gum|fa|la) echo "Subject Reported Shared" ;;
     ar|sa)    echo "Reported Shared" ;;
     id|ko)    echo "Shared" ;;
     *)        echo "Subject Shared" ;;
@@ -92,6 +92,11 @@ mkdir -p assets_sud
 src_conllu() {
   case "$1" in
     en)  echo "assets/en_ewt-sud-$2.relabeled_ext.conllu" ;;
+    # en_gum is the SECOND English arm: EWT + the non-NonCommercial GUM genres, built by
+    # scripts/build_en_ewt_gum.sh. Deliberately NOT in ALL_LANGS -- it is an additional wheel
+    # (en_sud_ewt_gum, CC BY-NC-SA 4.0), not a replacement for en, so it is opt-in per run.
+    # arm_suffix/src_model/base_config all fall through correctly on the name alone.
+    en_gum) echo "assets/en_ewtgum-sud-$2.relabeled_ext.conllu" ;;
     zh)  echo "assets_zh/SUD_Chinese-GSDBoth/zh_gsdboth-sud-$2.relabeled_ext.conllu" ;;
     yue) echo "assets_yue/SUD_Cantonese-HK/yue_hk-sud-$2.relabeled_ext.conllu" ;;
     # lzh trains on the PUNCTUATION-RESTORED, rule-merged chain -- the generation its released arm

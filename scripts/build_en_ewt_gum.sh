@@ -200,6 +200,28 @@ if run corpus; then
   ls -la "$CORPUS/"
 fi
 
+# --- 7. the base arm ----------------------------------------------------------------------------
+# NOT routed through relabel_retrain_ext.sh: that script is a fixed `for lang in en zh ko id` loop
+# over the four original relabel languages, and en_gum is a second ARM of one of them rather than a
+# new language. Same config, same reader, same everything -- only --paths and --output move.
+#   GPU_ID=0   train on CUDA (decide from the probe below; the small CNN often loses on GPU)
+#   MAX_STEPS  cap for the timing probe, e.g. MAX_STEPS=200
+# `all` means the DATA steps only -- training is hours, so it must be asked for by name.
+if [ "$step" = base ]; then
+  echo "=== 7. base arm -> training_en_gum_ext ========================================="
+  gpu=""; [ -n "${GPU_ID:-}" ] && gpu="--gpu-id $GPU_ID"
+  cap=""; [ -n "${MAX_STEPS:-}" ] && cap="--training.max_steps $MAX_STEPS"
+  out="${OUT_DIR:-training_en_gum_ext}"
+  log="${LOG:-train_en_gum_ext.log}"
+  echo "  spacy train configs/config.cfg $gpu $cap --output $out/  (log: $log)"
+  PYTHONUNBUFFERED=1 $PY -m spacy train configs/config.cfg $gpu $cap --output "$out/" \
+    --paths.train "$CORPUS/en_ewtgum-sud-train.relabeled_ext.spacy" \
+    --paths.dev   "$CORPUS/en_ewtgum-sud-dev.relabeled_ext.spacy" > "$log" 2>&1
+  [ -d "$out/model-best" ] || { tail -20 "$log"; die "base training failed -- see $log"; }
+  $PY -c "import json;p=json.load(open('$out/model-best/meta.json'))['performance'];\
+print('  OK  tag %.4f  uas %.4f  las %.4f  sents_f %.4f' % (p['tag_acc'],p['dep_uas'],p['dep_las'],p.get('sents_f',0)))"
+fi
+
 echo
-echo "next: 200-step GPU-vs-CPU probe, then base -> train_morph.sh -> train_lemma.sh -> train_sud.sh"
-echo "      (all under the en_gum arm names), then package_sud.sh en_gum at CC BY-NC-SA 4.0."
+echo "next: bash scripts/train_morph.sh en_gum -> train_lemma.sh en_gum -> train_sud.sh en_gum,"
+echo "      then package_sud.sh en_gum at CC BY-NC-SA 4.0."

@@ -36,6 +36,7 @@ train() {  # $1=lang $2=train $3=dev  (source is always training_<lang>_morph/mo
 for lang in "$@"; do
 case $lang in
  en)  train en  corpus_en_ewt_ext/en_ewt-sud-train.relabeled_ext.spacy  corpus_en_ewt_ext/en_ewt-sud-dev.relabeled_ext.spacy ;;
+ en_gum) train en_gum corpus_en_gum_ext/en_ewtgum-sud-train.relabeled_ext.spacy corpus_en_gum_ext/en_ewtgum-sud-dev.relabeled_ext.spacy ;;
  ar)  train ar  corpus_ar_ext/ar_padt-sud-train.relabeled_ext.spacy    corpus_ar_ext/ar_padt-sud-dev.relabeled_ext.spacy ;;
  fa)  train fa  corpus_fa_ext/fa_perdt-sud-train.relabeled_ext.spacy   corpus_fa_ext/fa_perdt-sud-dev.relabeled_ext.spacy ;;
  ja)  train ja  corpus_ja_ext/ja_gsd-sud-train.relabeled_ext.spacy     corpus_ja_ext/ja_gsd-sud-dev.relabeled_ext.spacy ;;
