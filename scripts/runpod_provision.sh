@@ -42,11 +42,22 @@ apt-get update -qq && apt-get install -y -qq tmux rsync curl git ca-certificates
   || die "apt failed"
 
 echo "=== 2. repo ===================================================================="
-# Public repo -- no credential goes onto the pod, which is what makes terminating it risk-free.
-if [ ! -d "$ROOT/.git" ]; then git clone "$REPO" "$ROOT" || die "clone failed"; fi
-cd "$ROOT" || die "no $ROOT"
-git fetch origin "$BRANCH" && git checkout "$BRANCH" && git pull --ff-only || die "checkout failed"
-echo "  at $(git log --oneline -1)"
+# Two ways in, and the pod must not care which. CLONE if nothing is here (public repo, so no
+# credential ever lands on the pod -- which is what makes terminating it a zero-risk operation).
+# But an RSYNC of the working tree is equally valid and is the route when the branch has not been
+# pushed; in that case there is nothing to fetch and trying would fail the run.
+if [ ! -d "$ROOT/.git" ]; then
+  git clone "$REPO" "$ROOT" || die "clone failed (rsync the working tree here instead)"
+  cd "$ROOT" && { git checkout "$BRANCH" || die "no branch $BRANCH on the remote"; }
+else
+  cd "$ROOT" || die "no $ROOT"
+  if git fetch origin "$BRANCH" 2>/dev/null; then
+    git checkout "$BRANCH" && git pull --ff-only || die "checkout failed"
+  else
+    echo "  no remote branch $BRANCH -- using the working tree as delivered (rsync route)"
+  fi
+fi
+echo "  at $(git log --oneline -1 2>/dev/null || echo '(no git metadata)')"
 
 echo "=== 3. python 3.12 + spaCy with CUDA ==========================================="
 # The RunPod images ship 3.11; uv fetches a standalone CPython 3.12 with no apt/PPA involved.
