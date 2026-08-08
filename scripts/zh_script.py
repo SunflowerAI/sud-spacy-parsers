@@ -137,3 +137,39 @@ if Language is not None:
     @Language.factory("lzh_script")
     def _make_lzh_script(nlp, name):
         return ZhScript(nlp, name)
+
+
+# ---------------------------------------------------------------------------------------------
+# The tokenizer this module's own docstring has always named -- and which was never implemented.
+# `make_zh_trad_tokenizer` above wraps an existing tokenizer OBJECT, which cannot be named in a
+# config, and a config that does not name it is the documented trap: `to_disk` writes the config as
+# it stands, so a reloaded model rebuilds a plain CharSegTokenizer, converts nothing, and says
+# nothing. A registered subclass can be named, so it survives the round trip.
+from spacy.util import registry as _registry          # noqa: E402
+from char_seg_tokenizer import CharSegTokenizer as _CST   # noqa: E402
+
+
+class ZhTradTokenizer(_CST):
+    """CharSegTokenizer that converts simplified input to traditional before segmenting.
+
+    The model trains on traditional GSD alone, so 個 and 个 do not split one character's probability
+    mass across two types. Simplified input is converted here and converted BACK on the way out by
+    the `zh_script` component, which reads the flag this leaves in `doc.user_data`.
+    """
+
+    def __call__(self, text):
+        s2t, _t2s = _converters()
+        simplified = _looks_simplified(text, s2t)
+        if simplified:
+            text = s2t.convert(text)
+            text = "".join(_PUNCT_MAP.get(ch, ch) for ch in text)
+        doc = super().__call__(text)
+        doc.user_data["zh_input_simplified"] = simplified
+        return doc
+
+
+@_registry.tokenizers("sud.ZhTradTokenizer.v1")
+def _make_zh_trad_tokenizer():
+    def tokenizer(nlp):
+        return ZhTradTokenizer(nlp.vocab)
+    return tokenizer
