@@ -390,7 +390,37 @@ bare (apposition is the sanctioned `conj:appos`, 46 260). The UD relation **`rep
 un-converted in a few upstream SUD releases and is rewritten to SUD's **`conj:dicto`** — 696 across
 all derived files, distinct instances la 32 / yue 165 / zh 2, **DEPREL column only** (`reparandum` is
 also a Latin gerundive word form, so FORM/LEMMA must be untouched). A pure label rename; la/yue/zh
-bases were retrained so released models emit it. Other non-official UD carry-overs (`mod@poss`,
+bases were retrained so released models emit it.
+
+⚠ **`en` was missed by that pass and shipped the UD relation until 2026-08-08.** Found while
+building the EWT+GUM arm. The released `en_sud_ewt` had `reparandum` in its parser's label
+inventory and no `conj:dicto`, and emitted it on real input — 18 predictions over the 44 sentences
+whose gold carries the relation. 36/9/4 tokens in train/dev/test, 147 cells over the nine tracked
+derived files. Confirmed against the **downloaded v0.2.0 asset**, not a local directory.
+
+**Fixed WITHOUT retraining the parser, and that is the point.** `reparandum` → `conj:dicto` is a
+pure label rename, so retraining on renamed data yields the same model up to RNG; renaming the
+action inside the trained parser is the exact analogue and keeps every weight — and therefore every
+published metric — byte-identical, so a clobbered wheel differs in the one thing that was wrong.
+`scripts/rename_deprel_label.py` does it. **The hazard it guards is real**: spaCy orders actions by
+`(frequency, label_string)` DESCENDING (`TransitionSystem.initialize_actions`), so the label string
+is a tiebreak and a rename can renumber the actions, silently misaligning weights that are indexed
+by action. en is one string away — `reparandum` and `comp:aux@pass` both have frequency 31 in
+LEFT-ARC, and the order survives only because `conj:dicto` also sorts above `comp:aux@pass`. The
+script refuses unless the full (action, label) sequence is unchanged position for position, and
+`--verify-parses` re-parses a corpus with both models (0 heads, 0 deprels differing over all 2077
+test sentences).
+
+**Only `sud_shared` needed retraining**, because `sud_shared_data._is_conj` counts `conj:dicto` as a
+conjunct and `reparandum` not, so the coordination mask moves (75 candidates across the splits, and
+the repair token itself is now excluded as a conjunct — which drops `mod ADJ after` from the rule
+table under `--min-count 20`). `sud_subject` reads only NORM/PREFIX/SUFFIX/SHAPE with gold from
+MISC, so the released pipe was copied back in rather than re-initialised; it re-evaluates to exactly
+its published 82.01. The rebuilt wheel is **29 of 38 files byte-identical** to the shipped one — the
+movers are `parser/moves`, `sud_shared/model`, `vocab/strings.json` and metadata. Test: Shared
+62.6 → 63.10, Subject 82.01 and Idiom 84.62/82.14 unchanged, every ship decision intact.
+
+Other non-official UD carry-overs (`mod@poss`,
 `@unmarked/@desc/@predet/@preconj`, `compound@prt`) were left as-is by user decision; `@lmod/@tmod`
 and the other language-specific semantic subtypes are legitimate SUD conventions the pipeline relies
 on.
