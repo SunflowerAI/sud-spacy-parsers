@@ -14,7 +14,7 @@
 #
 # Phases (run all, or name one): variants | labels | base | morph | lemma | eval
 set -euo pipefail
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 A=assets_la

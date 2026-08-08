@@ -4,8 +4,8 @@
 # lzh/sa get clause_parser re-appended first (it must run AFTER the morphologizer so pos_ from the
 # whole-doc pass is preserved); yue gets the pkuseg tokenizer swapped in.
 # Usage: bash scripts/package_morph.sh en ar fa ja id ko la zh yue lzh sa
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
 pkg() {  # $1=lang  $2=src model dir  $3=--name value  $4=optional --code arg

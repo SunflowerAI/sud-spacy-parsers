@@ -6,7 +6,7 @@
 # baseline LAS) over from-scratch on this 804-sentence treebank; comp:obl F is unchanged within
 # the 100-sentence test noise. Prereq: the .spacy corpora (corpus_yue*, built by the relabel
 # pipeline) and zh_both_tok2vec.bin must exist.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 PY=.venv/bin/python
 CFG=configs/config_yue.cfg
 CODE="--code scripts/yue_tokenizer.py"

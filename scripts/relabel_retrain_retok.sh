@@ -3,8 +3,8 @@
 # transfer the relabels through the retokenise/coarsen transforms (which preserve
 # deprels), retrain the retokenised models, and evaluate. zh = GSDSimp+pkuseg
 # (word-level, no transform), id = coarsened, ko = morpheme functional-head.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
 echo "================ RELABEL (cached) ================"

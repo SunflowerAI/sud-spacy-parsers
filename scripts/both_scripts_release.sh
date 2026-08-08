@@ -17,7 +17,7 @@
 # and assets_lzh/... (built by relabel_ext.py), the raw SUD_Chinese-GSD extracted, and
 # `pip install opencc-python-reimplemented spacy-pkuseg`.
 set -e
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY=.venv/bin/python
 
 ############################## Chinese (zh) = GSD + GSDSimp ##############################

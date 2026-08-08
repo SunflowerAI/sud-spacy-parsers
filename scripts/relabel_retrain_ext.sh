@@ -4,8 +4,8 @@
 # metrics_<lang>_rl.json), plain for en. Assumes relabel_ext.py has already produced the
 # *.relabeled_ext.conllu files (run it first). Writes corpus_*_ext / training_*_ext /
 # metrics_*_ext.json and prints baseline vs verb-scope-rl vs extended comp:obl F + LAS.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
 # lang -> conllu dir, file prefix, config, whether eval needs --gold-preproc, baseline-rl metrics

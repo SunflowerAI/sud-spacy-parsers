@@ -3,7 +3,7 @@
 # output: *.relabeled_ext.conllu). gold-preproc eval throughout (comparable to metrics_<lang>.json).
 # Run relabel_ext.py for each language first. Prints base vs verb-rl vs extended comp:obl F + LAS.
 # (Sanskrit has no verb-ADP baseline relabel — its signal is case-based — so verb-rl == base.)
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 PY=.venv/bin/python
 declare -A DIR=( [fa]=assets_fa/SUD_Persian-PerDT [ar]=assets_ar/SUD_Arabic-PADT [la]=assets_la \
                  [sa]=assets_sa/SUD_Sanskrit-Vedic [lzh]=assets_lzh/SUD_Classical_Chinese-Kyoto \

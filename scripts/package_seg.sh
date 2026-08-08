@@ -3,8 +3,8 @@
 # reuses its released packaging recipe pointed at training_<lang>_seg/model-best. sa/lzh are NOT
 # retrained — they are repackaged from model-seg (new clause_parser; see add_clause_parser.py).
 # Usage: bash scripts/package_seg.sh ar fa ja la id ko zh yue sa lzh
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
 pkg() {  # $1=lang  $2=src model dir  $3=--name value  $4=optional --code arg

@@ -9,9 +9,9 @@
 # re-added at packaging time). Mirrors the per-language tables in retrain_seg.sh / package_seg.sh.
 #
 # Usage: bash scripts/train_morph.sh en ar fa ja id ko la zh yue lzh sa
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 PY=.venv/bin/python
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 CODE="--code scripts/seg_code.py"
 # Arms whose derived config is HAND-MAINTAINED and must not be regenerated: sa's morphologiser uses
 # spacy.Tok2Vec.v2 + MultiHashEmbed so it can read MORPH (the tokeniser's Compound=Yes) as an INPUT

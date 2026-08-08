@@ -60,8 +60,8 @@
 # and deprel, so sud_idiom (which reads `unk`) has to see the tree it leaves behind.
 #
 # Usage: bash scripts/package_sud.sh en ar fa ja id ko la zh yue lzh sa
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 # Wheel version. This was hardcoded to 0.1.0, so every release that ADDED a layer had to be packaged
 # by hand -- and the hand-built path is where the v0.2.0 near-miss came from (a wheel built straight

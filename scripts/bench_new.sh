@@ -1,7 +1,7 @@
 #!/bin/bash
 # Phase 3: benchmark comp/mod prompts for the five new languages, qwen3:8b vs gemma4, on the
 # confident gold (gold_<lang>.jsonl). Writes bench_<lang>_<model>.log; pick the winner per lang.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY=.venv/bin/python
 PERCLASS=${PERCLASS:-60}
 

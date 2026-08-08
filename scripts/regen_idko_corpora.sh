@@ -3,8 +3,8 @@
 # id_sud_gsd / ko_sud_gsd models train on (the corpus_* dirs were cleaned up). Deterministic
 # transforms over the surviving *.relabeled.conllu — no LLM calls. Mirrors the id/ko corpus steps
 # of scripts/relabel_retrain_retok.sh, without the (non-seg) trainings. Then retrain_seg.sh id ko.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
 echo "### id: coarsen enclitics on the relabeled file -> corpus_id_coarse_rl"

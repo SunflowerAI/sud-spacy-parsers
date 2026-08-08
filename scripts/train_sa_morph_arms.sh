@@ -12,7 +12,7 @@
 # measures the model with one of its inputs deleted (LAS 0.5601 -> 0.5169).
 #
 # Usage: bash scripts/train_sa_morph_arms.sh [arm ...]      (default: base + every generated arm)
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 PY=.venv/bin/python
 CODE="--code scripts/seg_code.py"
 TRAIN=corpus_sa_csl_rev/train.csl_rev.spacy

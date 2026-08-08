@@ -1,8 +1,8 @@
 #!/bin/bash
 # Prep retokenised/coarsened data + train zh (pkuseg/GSDSimp), id (coarsened),
 # ko (morpheme functional-head), sequentially. English is unchanged -> not retrained.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
 echo "================ PREP: Korean morpheme retokenise ================"

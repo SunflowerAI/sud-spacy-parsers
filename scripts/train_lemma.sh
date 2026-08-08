@@ -6,9 +6,9 @@
 # Each arm reuses its *_morph config (same GoldTokCorpus/plain reader + train/dev data as morph).
 #
 # Usage: bash scripts/train_lemma.sh en ar fa ja id ko la zh yue lzh sa
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy || exit 1
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 PY=.venv/bin/python
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 CODE="--code scripts/seg_code.py"
 # Arms whose derived config is HAND-MAINTAINED and must not be regenerated — see train_morph.sh.
 HAND_CFG=" sa "

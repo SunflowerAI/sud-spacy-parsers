@@ -2,8 +2,8 @@
 # Train + evaluate baseline tagger+parser for zh/ko/id on their SUD treebanks.
 # gold_preproc (in the config) + --gold-preproc (eval) make train/eval use the
 # treebank's gold tokens, so the jieba/mecab tokenizers don't break alignment.
-cd /Users/sivakalyan/Linguistics/Tools/SUD-spaCy
-export MECAB_PATH=/opt/homebrew/lib/libmecab.dylib   # Korean tokenizer (natto)
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}   # Korean tokenizer (natto)
 PY=.venv/bin/python
 
 declare -A PREF=( [zh]=zh_gsdsimp-sud [ko]=ko_gsd-sud [id]=id_gsd-sud )
