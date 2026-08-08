@@ -1457,6 +1457,23 @@ the wrong way round, reading the correct 9.1 MB lzh asset as "stale" because a s
 same name sat beside the current one. `git log --oneline <branch>..main` would have said so in one
 line. Corrected by merging main in, retraining lzh's pipe on the right arm, and rebuilding.
 
+**The code-only re-release, 2026-08-09 — and the check that is worth more than the release.** The
+segmented `HeadDeps` is a pure speed change, so the six wheels that BUILD that layer (ar, en,
+en_gum, fa, id, lzh — `sud_tagger.py` also travels in la and yue, but their `Shared`/`Subject` pipes
+use the plain tagger encoder and never instantiate it) were re-packaged at their own live versions
+and re-uploaded. Each was then diffed **file by file against the DOWNLOADED asset**, and that is
+what earned its keep: five came out differing in `.py` files and metadata alone, and **lzh moved
+tok2vec, tagger, parser, morphologizer and `sud_shared`**. `package_sud.sh`'s lzh default still
+named `training_lzh_rm_sud`, the both-scripts arm, after lzh went traditional-only end to end — so
+the routine command rebuilt the superseded generation. The wheel built, loaded and parsed correctly;
+only the hash comparison said otherwise. Repointed to `training_lzh_trad_sud`. **A default that
+names the right arm is the fix; a comment telling the next person to remember is not** — this was
+the third time lzh nearly shipped backwards.
+
+Two diffs that look alarming and are not, both on lzh: `__init__.py` differs only in IMPORT ORDER,
+and `sud_subject_frames.py` is purely ADDITIVE (an `en_gum` key; lzh's own 7 entries, the ones its
+Subject rule reads, are byte-identical). Check the table, don't trust the filename.
+
 **Corollary, found 2026-08-05: `build_sud/` can hold two wheels with the SAME name.** A stale
 `build_sud/lzh_rel_pkg/` sat beside `build_sud/lzh/`, each with its own `lzh_sud_kyoto-0.1.0-py3-none-any.whl`
 (9.1 MB vs 14.5 MB, one a `han_lemma_lut` generation behind). The documented upload line is

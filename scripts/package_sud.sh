@@ -136,9 +136,16 @@ for lang in "$@"; do
     # trained lzh arm can be packaged without editing this file:
     #   LZH_BASE=training_lzh_lemma/model-best LZH_TRAIN_CONLLU=<...>.relabeled_ext.conllu \
     #     bash scripts/package_sud.sh lzh      # the pre-punctuation arm
-    # lzh: the rule-merged, punctuation-restored MORPH arm (no trained lemmatizer --
+    # lzh: the TRADITIONAL-ONLY rule-merged, punctuation-restored arm (no trained lemmatizer --
     # han_lemma_lut replaces it below) PLUS the Shared pipe trained on top of it.
-    lzh)          base="${LZH_BASE:-training_lzh_rm_sud/model-best}" ;;
+    # ⚠ This default was left at `training_lzh_rm_sud` after lzh went traditional-only END TO END,
+    # so `bash scripts/package_sud.sh lzh` silently rebuilt the superseded BOTH-SCRIPTS generation:
+    # tok2vec/tagger/parser/morphologizer/sud_shared all differed from the live 0.2.0 asset. Caught
+    # in the 2026-08-09 code-only re-release by diffing the rebuilt wheel against the DOWNLOADED
+    # asset file by file -- the wheel built, loaded and ran, and nothing else would have said so.
+    # Third time this repo has shipped lzh a generation backwards; a default that names the arm is
+    # the fix, not a note telling the next person to remember.
+    lzh)          base="${LZH_BASE:-training_lzh_trad_sud/model-best}" ;;
     *)            base=training_${lang}_lemma/model-best ;;
   esac
   work=build_sud/work_$lang
