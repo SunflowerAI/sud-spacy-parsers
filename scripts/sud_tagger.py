@@ -444,12 +444,19 @@ def _head_deps_forward(model, docs, is_train):
                 continue
             dX += dY[:, :w]
             if not detach:
-                # d/dX of X[heads]: scatter back onto each head's own row
-                xp.add.at(dX, heads, dY[:, w:2 * w])
+                # d/dX of X[heads]: scatter back onto each head's own row.
+                # `ops.scatter_add`, not `xp.add.at`: cupy < 13 -- what spaCy 3.8 pins for
+                # cuda12x -- has no `ufunc.at`, so the raw form trains fine on CPU and dies
+                # in BACKPROP on GPU, i.e. minutes into the longest run of the chain.
+                # NB call it BARE. NumpyOps (Cython) and CupyOps (cupyx.scatter_add) both
+                # mutate `table` and return None; only the base Ops.scatter_add returns
+                # anything, and that one is just `xp.add.at` again. `dX = ops.scatter_add(...)`
+                # would therefore set dX to None on every backend that actually works.
+                ops.scatter_add(dX, heads, dY[:, w:2 * w])
                 # d/dX of the dependent mean: split evenly over the children it averaged
                 for i, idx in enumerate(kids):
                     if len(idx):
-                        xp.add.at(dX, idx, dY[i, 2 * w:] / len(idx))
+                        ops.scatter_add(dX, idx, dY[i, 2 * w:] / len(idx))
             dXs.append(dX)
         return bp_tok2vec(dXs)
 
