@@ -92,6 +92,7 @@ la_macron_morpheus.json.gz
 
 # Character-segmenter training pairs (regenerate: scripts/make_seg_pairs.py <treebank> <out>)
 data_seg_zh/
+data_seg_zh_trad/
 data_seg_id/
 data_seg_yue/
 # Trained segmenters, pkuseg models, lexicons. These SHIP INSIDE THE WHEELS (the tokenizer/

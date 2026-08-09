@@ -44,6 +44,10 @@ LEMMA_ARM = {
     "lzh": "training_lzh_rm_morph/model-best",
     "ko": "training_ko_eojeol_lemma/model-best",
     "id": "training_id_split_lemma/model-best",
+    # la ships the ORTHOGRAPHICALLY AUGMENTED chain: one copy of the macronised treebank resampled
+    # into a fresh edition style every epoch, instead of the plain-plus-macron union. Different
+    # parser, therefore a different coordination mask, therefore a different measurement.
+    "la": "training_la_aug_lemma/model-best",
 }
 # --code each arm needs on top of seg_code's imports.
 EXTRA_CODE = {"la": "la_macronise"}
@@ -60,10 +64,11 @@ def lemma_arm(lang):
 SHARED_ARM = {
     # lzh's Shared pipe rides the rule-merged punctuation chain (see package_sud.sh).
     "lzh": "training_lzh_rm_sud/model-best",
-    # la ships the RULE, so its trained arm is a comparison point only -- and the FAIR one is the
-    # solo-checkpointed arm (test 35.10), not the three-feature arm whose checkpoint was chosen for
-    # Subject's sake (30.06). Deleting training_la_shared would silently restore the worse number.
-    "la": "training_la_shared/model-best",
+    # la's trained arm on the AUGMENTED base. ⚠ This is the three-feature arm, whose `model-best`
+    # is picked on the MEAN of Subject/Reported/Shared -- on the union base that handicapped Shared
+    # by ~5 points (30.06 against a solo-trained 35.10). So a trained-loses result here is not
+    # decisive on its own; a trained-WINS result is, since the handicap runs the other way.
+    "la": "training_la_aug_sud/model-best",
 }
 
 

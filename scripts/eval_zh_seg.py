@@ -80,8 +80,13 @@ def main():
     gold = [r["csl"].split(" ") for r in rows]
 
     import sa_presegment_lex as spl
-    if a.jieba_source is not None:
-        spl.enable_jieba(a.jieba_source, a.jieba_userdict)
+    # Read the channel's settings off the MODEL, not off the command line: a segmenter trained to
+    # ask jieba about the t2s rendering has to be asked the same way here, and a flag that has to be
+    # remembered is a flag that will be forgotten. --jieba-source still overrides, for probing.
+    meta = json.loads((pathlib.Path(a.model) / "vocab.json").read_text(encoding="utf-8"))
+    src = a.jieba_source if a.jieba_source is not None else meta.get("jieba_source")
+    if src is not None:
+        spl.enable_jieba(src, a.jieba_userdict, t2s=meta.get("jieba_t2s", False))
     mins = a.min_lens or [3] * len(a.lexicon)
     lex = [{w for w in pathlib.Path(p).read_text(encoding="utf-8").split("\n") if len(w) >= ml}
            for p, ml in zip(a.lexicon, mins)]

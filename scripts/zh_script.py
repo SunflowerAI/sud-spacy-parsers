@@ -53,18 +53,46 @@ _INV_PUNCT = {v: k for k, v in _PUNCT_MAP.items()}
 _SIMP_ONLY = None          # characters that exist in simplified and differ under s2t
 
 
+_CONV = None               # (s2tw, t2s), built once -- this sits in the per-text tokenizer path
+
+
 def _converters():
-    import opencc
-    return opencc.OpenCC("s2tw"), opencc.OpenCC("t2s")
+    global _CONV
+    if _CONV is None:
+        import opencc
+        _CONV = (opencc.OpenCC("s2tw"), opencc.OpenCC("t2s"))
+    return _CONV
 
 
-def _looks_simplified(text, s2t):
-    """True if converting to traditional would CHANGE the text -- i.e. it contains simplified forms.
+def _looks_simplified(text, s2t, t2s):
+    """True if `text` is written in SIMPLIFIED characters.
 
-    Deliberately not a character-set test: a traditional string is already a fixed point of `s2t`,
-    so this is exact for the decision being made (do we need to convert?) and costs one conversion.
+    ⚠ The obvious test -- "would `s2t` change it?" -- is WRONG, and it shipped in zh_sud_gsd 0.2.0:
+    traditional input came back simplified. A traditional string is NOT a fixed point of `s2t`,
+    because simplification is many-to-one and several of the merged forms are themselves perfectly
+    good traditional characters: `s2t` maps 台 -> 臺, 里 -> 裡, 面 -> 麵, 后 -> 後, 只 -> 隻. Any
+    traditional sentence containing one of them was read as simplified and `t2s`-converted on the
+    way out. On the traditional GSD test that is 45 sentences in 500.
+
+    So ask for evidence of the script that has an EXCLUSIVE inventory instead. A traditional-only
+    character (這, 樣, 處, 題) is one `t2s` changes, and simplified text contains none; the second
+    clause then requires at least one convertible character, so a sentence with nothing to go on
+    (no script-distinguishing character at all) is left alone -- correctly, since the two renderings
+    are the same string and no conversion is owed either way.
+
+    Measured against the two aligned treebanks -- SUD_Chinese-GSD and SUD_Chinese-GSDSimp are the
+    same 4,997 sentences in the two scripts, so each is a label for the other:
+
+        traditional read as simplified   3 / 4,997      (was 45 / 500 on test alone)
+        simplified read as traditional   9 / 4,997
+                                        -> 0.120 % over both
+
+    The twelve residuals are the same merged-character ambiguity seen from each side, and they are
+    genuine: GSD's own traditional text writes 酒吧里 and 何家干 where 裡/幹 would be expected, and the
+    simplified sentences that read as traditional carry the era name 乾德, in which 乾 survives
+    unsimplified. A rule cannot settle those; the character really is shared.
     """
-    return s2t.convert(text) != text
+    return t2s.convert(text) == text and s2t.convert(text) != text
 
 
 class ZhScript:
@@ -104,10 +132,10 @@ class ZhScript:
 
 def make_zh_trad_tokenizer(inner):
     """Wrap a tokenizer so it converts simplified input to traditional before segmenting."""
-    s2t, _t2s = _converters()
+    s2t, t2s = _converters()
 
     def tokenizer(text):
-        simplified = _looks_simplified(text, s2t)
+        simplified = _looks_simplified(text, s2t, t2s)
         if simplified:
             text = s2t.convert(text)
             text = "".join(_PUNCT_MAP.get(ch, ch) for ch in text)
@@ -158,8 +186,8 @@ class ZhTradTokenizer(_CST):
     """
 
     def __call__(self, text):
-        s2t, _t2s = _converters()
-        simplified = _looks_simplified(text, s2t)
+        s2t, t2s = _converters()
+        simplified = _looks_simplified(text, s2t, t2s)
         if simplified:
             text = s2t.convert(text)
             text = "".join(_PUNCT_MAP.get(ch, ch) for ch in text)

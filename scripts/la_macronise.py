@@ -120,6 +120,13 @@ def strip_macron(s):
     return unicodedata.normalize("NFC", "".join(c for c in n if c != "̄"))
 
 
+def la_orth_strip_length(s):
+    """Drop macrons AND breves. `la_orth` has this, but this module is bundled into the wheel and
+    has to import standalone, so the four lines live here rather than pulling that module in."""
+    n = unicodedata.normalize("NFD", s)
+    return unicodedata.normalize("NFC", "".join(c for c in n if c not in ("\u0304", "\u0306")))
+
+
 # --- paradigm override -------------------------------------------------------------------------
 # The lookup table memorises (form, morph) -> pattern pairs and CANNOT express a paradigm rule, so
 # an unseen (form, morph) combination falls through to the form-only level, which is
@@ -484,6 +491,82 @@ class Morpheus:
         return None
 
 
+# --- orthographic fallback key -----------------------------------------------------------------
+# The released parser handles printed Latin in whatever edition style it meets -- macrons, breves,
+# `u`/`v`, `i`/`j`, `æ`/`œ` -- because it is trained on a corpus resampled into a fresh style every
+# epoch. This table is not: it is keyed on the treebank's own spelling, so `jussit`, `silva`,
+# `cælum` and `mēnsĕ` all MISS, and the component quietly returns the form unchanged on exactly the
+# orthographies the arm exists to handle. Promoting the augmented arm is what makes that live.
+#
+# The raw key is still tried FIRST, so nothing that answers today answers differently: the
+# treebanks disagree among themselves (ITTB writes `u` throughout, PROIEL and Perseus write `v`),
+# and both spellings are in the table on their own terms. Only a form that answers NOWHERE is
+# normalised and asked again.
+#
+# The mask is a bitmask over CHARACTER POSITIONS, so the key must carry a map back to the original
+# form. Length-stripping and `j`/`v` folding are position-preserving; a ligature is not -- `æ` is
+# one character in the form and two in the key -- so the two key positions fold back onto the one
+# form position, which is why the map is built explicitly rather than assumed to be the identity.
+_FOLD = {"j": "i", "v": "u", "J": "I", "V": "U"}
+_LIG = {"æ": "ae", "œ": "oe", "Æ": "Ae", "Œ": "Oe"}
+
+
+def norm_key(form, fold=True, lig=True):
+    """(normalised lookup key, key position -> form position). Identity for ordinary spellings."""
+    key, back = [], []
+    for i, ch in enumerate(la_orth_strip_length(form)):
+        if fold:
+            ch = _FOLD.get(ch, ch)
+        for c in (_LIG.get(ch, ch) if lig else ch):
+            key.append(c)
+            back.append(i)
+    return "".join(key), back
+
+
+def key_ladder(form):
+    """The fallback keys to try, LEAST normalised first.
+
+    Order is load-bearing. Folding `j`/`v` is not free: the treebanks disagree with each other
+    (ITTB writes `u` throughout, PROIEL and Perseus write `v`) and so does the Morpheus table, so
+    `vitae` and `uitae` are two entries with two different answers. A breve-marked edition misses
+    the raw key on EVERY word, so folding at the first step would silently reroute every `v` form
+    to the `u` spelling and answer it worse -- which is exactly what a one-step fallback did, at a
+    cost of 11 points of whole-token agreement on that style. Strip the length marks alone first,
+    which is the smallest change that can possibly answer, and fold only what still misses.
+    """
+    seen = set()
+    for fold, lig in ((False, False), (False, True), (True, True)):
+        key, back = norm_key(form, fold=fold, lig=lig)
+        if key not in seen:
+            seen.add(key)
+            yield key, back
+
+
+def breve_positions(form):
+    """Character positions the caller has marked SHORT with a breve.
+
+    A breve is evidence, not noise. It says this vowel is short, which is precisely the claim a
+    macron would contradict, so these positions are cleared from the mask no matter which level or
+    rule produced it -- lexicon, Morpheus or the paradigm override.
+    """
+    out, i = set(), -1
+    for ch in unicodedata.normalize("NFD", form):
+        if unicodedata.combining(ch) == 0:
+            i += 1
+        elif ch == "\u0306":
+            out.add(i)
+    return out
+
+
+def mask_to_form(mask, back, n):
+    """Translate a mask over key positions into one over the form's own positions."""
+    out = 0
+    for k, i in enumerate(back):
+        if (mask >> k) & 1 and i < n:
+            out |= 1 << i
+    return out
+
+
 def apply_mask(form, mask):
     """Lengthen the vowels whose bit is set, preserving the form's own case."""
     out = []
@@ -586,16 +669,53 @@ class LaMacronise:
         evaluator, so a measurement can never silently miss the paradigm override."""
         if not any(c.isalpha() for c in form):
             return form, None
-        mask, level = self._lookup(strip_macron(form).lower(), upos, feats)
+        # BOTH length marks come off for the primary key, not just macrons. The table is keyed on
+        # unmarked forms, so a breve can only ever miss -- and missing is not harmless here: the
+        # Morpheus suffix levels answer almost anything, so `ŏstēnsum` was answered off its last
+        # four characters (mask 0, `ostensum`) instead of falling through to the entry that knows
+        # it is `ostēnsum`. A wrong answer that pre-empts the right one is worse than no answer.
+        mask, level = self._lookup(la_orth_strip_length(form).lower(), upos, feats)
+        if mask is None:
+            # Nothing answered the form as written. Ask again in the treebank's own orthography,
+            # least normalised first, and translate the answer back onto the caller's spelling.
+            raw = la_orth_strip_length(form).lower()
+            for key, back in key_ladder(form.lower()):
+                if key == raw:
+                    continue
+                m2, l2 = self._lookup(key, upos, feats)
+                if m2 is not None:
+                    mask, level = mask_to_form(m2, back, len(form)), f"{l2}+O"
+                    break
         mask = mask or 0
         if self.paradigm:
-            fixed = paradigm_final(form, feats, lemma, upos)
+            # On the LENGTH-STRIPPED form: this rule is keyed on the final LETTER, so an input
+            # written `mĕnsĕ` or `vītā` would miss the a-stem/o-stem/e-stem cells that are exactly
+            # the frequent ones. Worth 11 points of whole-token agreement on a breve-marked edition.
+            fixed = paradigm_final(la_orth_strip_length(form), feats, lemma, upos)
             if fixed is not None:
                 bit = 1 << (len(form) - 1)
                 new = (mask | bit) if fixed else (mask & ~bit)
                 if new != mask:
                     level = f"{level or 'none'}+P"
                 mask = new
+        # Strip BOTH length marks, not just macrons: a breve is the caller's own vowel-length
+        # annotation, in the same channel as the macron this component writes, so leaving it in
+        # place would put `mĕnsĕ` beside a computed long and silently win. Everything that is not
+        # a length mark is kept, so `jussit` stays `jussit` and `cælum` stays `cælum` -- the
+        # orthography is the caller's, the lengths are ours.
+        # The caller's breves WIN, over every level and over the paradigm rule: a breve marks the
+        # vowel short and a macron would contradict it. Cleared last, so nothing downstream can put
+        # a length back on a vowel whose length the caller has already stated.
+        short = breve_positions(form)
+        if short:
+            keep = mask
+            for i in short:
+                mask &= ~(1 << i)
+            if mask != keep:
+                level = f"{level or 'none'}-B"
+        # Only the MACRONS come off the output: the breves are the caller's own annotation and are
+        # carried through, so `intĕllectam` comes back `intĕllēctam` -- our answer where the caller
+        # said nothing, theirs where they did.
         base = strip_macron(form)
         return (apply_mask(base, mask) if mask else base), level
 

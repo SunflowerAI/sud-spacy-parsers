@@ -39,9 +39,12 @@ TEST = {
     "la":  "assets_la/la_ittbproiel-sud-{split}.relabeled_ext.conllu",
     "sa":  "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{split}.csl_rev.conllu",
 }
-LEMMA_ARM = {"sa": "training_sa_lemma3_noannot/model-best"}
+LEMMA_ARM = {"sa": "training_sa_lemma3_noannot/model-best",
+             "la": "training_la_aug_lemma/model-best"}
 # Where the TRAINED pipe lives, when it is not training_<lang>_sud.
-SUD_ARM = {"lzh": "training_lzh_rm_sud/model-best"}
+SUD_ARM = {"lzh": "training_lzh_rm_sud/model-best",
+           # la ships the orthographically augmented chain (see package_sud.sh).
+           "la": "training_la_aug_sud/model-best"}
 
 # ⚠ lzh's rule arm cannot be `training_lzh_rm_morph` as it stands. `sud_subject_rule` keys on the
 # HEAD LEMMA, and that arm has no lemma layer at all -- lzh replaced its trained lemmatizer with

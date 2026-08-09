@@ -132,20 +132,49 @@ def enable_inflect(stems_path, endings_path):
     _INFLECT["fn"] = inf.inflect_codes
 
 
-_JIEBA = {"index": None, "fn": None, "tok": None}
+_JIEBA = {"index": None, "fn": None, "tok": None, "t2s": False}
 
 
-def enable_jieba(index, userdict=None):
+def _jieba_via_t2s(base_fn):
+    """Ask jieba about the SIMPLIFIED rendering, and keep the answer for the original characters.
+
+    jieba's dictionary is simplified, so a traditional segmenter that asks it directly gets a
+    materially weaker channel. Measured on the traditional GSD test, jieba's boundary decisions
+    score F 0.8920 (P 0.9287 / R 0.8580) on the traditional text and **F 0.9223** (P 0.9725 /
+    R 0.8772) on its `t2s` conversion — the latter being the same channel quality the simplified
+    model was built on (P 0.9730 / R 0.8793), so the whole loss is vocabulary, not the language.
+
+    The codes are per character and `t2s` is a per-character mapping, so the answer transfers by
+    position. That holds only while the conversion preserves length, which is checked rather than
+    assumed: it does on 500/500 traditional GSD test sentences, and where it ever does not, the
+    original text is used and the channel simply degrades to its traditional-text quality.
+    """
+    import opencc
+    conv = opencc.OpenCC("t2s")
+
+    def codes(text, tok):
+        simp = conv.convert(text)
+        return base_fn(simp if len(simp) == len(text) else text, tok)
+
+    return codes
+
+
+def enable_jieba(index, userdict=None, t2s=False):
     """Route lexicon source `index` through jieba's SEGMENTATION DECISION (BMES) instead.
 
     Imported lazily, and from a separate module, because `sa_presegment_lex` is bundled into every
     wheel that ships a character segmenter — the zh model has no reason to carry jieba's 5 MB
     dictionary at import time, and the sa model has no reason to carry jieba at all. Same rule that
     kept `eval_samhita` out of module scope here.
+
+    `t2s` asks jieba about the simplified rendering (see `_jieba_via_t2s`); it is what a
+    TRADITIONAL segmenter wants, and it is recorded in `vocab.json` so a loaded model cannot ask
+    the question differently from the way it was trained.
     """
     import zh_jieba_feature as jf
     _JIEBA["index"] = index
-    _JIEBA["fn"] = jf.jieba_codes
+    _JIEBA["t2s"] = bool(t2s)
+    _JIEBA["fn"] = _jieba_via_t2s(jf.jieba_codes) if t2s else jf.jieba_codes
     _JIEBA["tok"] = jf.get_tokenizer(userdict)
 
 
@@ -261,7 +290,11 @@ class LexPresegmenter:
              # which source (if any) is jieba's segmentation decision rather than a word list. A
              # model trained with this channel and loaded without it runs with one input deleted and
              # nothing raises, so the marker travels with the weights.
-             "jieba_source": _JIEBA["index"]},
+             "jieba_source": _JIEBA["index"],
+             # and whether that channel was asked about the SIMPLIFIED rendering. A traditional
+             # segmenter trained with it and loaded without it is the reads_spaces trap again:
+             # a quietly different input regime, nothing raising.
+             "jieba_t2s": _JIEBA["t2s"]},
             ensure_ascii=False), encoding="utf-8")
 
     @classmethod
@@ -315,6 +348,11 @@ def main():
                          "is what sizes the architecture. jieba is EXTERNAL, so this channel needs "
                          "no jackknifing: its dictionary was not harvested from our training split, "
                          "and train-time reliability therefore already equals test-time.")
+    ap.add_argument("--jieba-t2s", action="store_true",
+                    help="ask jieba about the t2s (simplified) rendering of each chunk and keep "
+                         "the per-character answer for the original text. For a TRADITIONAL "
+                         "segmenter: jieba's dictionary is simplified, and this is worth "
+                         "F 0.8920 -> 0.9223 on its boundary decisions.")
     ap.add_argument("--jieba-userdict", default=None,
                     help="word list to force-split (`del_word`) before segmenting. Harvest it with "
                          "zh_jieba_feature.force_split_dict — but note it is derived from GOLD, so "
@@ -337,8 +375,9 @@ def main():
     a = ap.parse_args()
 
     if a.jieba_source is not None and not a.no_lex:
-        enable_jieba(a.jieba_source, a.jieba_userdict)
+        enable_jieba(a.jieba_source, a.jieba_userdict, t2s=a.jieba_t2s)
         print(f"  source {a.jieba_source} = jieba segmentation decision (BMES)"
+              + (" via t2s" if a.jieba_t2s else "")
               + (f", force-split userdict {a.jieba_userdict}" if a.jieba_userdict else ""))
     if a.inflect_endings and not a.no_lex:
         enable_inflect(a.lexicon[0], a.inflect_endings)

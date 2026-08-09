@@ -70,7 +70,11 @@ class CharSegTokenizer:
                 # One channel is jieba's own segmentation of the chunk, not a word list. It must be
                 # switched on BEFORE the model is built, since `multi_codes` reads the module state.
                 ud = path / "jieba_force_split.txt"
-                spl.enable_jieba(meta["jieba_source"], str(ud) if ud.exists() else None)
+                # `jieba_t2s` travels with the weights for the same reason `jieba_source` does:
+                # a traditional segmenter trained on jieba's view of the SIMPLIFIED rendering
+                # must be asked the same question here, and nothing would raise if it were not.
+                spl.enable_jieba(meta["jieba_source"], str(ud) if ud.exists() else None,
+                                 t2s=meta.get("jieba_t2s", False))
             entries = {w for w in lex_file.read_text(encoding="utf-8").split("\n") if w}
             self.lexicon = entries
             self.seg = spl.LexPresegmenter.from_disk(path, [entries] * meta["n_sources"])

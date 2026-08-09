@@ -18,7 +18,8 @@
 #     lzh    65.5    41.3   52.7     58.8    trained
 #     ar     60.2    37.8   52.6     54.6    trained
 #     id     57.1    36.1   49.1     53.6    trained
-#     la     45.0     8.3   35.9     35.1    RULE     (trained solo; 30.1 in the 3-feature arm)
+#     la     48.8    10.2   36.8     38.1    trained  (on the AUGMENTED base, which is what ships;
+#                                                     the union base preferred the rule, 35.9 v 35.1)
 #     ko     37.6    11.3   28.6     32.5    NEITHER  (P 40.1)
 #     zh     32.7    37.5   29.1     31.5    NEITHER -- the MORPHOLOGISER wins, uniquely
 #     yue    28.4     6.7   16.0     21.5    NEITHER  (P 27.7, n=74)
@@ -29,7 +30,9 @@
 # which is what kept `Subject` out of the zh wheel. WHICH ARM to ship, once both clear that, is
 # decided on F, as every other choice in this layer is (lzh's Subject rule at 75.8 over 68.8;
 # ar/sa/en's Reported rules). An earlier draft applied the precision floor as a tiebreaker and
-# shipped la's trained pipe over its higher-F rule; that was wrong, and la ships the rule.
+# shipped la's trained pipe over its higher-F rule; that was wrong on the union base. On the
+# AUGMENTED base la now ships the trained pipe on F, which is the same criterion reaching the
+# other answer because the base underneath it changed -- re-measure after ANY base retrain.
 # Where nothing ships, the morphologiser's FEATS value is LEFT ALONE -- for zh that is the best arm
 # available, and for ko/yue/sa it is merely the status quo.
 #
@@ -109,7 +112,15 @@ for lang in "$@"; do
     # ar/lzh/id joined this list when `Shared` did: their Subject/Reported layers ship as RULES,
     # so before that they had no reason to take the trained arm at all. The unwanted trained pipes
     # are dropped below, so no dead weights travel.
-    en|en_gum|fa|la|yue|ar|id) base=training_${lang}_sud/model-best ;;
+    en|en_gum|fa|yue|ar|id) base=training_${lang}_sud/model-best ;;
+    # la ships the ORTHOGRAPHICALLY AUGMENTED chain, not the plain-plus-macron union: one copy of
+    # the macronised treebank resampled into a fresh edition style every epoch (macrons, breves,
+    # u/v, i/j, æ/œ, sentence-initial capitals). It costs ~0.5 LAS and 2.7 TAG on ordinary input
+    # and collapses the LAS spread ACROSS orthographies from 54.4 to 7.0 -- printed Latin varies on
+    # every one of those axes, so the spread is the number that matters. The SUD layer is trained
+    # through the SAME augmenter (configs/config_la_aug_sud.cfg), because a Subject pipe reading
+    # NORM/PREFIX/SUFFIX/SHAPE off a spelling it never met is the arm's own weak point.
+    la)           base="${LA_BASE:-training_la_aug_sud/model-best}" ;;
     # sa ships the JOINT MULTI-TASK arm: ONE shared encoder for tagger + parser + morphologizer +
     # lemmatizer, instead of the three-encoder freeze recipe every other arm uses. 25.85 -> 19.16 MB
     # (-25.9 %), tag/pos/morph/lemma each +0.3 to +0.7, and on HELD-OUT UFAL (classical prose, the
@@ -146,6 +157,12 @@ for lang in "$@"; do
     # Third time this repo has shipped lzh a generation backwards; a default that names the arm is
     # the fix, not a note telling the next person to remember.
     lzh)          base="${LZH_BASE:-training_lzh_trad_sud/model-best}" ;;
+    # zh is TRADITIONAL-ONLY end to end, like lzh, and for the same reason -- a both-scripts
+    # inventory never pools 個 with 个. Naming the arm here rather than falling through to
+    # `training_zh_lemma` is not tidiness: the fall-through is the both-scripts generation, and it
+    # is how the id wheel once shipped a generation stale. zh carries no SUD MISC layer, so the
+    # lemma arm is the top of its chain.
+    zh)           base="${ZH_BASE:-training_zh_trad_lemma/model-best}" ;;
     *)            base=training_${lang}_lemma/model-best ;;
   esac
   work=build_sud/work_$lang
@@ -201,15 +218,18 @@ case $lang in
        # end-to-end: TOK 98.25 -> 99.70, UAS 62.97 -> 65.19, LAS 51.31 -> 53.35; ITTB+PROIEL
        # unchanged. It goes LAST because it is the one step that rewrites [nlp.tokenizer] in the
        # config, and it re-verifies the reload rather than trusting `to_disk`.
-       # la ships the RULE for Shared (F 35.85 v 35.10 trained). It is the one language where the
-       # two are level, and the trained pipe was RETRAINED ALONE before the comparison was trusted:
-       # in the three-feature arm `model-best` is picked on the mean of Subject/Reported/Shared, and
-       # la's Shared peaked at dev 37.34 while the saved epoch held 31.90 -- chosen for Subject's
-       # sake. Trained solo it reaches dev 35.91 and test 35.10, and still does not beat the table.
-       # No other language's decision turns on this: the same gap is <= 2.9 everywhere else.
-  la)  $PY scripts/add_sud_shared_rule.py "$base" "$work.shrule" --lang la --drop-trained \
-            >/dev/null 2>&1
-       $PY scripts/add_sud_idiom.py "$work.shrule" "$work.idiom" --drop sud_reported >/dev/null 2>&1
+       # la now ships the TRAINED pipe for Shared, reversing the union arm's decision. On that
+       # base the table won narrowly (rule 35.85 v trained 35.10); on the augmented base the
+       # trained pipe wins, 38.11 v 36.78, with the morphologiser at 10.23. The reversal is not
+       # noise-sized in the direction that matters: this IS the three-feature arm, whose
+       # `model-best` is picked on the mean of Subject/Reported/Shared and which therefore
+       # handicapped Shared by ~5 points on the union base -- so the handicap runs AGAINST the
+       # winner here, and a solo retrain could only widen the margin. The candidate mask also
+       # reaches 48.84 % of gold against the union base's 45.0 %, i.e. the augmented parser
+       # recovers the coordination this layer is defined over slightly better.
+       # Subject stays trained (67.02 v the rule's 52.41). Reported still ships NOWHERE: rule
+       # 17.65, trained 8.00, on 24 test instances.
+  la)  $PY scripts/add_sud_idiom.py "$base" "$work.idiom" --drop sud_reported >/dev/null 2>&1
        $PY scripts/add_la_macronise.py "$work.idiom" "$work.mac" --no-lut \
             --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py \
             >/dev/null 2>&1
@@ -217,7 +237,7 @@ case $lang in
             --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,la_macronise.py \
             || { echo "  la: enclitic tokeniser swap FAILED — skip"; continue; }
        pkg la  "$work" sud_ittb_proiel_perseus \
-            "$CODE_BASE,$CODE_SHARED,scripts/sud_shared_frames.py,scripts/sud_shared_rule.py,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py" ;;
+            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py" ;;
        # ar now takes the TRAINED arm as its base (for sud_shared); add_sud_reported_rule drops
        # the trained sud_reported it also carries, since ar ships the Reported RULE (73.5 v 46.0).
   ar)  $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang ar >/dev/null 2>&1
@@ -234,9 +254,20 @@ case $lang in
        # sud.GoldTokCorpus.v1, so it is segmenter-agnostic and needs no retrain). The segmenter has
        # two channels -- the jackknifed corpus word list and jieba's own segmentation decision --
        # so the wheel REQUIRES jieba, declared in meta.json by bundle_zh_charseg.py.
-  zh)  $PY scripts/bundle_zh_charseg.py --out "$work" >/dev/null 2>&1
-       pkg zh  "$work" sud_gsd_simp_trad \
-            "scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py,scripts/zh_jieba_feature.py" ;;
+       # add_zh_script LOADS the segmenter from named paths and refuses to write a model that
+       # cannot segment. It used to carry the segmenter over from the input tokenizer by guessing
+       # attribute names and missed `seg`, so zh_sud_gsd 0.2.0 shipped returning each input string
+       # as ONE TOKEN -- it loaded, it parsed, and only the wheel's file list said otherwise.
+       # The segmenter is the TRADITIONAL one (models/zh_seg_jbdec_trad, strict token F 0.9242
+       # against the simplified arm's 0.9210 on its own test); its jieba channel is asked about the
+       # t2s rendering, since jieba's dictionary is simplified and asking it directly costs the
+       # channel F 0.9223 -> 0.8920. `bundle_zh_charseg.py` builds the superseded both-scripts
+       # CharSegTokenizer wheel and is kept for that.
+  zh)  $PY scripts/add_zh_script.py "$base" "$work" \
+            --seg models/zh_seg_jbdec_trad --lexicon models/zh_lex_corpus_trad.txt \
+            || { echo "  zh: script/segmenter wiring FAILED — skip"; continue; }
+       pkg zh  "$work" sud_gsd \
+            "scripts/zh_script.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py,scripts/zh_jieba_feature.py" ;;
        # lzh DOES ship the frame rule for Subject (F 80.0 vs 66.2 trained -- 可/能/欲 carry it;
        # measured on the rule-merged arm, with the lemma layer the wheel ships -- see
        # eval_sud_subject.lzh_rule_arm, without which the rule scores a spurious 0.00),

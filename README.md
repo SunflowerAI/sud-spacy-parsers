@@ -1,33 +1,120 @@
-# SUD spaCy parsers (small/CPU, eleven languages)
+# SUD spaCy parsers (small/CPU, eleven languages, twelve wheels)
 
 Small, CPU-only spaCy pipelines (`tok2vec` → `tagger` → `parser` → `morphologizer` → `lemmatizer`)
 for **eleven languages** (English, Chinese, Korean, Indonesian, Persian, Sanskrit, Classical Chinese,
 Japanese, Arabic, Latin, and Cantonese), trained on **Surface-Syntactic Universal Dependencies (SUD)** treebanks. They
 predict SUD relations (`subj`, `comp:obj`, `mod`, …) rather than UD relations, and — the research
 focus of this repo — disambiguate the noncommittal `udep` on adpositional/case dependents into
-`comp:obl` (complement) vs `mod` (modifier). Models ship as installable wheels (see
+`comp:obl` (complement) vs `mod` (modifier). Models ship as installable wheels — **twelve**, since
+English ships twice at two licences (see
 [Releases](https://github.com/SunflowerAI/sud-spacy-parsers/releases)).
+
+## Released models
+
+Twelve wheels over eleven languages (English ships twice — see the licence column). The version
+is the one on the [Releases](https://github.com/SunflowerAI/sud-spacy-parsers/releases) page: seven
+models were rebuilt at **0.2.0**, the other five are unchanged since **0.1.0** and install from that
+release.
+
+| Model | Language | Version | Treebank | Licence |
+|-------|----------|:-------:|----------|---------|
+| `en_sud_ewt` | English | 0.2.0 | SUD_English-EWT | CC BY-SA 4.0 |
+| `en_sud_ewt_gum` | English | 0.2.0 | SUD_English-EWT + GUM (ten non-NC genres) | CC BY-NC-SA 4.0 |
+| `zh_sud_gsd` | Chinese | 0.2.0 | SUD_Chinese-GSD | CC BY-SA 4.0 |
+| `ja_sud_gsd` | Japanese | 0.2.0 | SUD_Japanese-GSD | CC BY-SA 4.0 |
+| `ko_sud_gsd` | Korean | 0.2.0 | SUD_Korean-GSD | CC BY-SA 4.0 |
+| `la_sud_ittb_proiel_perseus` | Latin | 0.2.0 | SUD_Latin-ITTB + PROIEL + Perseus | CC BY-NC-SA 4.0 |
+| `lzh_sud_kyoto` | Classical Chinese | 0.2.0 | SUD_Classical_Chinese-Kyoto (+ kanripo punctuation) | CC BY-SA 4.0 |
+| `ar_sud_padt` | Arabic | 0.1.0 | SUD_Arabic-PADT | CC BY-SA 4.0 |
+| `fa_sud_perdt` | Persian | 0.1.0 | SUD_Persian-PerDT | CC BY-SA 4.0 |
+| `id_sud_gsd` | Indonesian | 0.1.0 | SUD_Indonesian-GSD | CC BY-SA 4.0 |
+| `sa_sud_vedic_ufal_dcs` | Sanskrit | 0.1.0 | SUD_Sanskrit-Vedic + UFAL + DCS | CC BY-SA 4.0 |
+| `yue_sud_hk` | Cantonese | 0.1.0 | SUD_Cantonese-HK | CC BY-SA 4.0 |
+
+## Training data
+
+Sentences and tokens in the CoNLL-U each released model is trained and evaluated on — the SUD
+treebank after the `udep` relabel, which changes DEPREL only and so leaves every count untouched.
+Range lines (multiword tokens) and empty nodes are not counted as tokens.
+
+| Model | Train (sent / tok) | Dev (sent / tok) | Test (sent / tok) |
+|-------|-------------------:|-----------------:|------------------:|
+| `en_sud_ewt` | 12,544 / 204,578 | 2,001 / 25,148 | 2,077 / 25,094 |
+| `en_sud_ewt_gum` | 20,273 / 340,324 | 3,023 / 43,580 | 3,014 / 43,403 |
+| `zh_sud_gsd` | 3,997 / 98,614 | 500 / 12,665 | 500 / 12,010 |
+| `ja_sud_gsd` | 7,050 / 168,333 | 507 / 12,287 | 543 / 13,034 |
+| `ko_sud_gsd` | 4,400 / 56,687 | 950 / 11,958 | 989 / 11,677 |
+| `la_sud_ittb_proiel_perseus` | 40,305 / 586,604 ¤ | 3,334 / 43,805 | 4,300 / 54,897 |
+| `lzh_sud_kyoto` | 59,215 / 460,390 ‖ | 5,111 / 38,739 | 4,567 / 34,233 |
+| `ar_sud_padt` | 6,075 / 223,881 | 909 / 30,239 | 680 / 28,264 |
+| `fa_sud_perdt` | 26,196 / 452,496 | 1,456 / 25,147 | 1,455 / 24,133 |
+| `id_sud_gsd` | 4,482 / 97,602 | 559 / 12,661 | 557 / 11,756 |
+| `sa_sud_vedic_ufal_dcs` | 21,647 / 163,308 ∴ | 2,996 / 23,862 | 230 / 1,843 ∴ ◊◊ |
+| `yue_sud_hk` | 804 / 11,158 ◊ | 100 / 1,499 | 100 / 1,261 |
+
+¤ Latin trains on **one copy of the macronised treebank, resampled into a fresh edition style every
+epoch** (`scripts/la_augment.py`) — not on two fixed spellings. Each pass rewrites the FORM column
+along five axes printed Latin genuinely varies on: macrons, breves, `u`/`v`, `i`/`j`, `æ`/`œ`, and
+sentence-initial capitals. The trees never move, so the token count is the treebank's own; what
+changes is which spelling the model meets on any given epoch. Macron-stripping is exact
+(586,604/586,604 tokens reproduce the plain FORM), so the plain spelling is *derived* rather than
+stored and the macronised treebank is a strict superset. Dev and test are the plain half, so the
+Results table understates what the arm is for — see ¶.
+
+∴ **The Sanskrit row is the parser's data**, which is the whole of it for the UAS/LAS above.
+DCS is much larger — 244,481 sentences / 1,732,852 tokens — but it carries **no dependency
+annotation**, so it trains the **morphologiser and lemmatiser** only (and the tagger, whose XPOS is
+a copy of UPOS on 100 % of tokens here, so it is predicting the same labels). Its docs are built
+with no heads or deps at all, which is the only representation spaCy reads as genuinely missing —
+blanking the columns to `_` would teach the parser a literal `_` label — so the parser takes no
+gradient from them whatever. Read the DCS figure against `pos_acc`, `morph_acc` and `lemma_acc`,
+never against LAS. The test row is the held-out **UFAL** set the model is reported on, not the
+Vedic test the dev split comes from.
 
 ## Results (test split)
 
-UAS/LAS and `comp:obl` F are on gold tokens (gold-preproc, comparable across languages); TOK is
-raw end-to-end token accuracy (how well the tokeniser matches the treebank on raw text).
+Measured on the arm each wheel ships (verified by hashing `parser/model` out of the released wheel
+against the training directory). UAS/LAS and `comp:obl` F are **gold-preproc** — over the treebank's
+own tokens, so they are comparable across languages and independent of the tokeniser; TOK is raw
+end-to-end token accuracy, which is where the tokeniser is measured instead.
 
-| Model | Language | UAS | LAS | `comp:obl` F | TOK (raw) |
-|-------|----------|----:|----:|-------------:|----------:|
-| `en_sud_ewt` | English | 84.4 | 79.6 | 70.8 | 99.6 |
-| `zh_sud_gsd_simp_trad` | Chinese (simp+trad) | 74.3 | 69.3 | 32.6 | 94.9 |
-| `ko_sud_gsd` | Korean | 65.5 | 56.5 | 38.6 | 99.8§ |
-| `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 61.6 | 99.9 |
-| `fa_sud_perdt` | Persian | 90.6 | 87.2 | 79.2 | 99.1 |
-| `sa_sud_vedic_ufal_dcs` | Sanskrit (classical prose) | 52.2 | 37.3 | 27.6 | 100.0†◊◊ |
-| `lzh_sud_kyoto` | Classical Chinese (trad+simp) | 82.5 | 76.9 | 70.3 | 100.0†‖ |
-| `ja_sud_gsd` | Japanese | 91.1 | 88.2 | 69.6 | 99.4 |
-| `ar_sud_padt` | Arabic | 84.2 | 78.4 | 63.4 | 91.4‡ |
-| `la_sud_ittb_proiel_perseus` | Latin | 80.6 | 73.9 | 65.2 | 100.0¶ |
-| `yue_sud_hk` | Cantonese | 74.2 | 65.6 | 26.7 | 94.7◊ |
+| Model | Language | Version | UAS | LAS | `comp:obl` F | TOK (raw) |
+|-------|----------|:-------:|----:|----:|-------------:|----------:|
+| `en_sud_ewt` | English | 0.2.0 | 86.3 | 81.3 | 70.9 | 99.6 |
+| `en_sud_ewt_gum` | English (EWT+GUM) | 0.2.0 | 86.8 | 81.9 | 70.8 | 99.7 |
+| `zh_sud_gsd` | Chinese | 0.2.0 | 73.3 | 68.9 | 28.7 | 96.9 ⚑ |
+| `ja_sud_gsd` | Japanese | 0.2.0 | 91.1 | 88.2 | 69.6 | 99.4 |
+| `ko_sud_gsd` | Korean | 0.2.0 | 65.6 | 56.8 | 35.5 | 99.8 § |
+| `la_sud_ittb_proiel_perseus` | Latin | 0.2.0 | 78.7 | 71.7 | 64.7 | 100.0 ¶ |
+| `lzh_sud_kyoto` | Classical Chinese | 0.2.0 | 82.9 | 77.2 | 66.5 | 100.0 † ‖ |
+| `ar_sud_padt` | Arabic | 0.1.0 | 83.7 | 77.3 | 62.9 | 91.4 ‡ |
+| `fa_sud_perdt` | Persian | 0.1.0 | 90.6 | 87.2 | 79.2 | 99.1 |
+| `id_sud_gsd` | Indonesian | 0.1.0 | 83.6 | 74.2 | 68.2 | 99.9 |
+| `sa_sud_vedic_ufal_dcs` | Sanskrit (classical prose) | 0.1.0 | 52.2 | 37.3 | 27.6 | 100.0 † ◊◊ |
+| `yue_sud_hk` | Cantonese | 0.1.0 | 72.4 | 64.5 | 46.2 | 94.7 ◊ |
 
-Full per-relation breakdowns are in the `metrics_*.json` files.
+Full per-relation breakdowns for exactly these runs are in `metrics_release_*.json`; the other
+`metrics_*.json` files hold the development arms these were selected from, and several of them
+predate the shipped generation, so read the `metrics_release_*` set when you want the released
+model's own scores.
+
+⚑ Chinese segments with a **treebank-trained character segmenter**, retrained on traditional GSD
+for this arm: strict whole-token F **0.9242** on the traditional test, against 0.9210 for the
+simplified segmenter on its own. Its second input channel is jieba's segmentation decision, and
+jieba is asked about the **`t2s` rendering** of each chunk rather than the traditional text
+directly — jieba's dictionary is simplified, so asking it directly costs that channel F 0.9223 →
+0.8920. The codes are per character and `t2s` preserves length (500/500 test sentences), so the
+answer transfers by position; where it ever would not, the original text is used instead. The
+setting travels in the segmenter's own `vocab.json`, so a loaded model cannot ask the question
+differently from the way it was trained. Raw end-to-end on the traditional test
+(`metrics_release_zh_raw.json`): TOK 96.9 lenient / 92.4 strict, LAS 58.4.
+
+⚠ **The wheel published on 2026-08-08 could not segment at all** — it shipped with no
+`tokenizer/segmenter/` directory and returned each input string as a single token. It has been
+rebuilt and re-uploaded at the same version. If you installed `zh_sud_gsd` before 2026-08-09,
+reinstall with `--force-reinstall`; `pip install -U` will not replace it, since the version is
+unchanged. Every model weight is byte-identical between the two builds, so no score moved — the
+gold-preproc row above never ran the tokeniser and was correct throughout.
 
 † Sanskrit and Classical Chinese tokenise deterministically (TOK 100), but the Vedic/Kyoto
 treebanks segment into punctuation-free **clause units** (句讀 / clause) with no in-text sentence
@@ -42,15 +129,19 @@ segments and de-sandhis internally (see below). Persian runs fine on raw text (r
 a punctuation-restored Kyoto — the treebank deliberately carries no punctuation, so the marks are
 aligned in from the Kanseki Repository editions it was built from (CC BY-SA 4.0; see `NOTICE.md`) —
 and its 句讀 units are merged into punctuation-delimited sentences wherever a derived rule licenses
-it. The test set therefore contains punctuation tokens and longer sentences, so 82.5 / 76.9 / 70.3
-is a *different measurement* from the previous 84.1 / 79.0 / 73.1, not a regression against it.
+it. The test set therefore contains punctuation tokens and longer sentences, so 82.9 / 77.2 / 66.5
+is a *different measurement* from the pre-punctuation 84.1 / 79.0 / 73.1, not a regression against
+it. At 0.2.0 the arm is also **traditional-only** — the simplified half was an OpenCC conversion of
+the same text, and dropping it costs the parser ~2.4 LAS but stops 遠 and 远 splitting one
+character's counts; simplified input is converted at the pipeline boundary and converted back on
+output, so either script still goes in and out.
 Measured like for like on the same input, the new arm is **+11.9 LAS** on punctuated editions (the
 old one attaches content words to marks it has never seen) and **−2.2 LAS** on bare unpunctuated
 白文, both single-seed. It expects punctuated input; `clause_parser` runs with `keep_marks=True`,
 which is coupled to this base. Lemmas come from a 163-entry variant-character (異體字) table rather
 than a trained lemmatiser — 99.73 % vs 99.65 %, and 1.4 MB smaller.
 
-‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~72 vs 78 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
+‡ Arabic is heavily cliticised (PADT splits proclitic و/ف/ل/ب/ك and enclitics). `ar_sud_padt` bundles a **CAMeL-Tools ATB tokeniser** that reproduces PADT segmentation on raw text (token-F1 0.91, raw end-to-end LAS ~72 vs 77 on gold tokens). It requires the CAMeL data (GPL v2, not bundled): `pip install camel-tools` then `camel_data -i morphology-db-msa-r13 disambig-mle-calima-msa-r13`.
 
 ◊◊ **Sanskrit is now reported on held-out UFAL (classical prose), not Vedic.** The shipped arm is
 a joint multi-task model — one shared encoder for tagger/parser/morphologizer/lemmatizer instead of
@@ -79,17 +170,44 @@ than the others. The Cantonese XPOS column is empty, so UPOS is copied into it a
 predicts UPOS in `tag_` (as with every model here, a `morphologizer` fills `pos_`/`morph` and a
 `lemmatizer` fills `lemma_` — see *Use* below). TOK 94.7 is the bundled pkuseg
 word segmenter (trained on the treebank's gold tokens; vs 63 for the character fallback). The
-parser's `tok2vec` is initialised from the dual-script Mandarin model `zh_sud_gsd_simp_trad` and
-fine-tuned — a free TAG/UAS/baseline-LAS lift on so little data; the segmenter is *not* helped by a
+parser's `tok2vec` is initialised from the dual-script Mandarin model `zh_sud_gsd_simp_trad`
+(the 0.1.0 Chinese arm) and fine-tuned — a free TAG/UAS/baseline-LAS lift on so little data; the segmenter is *not* helped by a
 Mandarin warm-start (a local-feature CRF learns Cantonese boundaries from scratch just as well).
 
-¶ The Latin figures are on the **combined ITTB+PROIEL+Perseus** test, which now spans two very
-different registers. Broken out by sub-domain (gold-preproc): on the **ITTB+PROIEL** test the model
-scores LAS **78.3** / UAS **83.8** / `comp:obl` F **69.1** — *better* than before Perseus was added
-(LAS 77.7); the **Perseus** test (classical poetry — Virgil, Ovid, Phaedrus) is much harder at LAS
-**54.6** / UAS **66.8**, which pulls the combined headline down. So adding Perseus *improves* the
-original domain and *adds* poetry coverage the model previously lacked. Perseus's XPOS is blanked
-(incompatible tagset), so XPOS/TAG is reported on ITTB+PROIEL only.
+¶ The Latin figures are on the **combined ITTB+PROIEL+Perseus** test, which spans two very
+different registers. Broken out by sub-domain on the released arm (gold-preproc, and in
+`metrics_release_la_ittbproiel.json` / `metrics_release_la_perseus.json`): the **ITTB+PROIEL** test
+scores LAS **75.9** / UAS **81.8** / `comp:obl` F **68.4**, and the **Perseus** test (classical
+poetry — Virgil, Ovid, Phaedrus) is much harder at LAS **53.5** / UAS **65.4**, which pulls the
+combined headline down. Adding Perseus *improved* the original domain and *added* poetry coverage
+the model previously lacked — measured at the time as ITTB+PROIEL LAS 77.7 → 78.3, on an earlier
+generation of the arm, so read that gain as the reason Perseus is in and not as a comparison against
+the numbers above. Perseus's XPOS is blanked (incompatible tagset), so XPOS/TAG is reported on
+ITTB+PROIEL only.
+
+**These are all plain-spelling numbers, and they are the augmentation's bill, not its benefit.**
+Against the previous plain∪macron union arm the released one is LAS 72.26 → **71.72** and TAG
+80.35 → **77.61** on ordinary input; TAG pays most, ITTB's 1,952-label composite XPOS being the most
+form-sensitive target here. What it buys shows up only when the spelling moves — the same test
+re-rendered in other edition styles, same trees, same gold, FORM alone changing:
+
+| | union arm | augmented arm |
+|---|---:|---:|
+| plain | 72.26 | 71.72 |
+| macron | 72.16 | 71.32 |
+| **breve** | **18.74** | **64.91** |
+| `u`/`v` + `i`/`j` | 71.18 | 71.77 |
+| `æ`/`œ` ligature | 70.55 | 71.67 |
+| sentence-initial capitals | 71.46 | 71.86 |
+| **all five at once** | **17.93** | **64.90** |
+
+So the LAS spread across orthographies collapses from **54.4 to 7.0**. One unseen character inside
+78 % of words is what the breve row measures, and it is not exotic: school and teaching editions
+mark quantity throughout. The lemmatiser gains most and loses nothing (−0.05 plain, +2.6 to +4.1 on
+the glide and ligature axes), edit trees being literal string edits and so the component least able
+to generalise across spellings on its own. Cost in bytes: the wheel goes 17.7 → 27.3 MB, almost all
+of it the lemmatiser's edit-tree inventory growing 18,512 → 29,123 labels, because `vitae`, `vītae`,
+`uitae` and `vītæ` are four trees for one lemma.
 
 ## Layout
 
@@ -97,6 +215,7 @@ original domain and *adds* poetry coverage the model previously lacked. Perseus'
 requirements.txt        spacy 3.8 + click + thinc-apple-ops (Apple Silicon CPU ops)
 assets/                 downloaded SUD .tgz, extracted treebanks, merged + relabelled *.conllu
 configs/config*.cfg     training configs (init config --optimize efficiency)
+metrics_release_*.json  spacy evaluate output for the arm each RELEASED wheel ships
 metrics_*.json          spacy evaluate output for every arm (baseline / relabel / extended)
 training_*/model-best/  shipped models (see "Available models"); other arms regenerate via scripts/
 ```
@@ -107,24 +226,31 @@ deployable models and the canonical metrics are kept in-tree.
 
 ## Available models
 
-Small CPU pipelines (`tok2vec` → `tagger` → `parser` → `morphologizer` → `lemmatizer`). The English/Chinese/Korean/Indonesian
-models are matched to their treebank's tokenisation so they run on **raw text** and predict the
-disambiguated `comp:obl`/`mod` labels. They are distributed as installable wheels on the
-[Releases](https://github.com/SunflowerAI/sud-spacy-parsers/releases) page.
+Small CPU pipelines (`tok2vec` → `tagger` → `parser` → `morphologizer` → `lemmatizer`). Each
+model is matched to its treebank's tokenisation so it runs on **raw text** and predicts the
+disambiguated `comp:obl`/`mod` labels. Versions, dataset sizes and scores are in the three tables
+at the top; this one records the `udep` scope, the tokeniser and the extra dependency each wheel
+needs.
 
 | Package | Language | Treebank | `udep` | Tokenisation | Licence |
 |---------|----------|----------|--------|--------------|---------|
 | `en_sud_ewt`     | English    | SUD_English-EWT     | disambiguated (ext) | default rules | CC BY-SA 4.0 |
-| `zh_sud_gsd_simp_trad` | Chinese    | SUD_Chinese-GSD + GSDSimp | disambiguated (ext) | pkuseg, both scripts (needs `spacy-pkuseg`) | CC BY-SA 4.0 |
-| `ko_sud_gsd`     | Korean     | SUD_Korean-GSD      | disambiguated | mecab morphemes (needs `mecab-ko` + `MECAB_PATH`) | CC BY-SA 4.0 |
-| `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated | rule tokeniser (enclitics merged) | CC BY-SA 4.0 |
+| `en_sud_ewt_gum` | English    | SUD_English-EWT + GUM | disambiguated (ext) | default rules | CC BY-NC-SA 4.0 ‽ |
+| `zh_sud_gsd`     | Chinese    | SUD_Chinese-GSD     | disambiguated (ext) | treebank-trained character segmenter (needs `jieba`, `opencc`) ⚑ | CC BY-SA 4.0 |
+| `ko_sud_gsd`     | Korean     | SUD_Korean-GSD      | disambiguated (ext) | eojeol words, rule tokeniser | CC BY-SA 4.0 |
+| `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated (ext) | treebank-trained character segmenter, enclitics split | CC BY-SA 4.0 |
 | `fa_sud_perdt`   | Persian    | SUD_Persian-PerDT   | disambiguated (ext) | rule tokeniser (eval gold-preproc) | CC BY-SA 4.0 |
 | `sa_sud_vedic_ufal_dcs` | Sanskrit | SUD_Sanskrit-Vedic + UFAL | kept (baseline) | **accepts raw sandhied text**, IAST or Devanagari (needs `indic-transliteration`); segments and de-sandhis internally; Devanagari in gives Devanagari FORM/LEMMA + `Translit`/`LTranslit`; padapāṭha form on `token._.unsandhied` | CC BY-SA 4.0 |
-| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto (+ simplified, + kanripo punctuation) | disambiguated (ext) | character tokeniser (bundled) | CC BY-SA 4.0 |
+| `lzh_sud_kyoto`  | Classical Chinese | SUD_Classical_Chinese-Kyoto (+ kanripo punctuation) | disambiguated (ext) | character tokeniser, one Han character per token (bundled) | CC BY-SA 4.0 |
 | `ja_sud_gsd`     | Japanese   | SUD_Japanese-GSD    | disambiguated (ext) | SudachiPy (needs `sudachipy`+`sudachidict-core`) | CC BY-SA 4.0 |
 | `ar_sud_padt`    | Arabic     | SUD_Arabic-PADT     | disambiguated (ext) | CAMeL ATB tokeniser (needs `camel-tools` + data) | CC BY-SA 4.0 |
 | `la_sud_ittb_proiel_perseus` | Latin   | SUD_Latin-ITTB+PROIEL+Perseus | disambiguated (ext) | rule tokeniser, enclitic `-que` split (bundled) | CC BY-NC-SA § |
 | `yue_sud_hk`     | Cantonese  | SUD_Cantonese-HK    | disambiguated (ext) | pkuseg (needs `spacy-pkuseg`); char fallback | CC BY-SA 4.0 |
+
+‽ `en_sud_ewt_gum` is the second English wheel, not a replacement: it adds the ten GUM genres
+whose sources are not NonCommercial, which is +66 % training tokens and ~+0.6 LAS on EWT's own test,
+but GUM offers its annotations under CC BY-NC-SA, so the merged wheel is NonCommercial and
+`en_sud_ewt` stays the commercially usable one. Users choose.
 
 § The Latin model is trained on the union of three SUD Latin treebanks, **all NonCommercial**:
 ITTB (CC BY-NC-SA 3.0), PROIEL (CC BY-NC-SA), and Perseus (CC BY-NC-SA 2.5). The model and its
@@ -147,20 +273,20 @@ the romanisation on `token._.translit` / `token._.ltranslit` (UD's `Translit`/`L
 every token carries its padapāṭha form on `token._.unsandhied` and its character span in the raw
 input on `token._.src_span`.
 
-**Both Han scripts.** Both models are trained on the union of a traditional and a simplified
-treebank, so they parse **simplified and traditional** text alike (within ~0.2 LAS of each other on
-either script). For Chinese this uses **two real treebanks** for the same sentences —
-`SUD_Chinese-GSD` (the original traditional annotation) and `SUD_Chinese-GSDSimp` (its simplified
-auto-conversion) — rather than re-traditionalising GSDSimp, since simplification is lossy
-(many-to-one, e.g. 後/后→后). The ext relabel lives on GSDSimp; `scripts/transfer_relabel_gsd.py`
-overlays it onto the aligned GSD tokens (the `comp:obl`/`mod` decision is script-independent), and
-the bundled pkuseg segmenter is retrained on both (`models/zh_gsdboth_pkuseg`), lifting raw
-**traditional** segmentation/LAS (TOK 93.2→95.7, LAS 51.0→56.3) with simplified unchanged. Classical
-Chinese has no simplified counterpart treebank, so its simplified half is auto-converted from Kyoto
-with `scripts/opencc_conllu.py` (OpenCC `t2s`, character-level and length-preserving, so token
-alignment and every deprel/head are unchanged); it tokenises one Han character per token, so
-simplified needs no segmenter change. `scripts/both_scripts_release.sh` regenerates both arms end to
-end.
+**Both Han scripts, one script inside.** Both Chinese models read **simplified and traditional**
+text, but since 0.2.0 they do it by normalising at the boundary rather than by training on both
+scripts. Each trains on traditional alone; simplified input is converted to traditional before
+tokenisation and FORM/LEMMA are converted back on the way out, so either script goes in and out
+while the model holds one vocabulary. Training on both real treebanks — `SUD_Chinese-GSD` and its
+simplified auto-conversion `SUD_Chinese-GSDSimp` — worked, but **split** that vocabulary: 22.7 % of
+the type inventory is a cross-script twin (15,848 types collapse to 12,248 under `t2s`), so 個 and
+个 never pooled their counts. The conversion is safe in the direction that matters, because
+simplification is many-to-one: `t2s` is a function, so the output round trip is exact for 99.98 % of
+simplified types, and the ambiguous `s2t` direction — which can cost the parse but never the surface
+string returned — agrees with the traditional gold on 98.6 % of tokens (~99.3 % once the `” / 」`
+quotation convention is set aside). Classical Chinese went the same way and pays the same price:
+dropping its OpenCC-converted simplified half cost the parser ~2.4 LAS, accepted for the pooled
+vocabulary. `scripts/both_scripts_release.sh` regenerates the superseded both-scripts arms.
 
 **Cantonese.** `yue_sud_hk` is a coverb/prepositional system like Chinese: the in-scope `udep`
 adpositions are coverbs (喺 *at*, 畀 *dative*, 到 *goal*, 由 *from*, 根據 *according-to*), disambiguated by
@@ -169,7 +295,8 @@ deterministic signals — the associative/genitive **嘅** (`你嘅牙` "your to
 and the treebank's own temporal subtype **`udep@tmod`** (而家/今日/嗰陣時 → mod). Because SUD_Cantonese-HK
 ships only a test split, it is carved 80/10/10 (`scripts/split_yue.py`, which also copies the empty
 XPOS from UPOS); spaCy has no `yue` module, so `scripts/yue_tokenizer.py` registers one. With only
-804 training sentences the parser's `tok2vec` is initialised from `zh_sud_gsd_simp_trad` and fine-tuned
+804 training sentences the parser's `tok2vec` is initialised from `zh_sud_gsd_simp_trad` (the 0.1.0
+Chinese arm) and fine-tuned
 (`config_yue.cfg`; `scripts/train_yue.sh`), which lifts TAG/UAS. The bundled **pkuseg** raw-text
 segmenter (`scripts/train_pkuseg_yue.py`, swapped in by `bundle_yue_pkuseg.py`) is trained from
 scratch on the gold tokens — fine-tuning it from the Mandarin segmenter was tried and ties
@@ -177,12 +304,13 @@ from-scratch, so the self-contained model ships.
 
 ```bash
 # install a model from the latest release (example: Chinese)
-pip install https://github.com/SunflowerAI/sud-spacy-parsers/releases/latest/download/zh_sud_gsd_simp_trad-0.1.0-py3-none-any.whl
-pip install spacy-pkuseg          # Chinese / Cantonese tokeniser dependency
+pip install https://github.com/SunflowerAI/sud-spacy-parsers/releases/download/v0.2.0/zh_sud_gsd-0.2.0-py3-none-any.whl
+pip install jieba opencc-python-reimplemented   # Chinese tokeniser + script conversion
 ```
 
-The English model ships **EWT-only**: SUD_English-GUM is CC BY-NC-SA (NonCommercial), so it is
-excluded to keep these models commercially usable. See [`NOTICE.md`](NOTICE.md) for licensing.
+English ships **twice**: `en_sud_ewt` is EWT-only and CC BY-SA, so it stays commercially usable,
+and `en_sud_ewt_gum` adds the ten non-NonCommercial GUM genres under CC BY-NC-SA. See
+[`NOTICE.md`](NOTICE.md) for licensing.
 
 ## Reproduce
 
@@ -215,7 +343,7 @@ python -m spacy evaluate training/model-best corpus/en_sud-test.spacy --output m
 
 ```python
 import spacy
-nlp = spacy.load("en_sud_ewt")              # after: pip install en_sud_ewt-0.1.0-...whl
+nlp = spacy.load("en_sud_ewt")              # after: pip install en_sud_ewt-0.2.0-...whl
 doc = nlp("She put the book on the table.")
 print([(t.text, t.lemma_, t.pos_, t.tag_, t.dep_, t.head.text) for t in doc])
 # "on" attaches to "put" and is labelled comp:obl vs mod — this model resolves the prep-dependent
@@ -231,7 +359,7 @@ treebank's `LEMMA` column.
 
 ### SUD's own annotation layer
 
-Nine of the eleven models (all but `zh` and `ko`) also predict SUD features that have no home in a
+Ten of the twelve models (all but `zh` and `ko`) also predict SUD features that have no home in a
 spaCy `Doc`. They go on the extension `token._.sud_misc`, a dict: `Idiom`/`InIdiom`, `Subject`,
 `Reported`, `Shared`. Which of them a given model carries is decided per language by measurement, so
 read `nlp.pipe_names` — a `sud_*` pipe is there only where it beat the alternatives.
@@ -244,7 +372,7 @@ print([(t.text, t._.sud_misc) for t in doc if t._.sud_misc])
 ```
 
 ⚠ **`Shared` is not in `token.morph`** on a model whose pipeline lists `sud_shared` or
-`sud_shared_rule` (`en`, `fa`, `ar`, `id`, `lzh`, `la`). The treebanks put that feature in FEATS, so
+`sud_shared` (`en`, `fa`, `ar`, `id`, `lzh`, `la`). The treebanks put that feature in FEATS, so
 the morphologiser learned it there and still emits it on the models that carry neither pipe — but
 where one ships it owns the feature and clears the morphologiser's value, so a token has exactly one
 answer rather than two that disagree. `sud_misc.feats_string(token)` renders it back into a FEATS

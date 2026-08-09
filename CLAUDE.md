@@ -67,6 +67,15 @@ fa/ar/la/sa/lzh/ja, and `rebuild_sa_csl_rev.sh` (+ `hyphen_to_pipe_sa.py`, `stri
 the pausa-normalised Sanskrit representation.
 `spacy train` writes scores to `train_*.log`; `spacy evaluate --output` writes `metrics_*.json`.
 
+**`metrics_release_*.json` is the RELEASED arm; every other `metrics_*.json` is a development one.**
+The distinction earns its keep, because several development files outlived the generation they
+describe and the README was quoting them: the en row was a RAW run in a table declaring
+gold-preproc (79.63/84.40 raw vs **81.33/86.26** gold-preproc), and ar/la/yue were still the `_ext`
+arms from before the segmentation retrain the wheels actually contain (la 73.95 → **72.26**,
+ar 78.45 → **77.34**, yue 65.64 → **64.51**, with `comp:obl` F moving as far as yue 26.7 → 46.2).
+The release set was measured on the arm each wheel ships, identified by hashing `parser/model` out
+of the DOWNLOADED wheel — a training directory of the right name is not evidence.
+
 ## Conventions and invariants
 
 **Naming.** English artifacts are unsuffixed (`corpus/`, `training/`, `metrics.json`); other
@@ -164,7 +173,7 @@ wrapper serialises the segmenter and its lexicon beside the weights, so a wheel 
 
 | lang | tokeniser | note |
 |---|---|---|
-| **zh** | char tagger + jackknifed corpus lexicon + **jieba's BMES decision** | strict token F 0.8385 (pkuseg) → **0.9210** |
+| **zh** | char tagger + jackknifed corpus lexicon + **jieba's BMES decision**, on TRADITIONAL | strict token F 0.8385 (pkuseg) → 0.9210 (simplified) → **0.9242** (`zh_seg_jbdec_trad`) |
 | **id** | char tagger, enclitics SPLIT | replaced `coarsen_id.py`'s merge; `-nya` now gets its own `mod@poss` |
 | **ko** | eojeol, spaCy's RULE tokeniser | 0.3070 → **99.77** against the ORIGINAL SUD_Korean-GSD |
 | **yue** | pkuseg trained from scratch on yue | word-F1 0.95 vs char 0.63 |
@@ -455,7 +464,9 @@ half free: of 565 residue decisions 394 hit, and all 171 misses were GUM. See th
 section; an arm name is not a language, and the two places that confused them both failed silently.
 
 **Apples-to-apples on the EWT-only test** (identical gold — the EWT half of the en_gum test is
-byte-identical to it, 2077/2077 blocks): LAS **79.63 → 80.26**, UAS 84.40 → 84.82, TAG 93.09 →
+byte-identical to it, 2077/2077 blocks; RAW end-to-end, not gold-preproc, so these are ~1.7 LAS
+below the released figures in `metrics_release_en*.json` and are a comparison, not a headline):
+LAS **79.63 → 80.26**, UAS 84.40 → 84.82, TAG 93.09 →
 93.20, `comp:obl` F **+1.52**, `udep` +4.56; against LEMMA −0.12, MORPH −0.19, SENT F −0.41. Same
 shape as Perseus for Latin — the extra treebank IMPROVES the original domain. ⚠ Single seed each and
 init is unseeded, so read +0.63 as suggestive. Do NOT quote the arm's own dev LAS (0.8125) against
@@ -563,12 +574,31 @@ affordable and lands at 29 123 kept labels; measured, **0.50 %** of tokens in a 
 fall outside the kept set, against the union arm's own **1.19 %** — better than the baseline, not
 worse.
 
-**Not adopted into the release.** The augmented arm lives beside the union one
-(`training_la_aug{,_morph,_lemma}`) and `package_sud.sh` still picks the union chain; switching costs
-0.5 LAS / 2.7 TAG on ordinary input for robustness most users may not need. Note also that
-`la_macronise` keys its lookup on the raw form, so it will miss on `j`/`v`/ligature/breve input that
-the augmented parser now handles — normalising its key through `la_orth` is the obvious follow-up if
-the arm is ever promoted.
+**ADOPTED, 2026-08-09 (user decision).** The released `la_sud_ittb_proiel_perseus-0.2.0` is now the
+augmented chain: `training_la_aug` → `_aug_morph` → `_aug_lemma` → `_aug_sud`, with `package_sud.sh`
+naming it and `LA_BASE` to get back the union. Measured on the released arm (gold-preproc, plain
+test, `metrics_release_la*.json`): combined LAS 72.26 → **71.72**, UAS 79.17 → 78.72, TAG 80.35 →
+**77.61**, `comp:obl` F 64.80 → 64.75; ITTB+PROIEL 76.58 → **75.90**, Perseus 53.47 → **53.53**. That
+is the bill; the benefit is the orthography table above, where the LAS spread falls from 54.4 to 7.0.
+Wheel 17.7 → 27.3 MB, almost all of it the lemmatiser's edit-tree inventory (18,512 → 29,123 labels).
+
+**The SUD layer is trained through the SAME augmenter** (`configs/config_la_aug_sud.cfg`), not on the
+union corpus: `sud_subject` reads NORM/PREFIX/SUFFIX/SHAPE, so a pipe trained on two fixed spellings
+sitting on an orthography-robust parser would be the arm's own weak point. Grafting the augmenter
+onto a `make_sud_config.py` config needs its two companions too — `max_epochs = -1` and
+`shuffle = true` — for the reason recorded above: at `0` spaCy lists the corpus ONCE and a
+corpus-level augmenter then samples one style per document for the whole run. The SUD pipes need no
+`init_aug_labels`, because Yes/No/O are properties of the TREES, which augmentation never touches;
+only the lemmatiser's edit-tree labels are properties of the FORMS.
+
+⚠ **Promoting the arm REVERSED a ship decision, and re-measuring is why it was caught.** `Shared`
+on the augmented base is trained **38.11** v rule 36.78 v morphologiser 10.23 — where on the union
+base the table won, 35.85 v 35.10. The reversal is trustworthy in the direction it points: this is
+the three-feature arm whose `model-best` is picked on the mean of Subject/Reported/Shared, the same
+handicap that cost Shared ~5 points on the union base, so it runs AGAINST the winner here. The
+candidate mask also reaches 48.84 % of gold against the union base's 45.0 %, i.e. the augmented
+parser recovers the coordination the layer is defined over slightly better. `Subject` stays trained
+(67.02 v the rule's 52.41) and `Reported` still ships nowhere (rule 17.65, trained 8.00, n=24).
 
 **Macronised OUTPUT: the `la_macronise` component.** The inverse of the above. Alatius = RFTagger +
 a Morpheus-derived lexicon; our pipeline already does the tagging half, so only the lookup remains.
@@ -638,6 +668,47 @@ ending). It exists because the table memorises pairs and cannot express a paradi
 WRONG on these cells** (Alatius's RFTagger contradicting gold morphology), so the rule *lowers*
 measured agreement (−0.03) while raising real accuracy. It faithfully transmits Case errors, so
 `config={"paradigm": False}` disables it.
+
+**The lookup key is now ORTHOGRAPHY-TOLERANT, which promoting the augmented arm made compulsory.**
+The table is keyed on the treebank's own spelling, so `jussit`, `silva`, `cælum` and `mēnsĕ` all
+missed and the component returned the form unchanged — on exactly the editions the parser had just
+learnt to read. Two changes, both in `resolve`:
+
+- **Both length marks come off the PRIMARY key**, not just macrons. A breve can only ever miss, and
+  missing is not harmless: Morpheus's suffix levels answer almost anything, so `ŏstēnsum` was
+  answered off its last four characters (mask 0) instead of falling through to the entry that knows
+  it is `ostēnsum`. A wrong answer that pre-empts the right one is worse than no answer.
+- **A ladder of fallback keys, least normalised first** (`key_ladder`): length-stripped, then
+  ligatures expanded, then `j`→`i` / `v`→`u`. Order is load-bearing — folding the glides at the
+  first step reroutes every `v` form to the `u` spelling, and the two are SEPARATE entries with
+  different answers (`vitae` → `vītae`, `uitae` → nothing), because the treebanks disagree among
+  themselves. Folding early cost 5.5 points on a breve-marked edition.
+
+The mask is a bitmask over character positions, so each key carries a map back to the form: a
+ligature is one character in the form and two in the key. The OUTPUT keeps the caller's orthography
+and replaces only the macrons — `jussit` stays `jussit`, `cælum` stays `cælum`.
+
+**A BREVE VETOES the inference, over every level and over the paradigm rule.** It is not noise to be
+normalised away: it is the caller stating that this vowel is short, which is exactly the claim a
+macron would contradict. So the breve positions are cleared from the mask last, after the lexicon,
+Morpheus and `_PARADIGM` have all had their say, and they are carried through into the output —
+`intĕllectam` comes back `intĕllēctam`, our answer where the caller said nothing and theirs where
+they did, and `mĕnsĕ` comes back unchanged. The `-B` suffix on the level records that a breve
+overruled something.
+
+Whole-token agreement with Alatius, same gold throughout, FORM alone re-rendered:
+
+    style   raw key   + fallback   + breve veto
+    plain    93.78      93.78         93.78
+    vj       95.91      95.92         95.92
+    lig      92.50      92.93         92.93
+    breve    70.79      93.78         94.47
+    all      70.47      95.08         95.80
+
+**Plain is unchanged to the decimal** — the raw key is still tried first, so nothing that answered
+before answers differently. And breve now scores ABOVE plain, which is the point of honouring it:
+a marked edition is telling the macroniser something it would otherwise have to guess, so it should
+come out ahead of an unmarked one rather than merely level with it.
 
 Purely additive: spaCy tokens are immutable, so it sets `token._.macron`/`doc._.macron` and never
 touches `token.text`. `la_parse_macronised.py` joins parse + macrons into CoNLL-U or a table;
@@ -843,6 +914,15 @@ So the tokeniser + transducer together cost **0.4 LAS** and the CSLiser costs **
 effort belongs there. NB the oracle only reaches parity thanks to the unset-vs-empty MORPH fix;
 before it, perfect tokenisation still lost 6.81 LAS.
 
+**DCS trains the morphologiser and lemmatiser, NOT the parser** — worth stating plainly because
+the joint arm makes it look otherwise. `make_sa_multitask_corpus.py` builds the DCS docs with no
+heads or deps at all (the only representation spaCy reads as genuinely missing), so the parser takes
+no gradient from them: 244 481 sentences / 1 732 852 tokens feed tag/morph/lemma, and the parser sees
+only the 21 647 sentences / 163 308 tokens of Vedic + UFAL that carry syntax. The tagger is in the
+first group but is predicting the morphologiser's labels — sa's XPOS is a copy of UPOS on 100 % of
+tokens in both halves. So quote the DCS size against `pos_acc`/`morph_acc`/`lemma_acc` and the
+syntax size against UAS/LAS; a dataset figure for this arm is meaningless without saying which.
+
 **The released arm is JOINT MULTI-TASK**, breaking the freeze recipe every other arm uses:
 
     metric      3 encoders   1 encoder      metric      3 encoders   1 encoder
@@ -986,14 +1066,39 @@ was taken on the mis-segmented data and is withdrawn.
 not: 曰's complement was never 學而不思 but 罔. Laying down the backward edges, then attaching each
 forward edge to `span_head(i+1)`, removes all 1 831 apparent conflicts rather than dropping them.
 The counter is kept and prints a LOUD failure if the argument ever breaks.
-- **Both Han scripts** (`zh_sud_gsd_simp_trad`, `lzh_sud_kyoto`; `both_scripts_release.sh`). zh trains
-  on the two *real* treebanks for the same sentences — `SUD_Chinese-GSD` (traditional) +
-  `SUD_Chinese-GSDSimp` (simplified auto-conversion) — **not** an OpenCC re-traditionalisation
-  (simplification is lossy/many-to-one). The ext relabel lives on GSDSimp;
-  `transfer_relabel_gsd.py` overlays it onto aligned GSD tokens (udep-only + alignment guard;
-  comp:obl/mod is script-independent). lzh has no simplified counterpart treebank, so its simplified
-  half IS OpenCC `t2s` of Kyoto (`opencc_conllu.py`, char-level, length-preserving). zh combined LAS
-  69.3 / comp:obl F 32.6; lzh 79.0 / 70.9 — both within ~0.2 LAS across scripts.
+- **Both Han scripts, one script INSIDE** (`zh_sud_gsd`, `lzh_sud_kyoto`; `zh_script.py`,
+  `retrain_zh_trad.sh` → `finish_zh_trad.sh` → `add_zh_script.py`). Both arms are **traditional-only**
+  as of 0.2.0 and normalise at the boundary instead of training on two scripts: `ZhTradTokenizer`
+  converts simplified in, the `zh_script`/`lzh_script` component converts FORM/LEMMA back out.
+  Released figures: zh LAS 68.86 / UAS 73.29 / comp:obl F 28.68, lzh 77.20 / 82.92 / 66.47
+  (gold-preproc, `metrics_release_*.json`). The superseded both-scripts arms trained on the two
+  *real* treebanks for the same sentences — `SUD_Chinese-GSD` + `SUD_Chinese-GSDSimp`, **not** an
+  OpenCC re-traditionalisation (simplification is lossy/many-to-one) — with the ext relabel living on
+  GSDSimp and `transfer_relabel_gsd.py` overlaying it onto aligned GSD tokens; lzh's simplified half
+  was OpenCC `t2s` of Kyoto. Dropping the augmentation costs the lzh PARSER 2.4 LAS (79.0 → 76.57
+  dev), accepted so 遠 pools with itself rather than competing with 远 — 22.7 % of zh's type
+  inventory is a cross-script twin (15,848 types collapse to 12,248 under `t2s`).
+  `both_scripts_release.sh` regenerates the superseded arms.
+
+  ⚠ **`_looks_simplified` cannot be "would `s2t` change it?", and that shipped.** Simplification is
+  many-to-one and several merged forms are themselves good traditional characters — `s2t` maps
+  台→臺, 里→裡, 面→麵, 后→後, 只→隻 — so traditional input tested positive and came back `t2s`-converted
+  to simplified: 45 of 500 traditional GSD test sentences. Ask instead for evidence of the script
+  with an EXCLUSIVE inventory: simplified iff `t2s(text) == text` (no traditional-only character)
+  **and** `s2t(text) != text` (something to convert), which also leaves a text with no
+  script-distinguishing character alone. GSD and GSDSimp are the same 4,997 sentences in the two
+  scripts, so each labels the other: **3 / 4,997** traditional read as simplified, **9 / 4,997**
+  simplified read as traditional, 0.120 % overall. The twelve residuals are genuine — GSD's own
+  traditional text writes 酒吧里 and 何家干, and the simplified side carries the era name 乾德.
+
+  ⚠ **jieba's channel must be asked about the `t2s` rendering on a traditional arm.** jieba's
+  dictionary is simplified: its boundary decisions score F 0.8920 on traditional text and **0.9223**
+  on the `t2s` conversion — the latter matching what the simplified arm was built on (P 0.9730 /
+  R 0.8793), so the entire gap is vocabulary. Codes are per character and `t2s` preserves length
+  (500/500 test sentences), so the answer transfers by position, with a length check falling back to
+  the raw text. `--jieba-t2s` trains it; **`jieba_t2s` is written into the segmenter's `vocab.json`**
+  and read back by `char_seg_tokenizer.load_segmenter` and `eval_zh_seg.py`, because a channel asked
+  a different question at inference than at training is the `reads_spaces` trap again.
 - **Cantonese** (`yue_sud_hk`; `split_yue.py`, `yue_tokenizer.py`, `train_yue.py`,
   `train_pkuseg_yue.py`, `bundle_yue_pkuseg.py`). Coverb/prepositional like zh/lzh; ext adds
   associative 嘅 (PART → mod, like zh 的 / lzh 之 / ja の) and the annotators' `udep@tmod` (而家/今日 →
@@ -1092,7 +1197,7 @@ on test by `eval_sud_subject.py`:
     lang   trained F   rule F   ships     n(test)
     en       80.0       63.9    trained     266
     fa       89.5       71.6    trained      38
-    la       66.3       53.0    trained     674
+    la       67.0       52.4    trained     674   (augmented base; 66.3 / 53.0 on the union one)
     yue      66.7       36.4    trained       6   (not meaningful either way)
     lzh      66.2       80.0    RULE        174
     zh       27.7       31.6    NEITHER     302
@@ -1212,7 +1317,7 @@ on a **predicted** parse, a ceiling on rule and trained alike):
 | lzh | 65.5 | 41.3 | 52.7 | **58.8** | trained |
 | ar | 60.2 | 37.8 | 52.6 | **54.6** | trained |
 | id | 57.1 | 36.1 | 49.1 | **53.6** | trained |
-| la | 45.0 | 8.3 | **35.9** | 35.1 | rule (trained solo; 30.1 in the 3-feature arm — see below) |
+| la | 48.8 | 10.2 | 36.8 | **38.1** | trained — on the AUGMENTED base, which is what ships; the superseded union base preferred the rule, 35.9 v 35.1 |
 | ko | 37.6 | 11.3 | 28.6 | 32.5 | neither (P 40.1) |
 | zh | 32.7 | **37.5** | 29.1 | 31.5 | neither — the MORPHOLOGISER wins, uniquely |
 | yue | 28.4 | 6.7 | 16.0 | 21.5 | neither (P 27.7, n=74) |
@@ -1469,6 +1574,33 @@ the routine command rebuilt the superseded generation. The wheel built, loaded a
 only the hash comparison said otherwise. Repointed to `training_lzh_trad_sud`. **A default that
 names the right arm is the fix; a comment telling the next person to remember is not** — this was
 the third time lzh nearly shipped backwards.
+
+### The zh wheel that could not segment, 2026-08-09
+
+`zh_sud_gsd-0.2.0` went to the release with **no `tokenizer/segmenter/` directory**, so every input
+string came back as ONE TOKEN. It built, loaded, parsed and round-tripped; `spacy evaluate
+--gold-preproc` was unaffected, because gold tokens never run the tokeniser. What exposed it was
+listing the wheel's own files against the 0.1.0 one, which has
+`tokenizer/segmenter/{model.bin,vocab.json,lexicon.txt}` — the same class of check that caught lzh
+above, and again the only thing that would have.
+
+**Two silent fallbacks in series.** `add_zh_script.py` carried the segmenter over from the input
+model's tokenizer by trying attribute names — `("segmenter", "lexicon", "_seg", "_lex")` — and
+`CharSegTokenizer` holds it in **`seg`**, which is not among them. `to_disk` then writes a
+`segmenter/` directory only when it has one, and `from_disk` falls back to no segmenter when the
+directory is absent. Neither step raises. Copying state between objects by GUESSING attribute names
+is what failed: the script now takes `--seg`/`--lexicon`, calls `load_segmenter`, and refuses to
+write a model whose reload cannot split a test sentence into more than one token. And the wheel was
+hand-built rather than run through `package_sud.sh`, whose zh branch still named
+`sud_gsd_simp_trad` and still fell through to `training_zh_lemma` — both now fixed, the same
+"a default that names the right arm is the fix" lesson.
+
+**Rebuilt and re-uploaded at the SAME version** (0.2.0, clobbered, by user decision). All five
+component weight files are byte-identical to the previous asset and to `training_zh_trad_lemma`, so
+no published score moves; the diff is the three segmenter files, four `.py` modules and metadata.
+Raw end-to-end on the traditional test: token_acc **0.9694**, strict token F **0.9242**. ⚠ Because
+the version is unchanged, `pip install -U` will NOT replace a broken copy — `--force-reinstall`
+will. Verified by downloading the published asset and loading it, not the build directory.
 
 Two diffs that look alarming and are not, both on lzh: `__init__.py` differs only in IMPORT ORDER,
 and `sud_subject_frames.py` is purely ADDITIVE (an `en_gum` key; lzh's own 7 entries, the ones its
