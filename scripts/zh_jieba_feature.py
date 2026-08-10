@@ -37,12 +37,53 @@ the corpus lexicon useless without jackknifing cannot arise. A userdict harveste
 split WOULD reintroduce it — see `force_split_dict`.
 """
 import pathlib
+import sys
 
 B, M, E, S = 0, 1, 2, 3
 N_JIEBA = 4
 
 _STATE = {"tok": None}
 
+
+
+def _import_jieba():
+    """Import jieba, falling back to the copy vendored inside the wheel.
+
+    The zh wheel no longer declares `jieba>=0.42.1`: it ships the ~6 MB the segmenter actually
+    loads under `<model>/vendor/jieba`, because the pip distribution is 42 MB of which the rest is
+    POS tagging, a neural model and keyword extraction that this channel never touches. That
+    matters for a serverless target with a 250 MB unzipped budget.
+
+    An installed jieba WINS if there is one, so a user who has their own copy keeps it and nothing
+    about training changes; the vendored tree is only reached when the import fails. The two are
+    interchangeable — the pruned tree is byte-identical files, verified to give the same BMES codes
+    and the same full-parse digest on the shipped wheel.
+
+    The vendor directory is found by walking up from this module: when bundled by `spacy package`
+    this file sits at `<pkg>/zh_jieba_feature.py` and the model data dir `<pkg>/<name>-<version>/`
+    holds `vendor/`, so the version string never has to be known. In a source checkout there is no
+    vendor tree and the plain import is the only path.
+    """
+    try:
+        import jieba
+        return jieba
+    except ImportError:
+        pass
+    # Search ONLY this module's own directory, never its parents. An earlier version walked up two
+    # levels and globbed `*/vendor`, which bound an unrelated `vendor/jieba` belonging to a
+    # different tree entirely -- a silent cross-package import that happened to work because the
+    # contents matched. In the wheel this file is at `<pkg>/zh_jieba_feature.py` and the model data
+    # dir is `<pkg>/<name>-<version>/`, so one glob level is exactly right and anything wider is a
+    # bug waiting for a machine where the neighbour is not a pruned jieba.
+    here = pathlib.Path(__file__).resolve().parent
+    for cand in [here / "vendor", *sorted(here.glob("*/vendor"))]:
+        if (cand / "jieba" / "__init__.py").is_file():
+            sys.path.insert(0, str(cand))
+            import jieba
+            return jieba
+    raise ImportError(
+        "jieba is required for the zh segmenter's BMES channel and no vendored copy was found. "
+        "Install it with `pip install jieba>=0.42.1`.")
 
 def set_userdict(words=()):
     """Reset jieba to its stock dictionary, then force-split every word in `words`.
@@ -56,7 +97,7 @@ def set_userdict(words=()):
     force-splits would accumulate on top of the previous fold's, so fold 4 would be segmenting with
     a dictionary derived from all five folds including its own.
     """
-    import jieba
+    jieba = _import_jieba()
     import jieba.finalseg
     jieba.dt.FREQ.clear()
     jieba.dt.initialized = False

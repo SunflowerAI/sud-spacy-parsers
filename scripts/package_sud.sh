@@ -279,6 +279,13 @@ case $lang in
   zh)  $PY scripts/add_zh_script.py "$base" "$work" \
             --seg models/zh_seg_jbdec_trad --lexicon models/zh_lex_corpus_trad.txt \
             || { echo "  zh: script/segmenter wiring FAILED — skip"; continue; }
+       # Vendor the ~6 MB of jieba the BMES channel actually loads and drop the pip requirement.
+       # `spacy package` copies the model dir wholesale and setup.py's list_files walks it, so a
+       # tree dropped here ships as package_data with no change to the generated setup.py. Must run
+       # AFTER add_zh_script (which writes the requirements) and BEFORE pkg (which packages them).
+       # Saves 36 MB per install; the wheel grows 6 MB. See scripts/vendor_jieba.py.
+       $PY scripts/vendor_jieba.py "$work" \
+            || { echo "  zh: jieba vendoring FAILED — skip"; continue; }
        pkg zh  "$work" sud_gsd \
             "scripts/zh_script.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py,scripts/zh_jieba_feature.py" ;;
        # lzh DOES ship the frame rule for Subject (F 80.0 vs 66.2 trained -- 可/能/欲 carry it;

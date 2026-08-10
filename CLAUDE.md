@@ -1660,12 +1660,33 @@ gitignored). Rebuild a custom-code wheel with
   only a file-path fallback does. Each module carries a `_sibling()` helper covering all three load
   contexts (wheel / `seg_code.py` / `spacy package`).
 - **Declare runtime requirements in `meta.json`** before packaging. The ja wheel once required only
-  `spacy>=3.8.14` and hit an ImportError on every load; zh now declares `jieba>=0.42.1`, yue
+  `spacy>=3.8.14` and hit an ImportError on every load; zh USED to declare `jieba>=0.42.1` (it now
+  vendors it, see below), yue
   `spacy-pkuseg`, and **ar `camel-tools>=1.5.2`** — its tokeniser raises at LOAD time, so before this
   a plain `pip install ar_sud_padt` produced a model that could not be opened. Per-language
   requirements now live in `stamp_model_meta.py`, which already runs for every arm at packaging.
   The `camel_data -i …` download still has to be run by hand: a data fetch is not expressible as a
   pip dependency, so this reduces the missing pieces from two to one rather than to none.
+- **zh VENDORS jieba, and declares no jieba requirement** (`scripts/vendor_jieba.py`, run from
+  `package_sud.sh`'s zh branch between `add_zh_script.py` and `pkg`). The pip distribution is 42 MB
+  of which the BMES channel reaches ~6 MB: `posseg`, `lac_small` and `analyse` are never imported —
+  established by reading `sys.modules` after `zh_jieba_feature.jieba_codes`, not by inspection. The
+  reachable subset ships inside the model dir as `vendor/jieba/`, which needs no setup.py change
+  because `spacy package` copies the model dir wholesale and its `list_files` walks it recursively.
+  **Wheel 11.8 → 13.9 MB; any install of it drops 36 MB** (site-packages ~190 → 155 MB, which is what
+  brings it inside a 250 MB serverless budget). `zh_jieba_feature._import_jieba` prefers an INSTALLED
+  jieba and falls back to the vendored tree, so training is unaffected and a user's own copy wins.
+  `scripts/slim_jieba.py` does the same pruning to a deployment tree for anything not vendored; both
+  share one allowlist so they cannot drift.
+  ⚠ The vendor search must look ONLY in the module's own directory and one glob level
+  (`<pkg>/<name>-<version>/vendor`). An earlier version walked up two parents and bound an unrelated
+  `vendor/jieba` from a different tree — silently, because the contents happened to match.
+  ⚠ jieba ships **no LICENSE file** (only `License: MIT` in its METADATA), so vendoring means writing
+  the notice: `vendor/jieba/NOTICE` records version, upstream, author and that the files are
+  unmodified copies. Redistribution without it would not satisfy MIT.
+- **Do NOT prune `dict.txt`.** It is 4.8 MB of the surviving 6.4 MB and it IS the feature — the
+  channel's value is vocabulary (the traditional-vs-`t2s` gap is entirely vocabulary), worth +4.42
+  token F. Baking the channel into the weights was considered and rejected for the same reason.
 - **Training-only imports must not be module-scope in a bundled file.** `sa_presegment` importing
   `sa_tokenizer`, and `sa_presegment_lex` importing `eval_samhita`, both broke the zh wheel.
 - **A component that silently loses an input must refuse to load.** `bundle_zh_charseg.py` REFUSES
@@ -1725,6 +1746,38 @@ the routine command rebuilt the superseded generation. The wheel built, loaded a
 only the hash comparison said otherwise. Repointed to `training_lzh_trad_sud`. **A default that
 names the right arm is the fix; a comment telling the next person to remember is not** — this was
 the third time lzh nearly shipped backwards.
+
+### Serverless deployment, and the zh re-release of 2026-08-10
+
+The target is a serverless function: one text per invocation, billed on duration, with a package
+size ceiling (AWS Lambda 250 MB unzipped). Measured on the shipped `zh_sud_gsd`:
+
+    clean install    155 MB site-packages (was ~190 before vendoring)
+    cold model load  ~1.0 s        p50 per request  1.4 ms (AppleOps) / 3.65 ms (NumpyOps)
+    peak RSS         ~425 MB       => needs a 512 MB function, realistically 1 GB
+
+Three things this settles, each of them a bigger lever than anything in the model itself:
+
+- **A torch dependency is disqualifying.** The CPU wheel is ~500 MB unzipped on its own, so
+  `spacy-experimental`'s biaffine parser could never have shipped here whatever it scored. Only a
+  pure-Thinc implementation is deployable at all, whatever its accuracy.
+- **The BLAS backend is worth more than the parser.** A plain `pip install spacy` gets `NumpyOps`;
+  `thinc-apple-ops` (the `spacy[apple]` extra) gets `AppleOps`, and that alone is **2.6x per
+  request** on identical weights. Whatever the deployment platform, check which ops class actually
+  resolves before optimising anything else — it dwarfs the differences between model architectures.
+- **Batched throughput is the wrong metric here.** Nothing amortises across a single-text
+  invocation, so per-request cost is roughly double what a 3000-doc batch suggests (the BiLSTM is
+  1.24x batched and **1.77x** per request; beam 4 is 3x batched and 7x per request).
+
+The 0.2.0 zh wheel was **re-released (clobbered) on 2026-08-10** carrying the vendored jieba. Diffed
+against the previously published asset: 30 of 43 files byte-identical, 5 changed (two `meta.json`,
+METADATA, RECORD, `zh_jieba_feature.py`), 8 added, none removed, **no weight or vocab file moved** —
+so no published zh score changes. Verified by downloading the asset and by a clean venv with jieba
+genuinely absent: identical full-parse digest on 500 test sentences. ⚠ Same version, so
+`pip install -U` will NOT replace an older copy; `--force-reinstall` will.
+
+⚠ **`find build_sud -name '*.whl'` is still the wrong upload command** and the build tree proves it:
+eight wheels sit there, four at 0.1.0. Upload by NAME.
 
 ### The zh wheel that could not segment, 2026-08-09
 
