@@ -1,5 +1,16 @@
 #!/usr/bin/env python
-"""Blank the XPOS column (field 5 -> "_") for the Perseus portion of a merged file.
+"""SUPERSEDED by normalise_la_xpos.py -- kept for the record, not on any live path.
+
+Blanking deleted Perseus's XPOS rather than converting it, which did not remove Perseus from
+the TAG metric: `spacy convert` keeps CoNLL-U `_` as a LITERAL tag, so the model was scored
+against a gold value of "_" on 18 259 train and 10 964 test tokens, and scored 24.29 on the
+Perseus test slice.  That was most of the gap between the ITTB slice's 90.68 and the published
+combined 77.61.  It also left PROIEL's rival 23-value tagset sitting beside ITTB's composite
+codes, unaddressed.  normalise_la_xpos.py re-renders both onto ITTB's conventions instead, and
+the replacement tagger scores 92.92 on the ITTB slice against this arm's 90.68 -- on identical
+gold, since ITTB's own rows are untouched either way.
+
+Blank the XPOS column (field 5 -> "_") for the Perseus portion of a merged file.
 
 The three Latin treebanks use mutually-incompatible XPOS tagsets (ITTB's Index
 Thomisticus codes, PROIEL's 2-letter codes, Perseus's 9-position morphology tags).

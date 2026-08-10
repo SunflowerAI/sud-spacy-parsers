@@ -182,13 +182,26 @@ poetry — Virgil, Ovid, Phaedrus) is much harder at LAS **53.5** / UAS **65.4**
 combined headline down. Adding Perseus *improved* the original domain and *added* poetry coverage
 the model previously lacked — measured at the time as ITTB+PROIEL LAS 77.7 → 78.3, on an earlier
 generation of the arm, so read that gain as the reason Perseus is in and not as a comparison against
-the numbers above. Perseus's XPOS is blanked (incompatible tagset), so XPOS/TAG is reported on
-ITTB+PROIEL only.
+the numbers above.
+
+**All three treebanks now share ONE tagset.** They arrive with mutually-incompatible XPOS — ITTB's
+Index Thomisticus composite codes, PROIEL's 23 part-of-speech codes, Perseus's 9-position
+morphology strings — and Perseus's used to be blanked outright. PROIEL and Perseus are now
+re-rendered as Index Thomisticus codes derived from their own (form, lemma, UPOS, FEATS), with
+ITTB's own rows left untouched; held out on ITTB that rendering reproduces the treebank's own gold
+tag 93.7 % exactly. On the **ITTB test slice — the one span whose gold did not move, so the only
+like-for-like comparison — TAG goes 90.68 → 92.92**, and the combined figure 77.61 → **86.16**.
+Blanking never removed Perseus from the metric: spaCy reads CoNLL-U `_` as a literal tag, so those
+10,964 test tokens were scored against a gold value of `"_"` and the arm made 24.29 on them.
+Parsing is untouched — only the tagger was retrained, on the frozen arm, so LAS/UAS/POS/LEMMA are
+identical to the decimal.
 
 **These are all plain-spelling numbers, and they are the augmentation's bill, not its benefit.**
-Against the previous plain∪macron union arm the released one is LAS 72.26 → **71.72** and TAG
-80.35 → **77.61** on ordinary input; TAG pays most, ITTB's 1,952-label composite XPOS being the most
-form-sensitive target here. What it buys shows up only when the spelling moves — the same test
+Against the previous plain∪macron union arm the released one is LAS 72.26 → **71.72** on ordinary
+input, and TAG cost 80.35 → 77.61 on the mixed tagset both were measured on; TAG paid most, ITTB's
+composite XPOS being the most form-sensitive target here. (Since the tagset normalisation above,
+the released arm reads TAG **86.16** on that same test — a different, harder target, so it is not
+comparable with either figure in this sentence.) What it buys shows up only when the spelling moves — the same test
 re-rendered in other edition styles, same trees, same gold, FORM alone changing:
 
 | | union arm | augmented arm |
@@ -251,6 +264,15 @@ needs.
 whose sources are not NonCommercial, which is +66 % training tokens and ~+0.6 LAS on EWT's own test,
 but GUM offers its annotations under CC BY-NC-SA, so the merged wheel is NonCommercial and
 `en_sud_ewt` stays the commercially usable one. Users choose.
+
+Merging the two exposed one tagset conflict, now fixed in this wheel. EWT and GUM share the PTB
+tagset and agree on every word class, but PTB reserves `,` for the comma and gives dashes,
+semicolons and ellipses `:` — GUM follows that without exception, while EWT tags `;` as `,` 101
+times out of 101. So the same character in the same context carried different gold depending on
+which treebank the sentence came from. EWT's half now follows the standard: accuracy on the
+affected punctuation goes **72.5 % → 83.0 %**, with the headline TAG flat (94.19 → 94.20 — this is
+0.3 % of the corpus) and everything else identical to the decimal. `en_sud_ewt` is unaffected: on
+its own, EWT's convention is internally consistent.
 
 § The Latin model is trained on the union of three SUD Latin treebanks, **all NonCommercial**:
 ITTB (CC BY-NC-SA 3.0), PROIEL (CC BY-NC-SA), and Perseus (CC BY-NC-SA 2.5). The model and its

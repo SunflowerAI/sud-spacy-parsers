@@ -44,13 +44,14 @@ do_merge() {
   cat "$ITTB-train.conllu" "$PROIEL-train.conllu" "$PERSEUS-train.conllu" > "$A/$P-train.conllu"
   cat "$ITTB-dev.conllu"   "$PROIEL-dev.conllu"                            > "$A/$P-dev.conllu"
   cat "$ITTB-test.conllu"  "$PROIEL-test.conllu"  "$PERSEUS-test.conllu"   > "$A/$P-test.conllu"
-  # Blank Perseus's (incompatible, sparse 9-position) XPOS so it does not confuse the
-  # tagger; Perseus is the tail of each split, so blank from the ITTB+PROIEL count on.
-  # FORM/UPOS/dependencies are untouched, so macron + relabel below carry the blank through.
-  itp_train=$(( $(grep -c '^# sent_id' "$ITTB-train.conllu") + $(grep -c '^# sent_id' "$PROIEL-train.conllu") ))
-  itp_test=$((  $(grep -c '^# sent_id' "$ITTB-test.conllu")  + $(grep -c '^# sent_id' "$PROIEL-test.conllu") ))
-  $PY scripts/blank_perseus_xpos.py "$A/$P-train.conllu" "$A/$P-train.conllu" --from-sent "$itp_train"
-  $PY scripts/blank_perseus_xpos.py "$A/$P-test.conllu"  "$A/$P-test.conllu"  --from-sent "$itp_test"
+  # The three tagsets are mutually incompatible, so normalise the two smaller treebanks onto
+  # the largest one's conventions: ITTB's rows are kept verbatim and PROIEL's 23-value and
+  # Perseus's 9-position XPOS are re-rendered as Index Thomisticus composite codes from their
+  # own (form, lemma, UPOS, FEATS).  This supersedes blank_perseus_xpos.py, which deleted the
+  # Perseus column rather than converting it and left PROIEL's rival convention in place.
+  # XPOS only, so macron + relabel below carry the normalised column through unchanged.
+  $PY scripts/build_la_xpos_map.py --report
+  $PY scripts/normalise_la_xpos.py "$A/$P-train.conllu" "$A/$P-dev.conllu" "$A/$P-test.conllu"
   # Make the multiword-token convention explicit before anything converts these files. ITTB and
   # Perseus mark `Animosque` with a range line and leave the sub-tokens unspaced by convention --
   # 0 of 198 range lines carries `SpaceAfter=No` on the host. `spacy convert` drops range lines and

@@ -16,8 +16,25 @@ pipe's encoder will be reading a different model's world. That is checked, not a
 """
 import argparse
 import filecmp
+import json
 import pathlib
 import sys
+
+# Which `performance` keys belong to which pipe.  A graft replaces a pipe but `nlp.to_disk` writes
+# the RECIPIENT's meta, so without this the wheel reports the score of the model that was replaced
+# -- and it does so silently, in the one field `spacy info` shows users.  Latin is the case that
+# forced it: the grafted arm kept tag_acc 0.9028, measured on a 1 952-label tagset, while shipping
+# a 2 342-label one.  Only the grafted pipe's own keys move; everything else is frozen and its
+# scores are (verifiably) identical between the two arms.
+PIPE_METRICS = {
+    "tagger": ("tag_acc", "tag_micro_p", "tag_micro_r", "tag_micro_f"),
+    "morphologizer": ("pos_acc", "morph_acc", "morph_micro_p", "morph_micro_r", "morph_micro_f"),
+    "lemmatizer": ("lemma_acc",),
+    "parser": ("dep_uas", "dep_las", "dep_las_per_type"),
+    "sud_subject": ("sud_subject_f", "sud_subject_p", "sud_subject_r"),
+    "sud_reported": ("sud_reported_f", "sud_reported_p", "sud_reported_r"),
+    "sud_shared": ("sud_shared_f", "sud_shared_p", "sud_shared_r"),
+}
 
 _HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
@@ -50,7 +67,10 @@ def main():
         # The pipes carry their OWN encoders, but they read the frozen components' predictions
         # (DEP/POS/MORPH/LEMMA and, for a tree layer, the parse itself). If those differ, the
         # grafted pipe is being fed by a model it was not trained against.
-        for comp in ("tok2vec", "tagger", "parser", "morphologizer", "lemmatizer"):
+        # ...but NOT the pipes being grafted: those are the ones that are meant to differ, which
+        # is the whole point of the call.  Checking them made every same-name replacement fail.
+        for comp in [c for c in ("tok2vec", "tagger", "parser", "morphologizer", "lemmatizer")
+                     if c not in args.pipes]:
             a, b = rec_dir / comp / "model", don_dir / comp / "model"
             if a.exists() and b.exists() and not filecmp.cmp(a, b, shallow=False):
                 sys.exit(f"graft_pipe: {comp} differs between the two arms -- they do not share a "
@@ -61,11 +81,36 @@ def main():
     for name in args.pipes:
         if name not in donor.pipe_names:
             sys.exit(f"graft_pipe: {name} is not in the donor ({donor.pipe_names})")
+        # A replacement must go back where it came from.  `last=True` is right for a pipe being
+        # ADDED, and silently wrong for one being SWAPPED: it would move a tagger to the end of
+        # the pipeline, behind the `sud_*` pipes that read its arm's predictions -- the same
+        # class of ordering bug that put `clause_parser` after `sud_shared` in the lzh wheel,
+        # which built, loaded and said nothing.
+        where = {"last": True}
         if name in nlp.pipe_names:
+            i = nlp.pipe_names.index(name)
             nlp.remove_pipe(name)
-        nlp.add_pipe(name, source=donor, last=True)
-        print(f"  grafted {name}")
+            if i < len(nlp.pipe_names):
+                where = {"before": nlp.pipe_names[i]}
+        nlp.add_pipe(name, source=donor, **where)
+        print(f"  grafted {name} at {nlp.pipe_names.index(name)} ({nlp.pipe_names})")
     nlp.to_disk(args.out_model)
+
+    # carry the grafted pipes' own scores across, so meta.json describes what actually ships
+    meta_path = pathlib.Path(args.out_model) / "meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    donor_meta = json.loads((don_dir / "meta.json").read_text(encoding="utf-8"))
+    donor_perf = donor_meta.get("performance", {})
+    moved = {}
+    for name in args.pipes:
+        for key in PIPE_METRICS.get(name, ()):
+            if key in donor_perf and meta.get("performance", {}).get(key) != donor_perf[key]:
+                moved[key] = (meta["performance"].get(key), donor_perf[key])
+                meta["performance"][key] = donor_perf[key]
+    if moved:
+        meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        for k, (a, b) in moved.items():
+            print(f"  performance.{k}: {a} -> {b}")
 
     reloaded = spacy.load(args.out_model)
     print(f"{args.out_model}: pipeline {reloaded.pipe_names}")

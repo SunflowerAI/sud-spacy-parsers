@@ -112,7 +112,15 @@ for lang in "$@"; do
     # ar/lzh/id joined this list when `Shared` did: their Subject/Reported layers ship as RULES,
     # so before that they had no reason to take the trained arm at all. The unwanted trained pipes
     # are dropped below, so no dead weights travel.
-    en|en_gum|fa|yue|ar|id) base=training_${lang}_sud/model-best ;;
+    en|fa|yue|ar|id) base=training_${lang}_sud/model-best ;;
+    # en_gum takes the XPOS-NORMALISED arm: EWT and GUM disagreed on punctuation XPOS (EWT tags
+    # `;` `,` 101 times of 101, GUM the PTB-standard `:`), so the same token in the same context
+    # carried different gold depending on which treebank the sentence came from. EWT's half was
+    # converted to GUM's convention and the tagger retrained on the frozen arm -- every other
+    # component byte-identical. Headline TAG is flat (0.3 % of the corpus) but accuracy on the
+    # affected punctuation goes 72.47 -> 82.98. `en` (EWT-only) is deliberately NOT in this arm:
+    # on its own, EWT's convention is internally consistent.
+    en_gum)       base=training_en_gum_sud_xpos/model-best ;;
     # la ships the ORTHOGRAPHICALLY AUGMENTED chain, not the plain-plus-macron union: one copy of
     # the macronised treebank resampled into a fresh edition style every epoch (macrons, breves,
     # u/v, i/j, æ/œ, sentence-initial capitals). It costs ~0.5 LAS and 2.7 TAG on ordinary input
@@ -120,7 +128,12 @@ for lang in "$@"; do
     # every one of those axes, so the spread is the number that matters. The SUD layer is trained
     # through the SAME augmenter (configs/config_la_aug_sud.cfg), because a Subject pipe reading
     # NORM/PREFIX/SUFFIX/SHAPE off a spelling it never met is the arm's own weak point.
-    la)           base="${LA_BASE:-training_la_aug_sud/model-best}" ;;
+    # It also ships the XPOS-NORMALISED tagger: PROIEL's 23-value and Perseus's (blanked)
+    # tagsets are re-rendered as Index Thomisticus codes, so the arm predicts ONE tagset instead
+    # of two-and-a-hole. ITTB's own rows are untouched, and on the ITTB test slice -- the one span
+    # whose gold never moved -- TAG goes 90.68 -> 92.92, combined 77.61 -> 86.16 with LAS/UAS/POS/
+    # LEMMA identical to the decimal. LA_BASE gets back the pre-normalisation arm.
+    la)           base="${LA_BASE:-training_la_aug_sud_xpos/model-best}" ;;
     # sa ships the JOINT MULTI-TASK arm: ONE shared encoder for tagger + parser + morphologizer +
     # lemmatizer, instead of the three-encoder freeze recipe every other arm uses. 25.85 -> 19.16 MB
     # (-25.9 %), tag/pos/morph/lemma each +0.3 to +0.7, and on HELD-OUT UFAL (classical prose, the
@@ -337,5 +350,10 @@ case $lang in
   *) echo "  unknown lang: $lang" ;;
 esac
 done
-echo "Wheels in build_sud/*/dist/. Upload with:"
-echo "  gh release upload v0.1.0 \$(find build_sud -name '*.whl') --clobber"
+echo "Wheels in build_sud/*/dist/. Upload BY NAME, one line per wheel:"
+echo "  gh release upload v$VERSION build_sud/<arm>/dist/<name>-$VERSION-py3-none-any.whl --clobber"
+echo
+echo "  Do NOT upload via \$(find build_sud -name '*.whl'): build_sud accumulates a wheel from"
+echo "  every arm ever packaged, at every version -- and has twice held two of the SAME name,"
+echo "  where --clobber makes the winner whichever one find yielded last. Count them first:"
+find build_sud -name "*.whl" 2>/dev/null | sed "s|^|    |"

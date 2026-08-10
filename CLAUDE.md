@@ -435,6 +435,155 @@ Other non-official UD carry-overs (`mod@poss`,
 and the other language-specific semantic subtypes are legitimate SUD conventions the pipeline relies
 on.
 
+## XPOS: one tagset per arm, normalised towards the largest treebank
+
+Three arms train on more than one treebank, and each needed a different answer.
+
+**sa (Vedic + UFAL + DCS) needs nothing**: field 5 is `_` in all three sources and is filled from
+UPOS downstream, so the convention is already uniform. One stray was found and fixed -- a single
+token (`dharm'`) carried `Compound=Yes` in the XPOS column in two UFAL files, a shifted FEATS
+value, and it had reached the RELEASED sa tagger as a label. `normalise_sa_xpos.py` sets it to
+the UPOS like every other sa token -- a script rather than a hand edit because `assets_sa*/` is
+gitignored, so a manual fix there is lost by the next rebuild with nothing to say it ever
+happened. FEATS is deliberately left alone: sa READS `Compound` as an input feature and the
+tokeniser supplies it at runtime, which is how the arm is designed. **sa was NOT retrained** for
+one token, so the junk label sits unused in the shipped model until the arm is next rebuilt.
+
+### Latin: PROIEL and Perseus re-rendered as Index Thomisticus codes
+
+ITTB is by far the largest (390 787 train tokens against PROIEL's 177 558 and Perseus's 18 259),
+so its conventions win and **its own rows are left byte-identical**. The composite tag splits into
+a LEXICAL head and a MORPHOLOGICAL tail, which is what makes the other two derivable:
+
+    C1 | grn1 casB gen2 | vgr1
+    ^^   ^^^^^^^^^^^^^^   ^^^^ graphical variant of the surface form
+    |    a restatement of FEATS
+    LETTER = declension/conjugation (lexical)   DIGIT = which paradigm the form inflects by
+
+**Splitting the head is worth 1.5 points and is not obvious**: the digit is morphological, not
+lexical -- a verb takes `3` when finite or infinitive and `2` when participial -- so keying the
+whole head on the lemma tops out at 94.5 % where letter (98.43 % dominant per (lemma, UPOS)) plus
+digit (98.15 % per (UPOS, VerbForm, has-Case)) reaches 95.9-96.3 %.
+
+**The lemma-suffix rung is what makes it usable on the other treebanks.** 17.8 % of PROIEL and
+23.4 % of Perseus tokens have a lemma ITTB never saw. On ITTB's own unseen-lemma tokens a UPOS
+majority gets the letter right 41 % / 45 % (dev / test); a suffix model gets **83 % / 90 %** --
+declension IS a property of the stem ending, so this is the feature the majority baseline was
+missing, not a lucky correlation.
+
+**`vgr` must be keyed on the FOLDED form** (length marks stripped, ligatures expanded, j/v -> i/u):
+keying it on the form rather than the lemma is worth 4.5 points (89.2 -> 93.7 exact), and folding
+is compulsory because the released arm is the orthographically augmented one, which respells every
+token each epoch -- `vitae`, `vītae` and `vītæ` must render ONE tag. Verified: the plain and macron
+copies of every split now produce byte-identical XPOS columns.
+
+Held out on ITTB itself, the map reproduces the treebank's own gold XPOS **93.74 / 93.98 %** exactly
+(test / dev) from (form, lemma, UPOS, FEATS) alone -- the honest ceiling on the tags it manufactures
+for the other two. 1 614 300 tokens re-rendered into 1 518 tag types; only **1.97 %** of train tokens
+land on a tag ITTB never used. Idempotent, XPOS-column-only, and which treebank a sentence belongs to
+is read off its **sent_id**, not off a sentence COUNT as the blanking script did.
+
+**Results.** Only the tagger was retrained (freeze recipe, `make_tagger_config.py` + `graft_pipe.py`),
+because nothing in the Latin pipeline reads TAG as an input -- so parser, morphologiser, lemmatiser
+and the three `sud_*` pipes come out byte-identical and every published Latin figure stands.
+
+| slice | old arm / old gold | new arm / new gold | |
+|---|---|---|---|
+| **ITTB** | **90.68** | **92.92** | the only like-for-like row -- ITTB's gold never moved |
+| PROIEL | 89.93 | 82.40 | not comparable: 23 coarse codes -> ~2 340 composite ones |
+| Perseus | 24.29 | 68.37 | not comparable: the gold was BLANK |
+| combined, plain test | 77.61 | **86.16** | POS 92.68, LEMMA 90.90, UAS 78.72, LAS 71.72 -- identical to the decimal |
+
+**+2.24 on ITTB is the finding**, and it is the same shape as Perseus improving ITTB+PROIEL LAS:
+converting the smaller treebanks' tags helps tagging on the largest one. **Perseus's 24.29 shows
+blanking never removed it from the metric** -- spaCy keeps CoNLL-U `_` as a LITERAL tag, so 10 964
+test tokens were scored against a gold value of "_", which was most of the gap to the published
+77.61. TAG across orthographies (old -> new): plain 77.61 -> 86.16, macron 77.23 -> 85.31, vj 77.66
+-> 86.20, lig 77.54 -> 86.03, caps 77.61 -> 86.12, breve 68.50 -> 76.44 -- so robustness is carried,
+not traded.
+
+### English: `,` now means comma in both halves
+
+EWT and GUM share one PTB tagset (49 tags against 46, GUM's a strict subset) and agree on every word
+class: of 688 (form, UPOS) types frequent in both, **17 disagree**, and all but a few are genuine
+ambiguity rather than convention (`know` VB/VBP, `her` PRP/PRP$, `got` VBD/VBN -- web text and edited
+prose really do differ in how often each reading occurs). Punctuation is the exception and is a flat
+conflict: PTB reserves `,` for the comma and gives dashes, semicolons and ellipses `:`. GUM follows
+that without exception; **EWT tags `;` as `,` 101 times out of 101**, `--` 123, `...` 159, `/` 142.
+
+⚠ **This one deliberately does NOT follow the largest-treebank rule** (user decision, 2026-08-10).
+In the arm that ships -- the merge with GUM's five NonCommercial genres dropped -- **EWT is the
+LARGER half, 204 578 tokens against 135 746**. It is overridden because the disagreement is not a
+house style but a standard: `,` is *defined* as the comma tag, GUM is consistent with that, EWT is
+the outlier. (An earlier draft of this decision quoted GUM at 200 223 and called the margin 2 % --
+that is the UNFILTERED treebank, which the shipped arm does not train on.)
+
+`normalise_en_punct_xpos.py` rewrites 1 004 train / 131 dev / 149 test EWT cells. Two things it
+needs and one bug it had:
+
+- **The dash needs SPACING, not just the form.** PTB tags `-` HYPH inside `well-known` and `:`
+  between clauses, so a form-keyed rule answers with GUM's compound-internal majority (HYPH 886)
+  for tokens that are sentence punctuation. Split by spacing GUM is decisive where it matters:
+  glued `-` is HYPH 593/608, and a spaced em dash is `:` 266/267.
+- **...but then a spacing-blind BACKOFF, or unanimous evidence falls under the count bar.** GUM
+  writes `/` SYM 49 of 49 and `?` `.` 593 of 595 whatever the spacing, but the glued halves are
+  only 14 and 15 examples. The backoff does not fire for the dash, whose spacing-blind key is HYPH
+  at 86 % -- under the bar precisely because there the distinction is real.
+- ⚠ **Harvest the table ONCE, from train.** Harvesting per file looked reasonable and was a bug:
+  dev and test carry a fraction of GUM's evidence, so they fell under `--min-count` on forms train
+  committed (`/` -> SYM in train, left `,` in dev/test) -- which would have left the gold
+  inconsistent between train and test, the exact defect the script exists to remove.
+
+13 idiosyncratic web-text forms (`=`, `,?`, `|`, `….`) are reported and left alone rather than
+silently committed. EWT-only material (`!!`, `*`, `<<`, `:)`, `@`) is untouched -- GUM has no opinion
+about it, so there is no conflict to resolve. **The EWT-only files are out of scope**: `en_sud_ewt`
+trains on EWT alone, where its convention is internally consistent and its published metrics stand.
+
+**Results.** Headline TAG **94.19 -> 94.20** -- flat, because this is 0.3 % of the corpus -- with
+POS/LEMMA/UAS/LAS identical to the decimal. The measurement that matters is on the affected forms:
+**72.47 % -> 82.98 %**, and the old arm's single largest error was the conflict itself (`;` gold `,`,
+predicted `:`, 23 times), a class that is now gone. What remains is `-` HYPH vs `:`, which is real
+linguistic ambiguity rather than a clash of conventions.
+
+### Released, 2026-08-10 (v0.2.0, clobbered)
+
+`la_sud_ittb_proiel_perseus` and `en_sud_ewt_gum` were re-packaged at the SAME version and
+re-uploaded; `en_sud_ewt` is untouched, since the EWT-only arm was deliberately out of scope.
+`package_sud.sh` now NAMES the normalised arms by default (`training_la_aug_sud_xpos`,
+`training_en_gum_sud_xpos`) rather than relying on an env override -- a default that names the
+right arm is the fix, which is the fourth time that lesson has been paid for here.
+
+Diffed file by file against the DOWNLOADED previous assets: la 30 of 40 identical, en_gum 30 of
+38, and **no weight file except `tagger/model` moved** in either. The la movers are the tagger
+(model + cfg), `config.cfg` (the tagger went from a listener to its own encoder),
+`vocab/strings.json` (the new tag strings), two `meta.json` and the packaging metadata.
+⚠ Two diff entries that look alarming and are not: la's `la_macronise/lut.json.gz` differs in its
+GZIP bytes while the decompressed content is byte-identical (it is the empty `--no-lut`
+placeholder -- gzip stamps a timestamp), and the `README.md`/`METADATA` churn is the regenerated
+performance table.
+
+⚠ **`graft_pipe.py` used to ship the REPLACED pipe's score.** `nlp.to_disk` writes the
+recipient's meta, so the first build of both wheels carried the old tagger's `tag_acc` in the one
+field `spacy info` shows users -- la claiming 0.9028, measured on a 1 952-label tagset, while
+shipping a 2 342-label one. It now carries the grafted pipe's own metrics across (`PIPE_METRICS`),
+and only those: the donor's `dep_las` matched the recipient's to the digit, which is the frozen
+parser proving itself. la's dev `tag_acc` is 0.9028 -> **0.8945**, and that FALL is expected --
+dev is ITTB+PROIEL only, so it is dominated by PROIEL's task getting much harder (23 codes ->
+2 342). The gain is on ITTB, where the gold never moved.
+
+**Wheels grew: la 27.3 -> 33.5 MB, en_gum 16.7 -> 22.8 MB.** That is the dedicated tagger encoder
+replacing a listener, which has almost no parameters of its own. It is sized at the BASE arm's
+width 96 / depth 4 rather than the 64/3 the morphologiser and lemmatiser get, deliberately: those
+predict a UPOS or an edit tree, this predicts one of ~2 340 composite codes, and under-sizing it
+would have confounded the tagset change with a capacity cut.
+
+⚠ Same version, so `pip install -U` will NOT replace an older copy; `--force-reinstall` will.
+Verified by DOWNLOADING both published assets (sha256 identical to what was built) and loading
+them from a clean `--target` install, not from `build_sud/`.
+`metrics_release_la*.json` still holds the pre-normalisation TAG and is now stale on that one
+field; every other figure in it is unchanged and still correct.
+
+
 ## Language-specific notes
 
 ### English — TWO arms, two licences (`en_sud_ewt`, `en_sud_ewt_gum`)
@@ -484,10 +633,10 @@ Trains on a plain `cat` of **ITTB + PROIEL + Perseus** (each keeps its own sent_
 `add_perseus_la.sh` is the reproducible driver (`merge|macron|relabel|train`). Perseus ships only
 train + test, so it is added train→train / test→test and dev stays ITTB+PROIEL.
 
-- **XPOS blanking (non-obvious).** The three treebanks use mutually-incompatible XPOS tagsets.
-  ITTB+PROIEL already mixed two and coped (TAG ~92), but Perseus's sparse 9-position tagset on ~1.3k
-  sents tags at ~34 % and tanks combined TAG/LAS. `blank_perseus_xpos.py` blanks field 5 on the
-  Perseus tail of each split; UPOS/FORM/dependencies are kept so Perseus still trains the parser.
+- **XPOS normalisation (was: blanking).** The three treebanks use mutually-incompatible XPOS
+  tagsets, and this used to be handled by DELETION -- `blank_perseus_xpos.py` blanked field 5 on
+  the Perseus tail, leaving PROIEL's rival 23-value tagset beside ITTB's composite codes.
+  `normalise_la_xpos.py` converts both onto ITTB's conventions instead; see the XPOS section.
   Orthogonal to the macron (FORM) and relabel (DEPREL) transforms.
 - **Results (ext+macron union = release).** Apples-to-apples on the ITTB+PROIEL test: LAS
   77.7→**78.3**, UAS 83.1→83.8, `comp:obl` F ~69 — Perseus *improves* the original domain.
@@ -580,6 +729,8 @@ naming it and `LA_BASE` to get back the union. Measured on the released arm (gol
 test, `metrics_release_la*.json`): combined LAS 72.26 → **71.72**, UAS 79.17 → 78.72, TAG 80.35 →
 **77.61**, `comp:obl` F 64.80 → 64.75; ITTB+PROIEL 76.58 → **75.90**, Perseus 53.47 → **53.53**. That
 is the bill; the benefit is the orthography table above, where the LAS spread falls from 54.4 to 7.0.
+(Every TAG figure in this section is on the OLD mixed tagset. Since the XPOS normalisation the same
+arm reads TAG **86.16** on the plain test — see the XPOS section; LAS/UAS/LEMMA are unchanged.)
 Wheel 17.7 → 27.3 MB, almost all of it the lemmatiser's edit-tree inventory (18,512 → 29,123 labels).
 
 **The SUD layer is trained through the SAME augmenter** (`configs/config_la_aug_sud.cfg`), not on the
