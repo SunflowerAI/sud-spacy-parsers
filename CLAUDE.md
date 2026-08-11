@@ -1221,8 +1221,46 @@ The counter is kept and prints a LOUD failure if the argument ever breaks.
   `retrain_zh_trad.sh` → `finish_zh_trad.sh` → `add_zh_script.py`). Both arms are **traditional-only**
   as of 0.2.0 and normalise at the boundary instead of training on two scripts: `ZhTradTokenizer`
   converts simplified in, the `zh_script`/`lzh_script` component converts FORM/LEMMA back out.
-  Released figures: zh LAS 68.86 / UAS 73.29 / comp:obl F 28.68, lzh 77.20 / 82.92 / 66.47
-  (gold-preproc, `metrics_release_*.json`). The superseded both-scripts arms trained on the two
+  Released figures: zh LAS 69.01 / UAS 73.82 / comp:obl F 31.09, lzh 77.20 / 82.92 / 66.47
+  (gold-preproc, `metrics_release_*.json`).
+
+  ⚠ **The traditional-only zh arm shipped with NO sentencising at all, and gold-preproc hid it
+  completely.** `zh_sud_gsd-0.2.0` returned ONE sentence per document however many full stops the
+  input had (`metrics_release_zh_raw.json`: `sents_p/r/f = 0.0`), silently undoing the whole seg
+  layer for this language; lzh was unaffected, since `clause_parser` splits it by rule. Cause:
+  `retrain_zh_trad.sh` trained the base from `configs/config_zh.cfg` — the PRE-seg recipe
+  (`spacy.Corpus.v1`, `gold_preproc = true`, `sents_f = 0.0`) — and its `for layer in seg morph
+  lemma` loop then died on a missing `configs/config_zh_seg.cfg`, because `make_seg_config.py` takes
+  a config PATH and was handed the string `zh`. The failure was swallowed by `|| true` (the 186-byte
+  `train_zh_trad_seg.log` is the whole record of it), and morph/lemma were run two days later
+  against the unfixed base, which they freeze.
+
+  **`seg` is a BASE recipe, not a stackable frozen layer** — that is the lesson worth keeping. No
+  layer above a `gold_preproc`-trained parser can teach it to START a sentence, and nothing in the
+  ordinary metrics says so: under gold-preproc every dev example is already one sentence, so
+  `SENTS_F` reads a reassuring 100.00 in the training log and 1.0000 in `metrics_release_zh.json`.
+  Only the raw eval, or two sentences typed at the model, tells the truth.
+
+  Retrained through `configs/config_zh_seg.cfg` (`sud.GoldTokCorpus.v1`, `sents_f = 0.05`), morph and
+  lemma rebuilt on it by the freeze recipe (tok2vec/tagger/parser byte-identical up the chain).
+  **Raw end-to-end on the traditional test, same fixed segmenter** (`models/zh_seg_jbdec_trad`, so
+  only the parser moves — the "never quote zh raw LAS from one segmenter run" caveat does not
+  apply): SENT F **0.00 → 98.50**, LAS 58.41 → **62.61**, UAS 62.47 → **66.98**, TAG 87.51 → 87.58.
+  Gold-preproc is unmoved, as it must be: LAS 68.86 → 69.01, UAS 73.29 → 73.82, pos/lemma/morph
+  identical to the decimal. The old base is kept as `training_zh_trad_preseg/`, and the driver now
+  generates the seg config with the right argument, drops the `|| true`, and REFUSES to hand off to
+  packaging unless a two-sentence input comes back as two sentences.
+
+  **Re-released (clobbered) at 0.2.0 on 2026-08-11.** Verified the standing three ways: the
+  published asset's sha256 matches the built wheel, every weight file hashed OUT OF THE DOWNLOADED
+  wheel matches the arm it should (`tok2vec`/`tagger`/`parser` → `training_zh_trad`, `morphologizer`
+  → `_morph`, `lemmatizer` → `_lemma`, so the freeze chain is intact), and a clean `--target`
+  install segments. The tokeniser did NOT move: `token_acc` 0.9694 / strict token F 0.9242,
+  re-measured, identical to the published figures. ⚠ Same version, so `pip install -U` will NOT
+  replace an older copy — `--force-reinstall` will. ⚠ `spacy evaluate` prints NO `TOK` row for this
+  arm, because token scoring comes from `nlp.tokenizer.score` and `ZhTradTokenizer` defines none;
+  the raw file's `token_*` keys are merged in from `Scorer.score_tokenization` over the same model
+  and corpus, and the gold-preproc file has none (they would be 1.0 by construction). The superseded both-scripts arms trained on the two
   *real* treebanks for the same sentences — `SUD_Chinese-GSD` + `SUD_Chinese-GSDSimp`, **not** an
   OpenCC re-traditionalisation (simplification is lossy/many-to-one) — with the ext relabel living on
   GSDSimp and `transfer_relabel_gsd.py` overlaying it onto aligned GSD tokens; lzh's simplified half
