@@ -31,6 +31,7 @@ import spacy                                     # noqa: E402
 import sa_tokenizer                              # noqa: E402,F401
 import clause_parser                             # noqa: E402,F401
 import sud_affix_embed                           # noqa: E402,F401
+import sud_feats_embed                           # noqa: E402,F401  (sud.Tok2VecPlusFeats.v1)
 import sud_unsandhi                              # noqa: E402,F401
 import sa_devanagari                             # noqa: E402,F401
 from thinc.api import Config                     # noqa: E402

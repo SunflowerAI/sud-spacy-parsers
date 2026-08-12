@@ -670,35 +670,45 @@ improved on the warm start at all.
 
 ### Released, 2026-08-12 (v0.2.0, clobbered) — the XPOS-downstream taggers
 
-All **eleven** arms re-packaged and re-uploaded with the warm-started conditioned tagger (sa is
-untouched: no warm arm was built for the joint multi-task arm, and it ships from v0.1.0 anyway).
+All **twelve** arms re-packaged and re-uploaded with the warm-started conditioned tagger.
+⚠ sa was nearly missed, and it turned out to be the BIGGEST WIN: v0.2.0 had only ever held SIX
+wheels ("Six of the eleven", per its own release body), so sa existed only at v0.1.0, and the first
+pass through this work skipped it as a joint multi-task arm with "XPOS = a copy of UPOS, nothing to
+gain". The second half of that is true and the conclusion was backwards -- sa's XPOS IS its UPOS on
+100.00 % of the multitask corpus, and its tagger was scoring **below its own morphologiser** at
+predicting the identical label (dev tag_acc 0.8957 v pos_acc 0.9017). Conditioned on UPOS it
+converges to 0.9016, i.e. within 0.0001 of the morphologiser it now reads, and gains **+1.52 TAG**
+on the UFAL test set -- more than any other arm. A label that is a COPY of another is the strongest
+case for this change, not a reason to skip it.
 `scripts/graft_xpos_tagger.py` puts the donor tagger into each shipping arm and MOVES it behind the
 morphologiser, verifying three things per arm: the shared components are byte-identical, the
 reordered pipeline reproduces the recipient's PARSE token for token (heads and deprels — so every
 published LAS/UAS figure stands), and the grafted tagger reproduces the donor's tags exactly. All
 three held on all eleven; the parse check covered 8 227–26 164 tokens per arm.
 
-    ar 89.44 -> 89.71   ja 95.09 -> 95.38   yue 93.74 -> 93.66
-    en 93.09 -> 93.50   id 92.12 -> 92.27   la  86.16 -> 86.10
-    en_gum 94.22->94.45 fa 96.19 -> 96.23   ko  72.92 -> 72.93
-    zh 90.81 -> 91.12   lzh 92.59 -> 92.88
+    sa 72.06 -> 73.58   ja 95.09 -> 95.38   yue 93.74 -> 93.66     (sa on the UFAL test set,
+    ar 89.44 -> 89.71   id 92.12 -> 92.27   la  86.16 -> 86.10      which is what the README and
+    en 93.09 -> 93.50   fa 96.19 -> 96.23   ko  72.92 -> 72.93      metrics_release_sa.json report)
+    en_gum 94.22->94.45 lzh 92.59 -> 92.88
+    zh 90.81 -> 91.12
 
 yue and la go marginally BACKWARDS (−0.08 / −0.06, inside seed noise); shipped anyway by user
-decision, so the whole family has one tagger architecture. `metrics_release_*.json` updated on
+decision, so the whole family has one tagger architecture. The sa wheel diffed against its v0.1.0
+predecessor is 34 of 49 files identical with **no weight file except `tagger/model`** moved. `metrics_release_*.json` updated on
 `tag_acc`/`tag_micro_*` only — every other field is unchanged, because every other component is
 byte-identical. ⚠ `metrics_release_la_{ittbproiel,perseus}.json` hold the per-slice TAG and were
 NOT re-measured; they are stale on that field.
 
 Packaging notes worth keeping: `pkg()` now appends `scripts/sud_feats_embed.py` to EVERY wheel's
 `--code` rather than to eleven separate lists — ko passes no `--code` at all, and a list that has to
-be remembered is a list that gets missed. Two surgery scripts still failed on the first run because
-they carry their own module lists that predate the layer (`add_id_lemma_case_fix.py` imports a
-curated set; `add_la_macronise.py`/`add_la_enclitic_tokenizer.py` take explicit `--code`), and both
-failures were SILENT in the driver (`>/dev/null 2>&1`), surfacing only as "SRC missing — skip" and a
-STALE 0.1.0 id wheel still sitting in `build_sud/`. `SUD_BASE` overrides the packaged arm per run.
+be remembered is a list that gets missed. THREE surgery scripts still failed on the first run because
+they carry their own module lists that predate the layer (`add_id_lemma_case_fix.py` and
+`add_sa_frontend.py` import curated sets; `add_la_macronise.py`/`add_la_enclitic_tokenizer.py` take
+explicit `--code`), and every failure was SILENT in the driver (`>/dev/null 2>&1`), surfacing only
+as "SRC missing — skip" and a STALE 0.1.0 id wheel still sitting in `build_sud/`. `SUD_BASE` overrides the packaged arm per run.
 
 ⚠ Same version, so `pip install -U` will NOT replace an older copy; `--force-reinstall` will.
-Verified by DOWNLOADING all eleven published assets (sha256 identical to what was built) and loading
+Verified by DOWNLOADING all twelve published assets (sha256 identical to what was built) and loading
 each from a clean `--target` install — pipeline order `morphologizer` before `tagger` confirmed in
 every wheel, and lzh's `clause_parser` correctly lands AFTER the tagger so its punctuation XPOS is
 not overwritten.
