@@ -85,7 +85,12 @@ LZH_TRAIN_CONLLU="${LZH_TRAIN_CONLLU:-assets_lzh/SUD_Classical_Chinese-Kyoto-Bot
 pkg() {  # $1=arm  $2=src model dir  $3=--name value  $4=comma-separated --code files (no flag)
          # $5=the model's own language code, if it differs from the arm name (en_gum -> en)
   local arm=$1 src=$2 name=$3 code="" lang=${5:-$1}
-  [ -n "$4" ] && code="--code $4"
+  # Every arm's tagger now reads UPOS+FEATS through `sud.Tok2VecPlusFeats.v1` /
+  # `sud.MultiHashEmbedFeats.v1`, so that layer must travel in EVERY wheel or the model will not
+  # load. Appended HERE rather than to each per-language list on purpose: ko passes no --code at
+  # all, and a list that has to be remembered is a list that gets missed.
+  local always="scripts/sud_feats_embed.py"
+  if [ -n "$4" ]; then code="--code $4,$always"; else code="--code $always"; fi
   if [ ! -d "$src" ]; then echo "  $arm: SRC $src missing — skip"; return; fi
   # An arm straight out of `spacy train` has an EMPTY license field, and `spacy package` copies it
   # through without complaint -- so a rebuilt arm ships unlicensed unless this runs. Every model
@@ -178,6 +183,10 @@ for lang in "$@"; do
     zh)           base="${ZH_BASE:-training_zh_trad_lemma/model-best}" ;;
     *)            base=training_${lang}_lemma/model-best ;;
   esac
+  # SUD_BASE overrides the arm for THIS run, whatever the language -- used to package the
+  # XPOS-downstream arms (scripts/graft_xpos_tagger.py), which are the shipping arms with the
+  # tagger regrafted behind the morphologiser. Per-language, so it is set on a one-language call.
+  [ -n "$SUD_BASE" ] && base="$SUD_BASE"
   work=build_sud/work_$lang
   # Clear the INTERMEDIATES too ("$work".rep/.idiom/.mac/...), not just $work. `nlp.to_disk` writes
   # the pipes it has and leaves any other subdirectory alone, so a stale `sud_shared/` from a run
@@ -244,10 +253,10 @@ case $lang in
        # 17.65, trained 8.00, on 24 test instances.
   la)  $PY scripts/add_sud_idiom.py "$base" "$work.idiom" --drop sud_reported >/dev/null 2>&1
        $PY scripts/add_la_macronise.py "$work.idiom" "$work.mac" --no-lut \
-            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py \
+            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,sud_feats_embed.py \
             >/dev/null 2>&1
        $PY scripts/add_la_enclitic_tokenizer.py "$work.mac" "$work" --verify \
-            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,la_macronise.py \
+            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,la_macronise.py,sud_feats_embed.py \
             || { echo "  la: enclitic tokeniser swap FAILED — skip"; continue; }
        pkg la  "$work" sud_ittb_proiel_perseus \
             "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py" ;;

@@ -142,6 +142,106 @@ on predicted FEATS) is not worth it: lemma_acc 0.8627 with vs 0.8645 without. Pr
 F 0.856 adds about as much noise as signal to an edit-tree classifier that already has the whole
 form in `NORM`. Left at `[]`, matching the other ten arms.
 
+**Conditioning XPOS on UPOS+FEATS at the BOTTOM of the encoder costs 0.2-0.6 TAG.** ⚠ Read this
+entry as being about the INJECTION POINT, not about the idea: injecting the same information at the
+TOP, under the softmax, is a WIN of +0.05 to +0.48 in all nine languages tried and is described in
+CLAUDE.md. What follows is why the bottom is the wrong place, and it cost three arms to learn. Every arm grew the same way -- base pipeline `[tok2vec, tagger,
+parser]`, morphologiser added later as a frozen layer -- so the one component whose target is
+largely a restatement of UPOS+FEATS is the only one that cannot see them, purely because of the
+order the layers were built in. Fixing that looks obviously right and is not.
+`make_xpos_config.py` moves the tagger to the END of the pipeline, behind the morphologiser, and
+gives its own encoder `POS` and `MORPH` channels alongside the token embedding it already had
+(explicit `MultiHashEmbed`, rows `[E, E/2, E/2, E/2]` reproducing `HashEmbedCNN` exactly, plus
+POS 100 / MORPH 4000); `--no-cond` is the capacity control, identical minus the two channels.
+Ordinary freeze recipe otherwise, so every other component comes out byte-identical.
+
+    dev tag_acc     released   control   conditioned      test TAG   released  control  conditioned
+    ar (346 tags)    0.8880    0.8873      0.8844         ar          89.44     89.28      88.67
+    zh  (41 tags)    0.9072    0.9053      0.9016         zh          90.81     90.77      90.28
+    en  (49 tags)    0.9287    0.9278      0.9243         en          93.09     92.90      92.73
+
+The control is what makes this readable: the dedicated encoder is nearly free (-0.07 to -0.19 dev),
+so the loss is the CONDITIONING, -0.29 to -0.37 dev and -0.17 to -0.61 test, same sign and
+magnitude on three unrelated tagsets.
+
+**Why, and it is the general lesson: an oracle measured on GOLD features says nothing about a
+feature the model must PREDICT.** Majority-class maps fitted on train and scored on test say that
+knowing gold UPOS+FEATS on top of the form is worth +19.6 XPOS points on ar, +14.2 zh, +13.8 la,
++13.2 en, +11.7 yue, +8.2 id, +4.3 ko, +4.1 fa -- and that ar and yue are all but deterministic
+from UPOS+FEATS alone (99.9 / 100.0). Re-run the same maps against what the released arm actually
+PREDICTS and the signal is below the tagger everywhere (`scripts/xpos_headroom.py --model`;
+released tagger / map on gold / map on predicted, test):
+
+    ar     89.45  94.00  86.81      ko     72.94  66.34  66.01
+    zh     90.82  91.72  88.30      id     92.21  89.44  88.87
+    en     93.13  96.41  92.13      lzh    92.27  97.31  91.89
+    fa     96.20  97.47  95.86      yue    93.81  93.18  89.06
+    en_gum 94.04  97.09  93.33      ja     95.16  92.21  91.64
+
+Ten arms, no exceptions: gold -> predicted costs 3-7 points and lands the map BELOW the tagger it
+was supposed to improve. Morphology is predicted at `morph_acc` 0.75-0.99 (exact-bundle), and its
+errors fall on precisely the tokens the tagger also finds hard, so the channel is noise correlated
+with the target. This is the same finding as the sa lemmatiser entry above, one component over.
+
+**The per-FEATURE decomposition was then built and it does not rescue it either.** The obvious
+objection to the above is that a single hashed embedding of the WHOLE bundle is the crudest way to
+offer the information -- `Case=Nom|Number=Sing` and `Case=Nom|Number=Plur` become unrelated symbols,
+and an unseen bundle has no decomposition to fall back on. So `sud.MultiHashEmbedFeats.v1`
+(`scripts/sud_feats_embed.py`, `make_xpos_config.py --feats`) gives each morphological category its
+own hash-embedded table, `hash_string("Case=Nom")` per column and `hash_string("Case=")` where the
+token has no value. `scripts/check_feats_embed.py` verifies it byte-for-byte against stock
+`MultiHashEmbed` when no feature is configured, and confirms the decomposition holds and that an
+UNSET morph and an EMPTY one land on the same row.
+
+**`scripts/build_feats_inventory.py` picks the categories, and its most useful output is that three
+languages have none.** It ranks each FEATS key by the information it carries about XPOS *once the
+form is already known* -- the only question that matters, since the tagger reads the form anyway.
+H(XPOS|form) is already 0.251 bits for zh, 0.089 for ko and 0.018 for id, and no category clears
+0.02 bits in any of them: **their XPOS is a function of the spelling, so there is nothing to
+condition on** and `train_xpos.sh` skips them rather than training dead channels. Where features do
+clear the bar the list is small and sensible (ar Case/Number/Definite/Gender/AdpType/Mood, Case
+alone worth 0.444 bits; en Number/PronType/VerbForm/Person/Tense/Mood/Degree -- exactly the PTB
+VBD/VBN/VBP/VBZ and JJ/JJR/JJS distinctions; la Number/Case/Gender/InflClass/Aspect/PronType).
+
+    dev tag_acc  released  control  bundle  per-feat  |  test TAG  released  control  bundle  per-feat
+    ar             .8880    .8873   .8844    .8836    |  ar          89.44    89.28   88.67    88.76
+    en             .9287    .9278   .9243    .9246    |  en          93.09    92.90   92.73    92.83
+    zh             .9072    .9053   .9016      n/a    |  zh          90.81    90.77   90.28      n/a
+    la             .8945    .8886     --      .8897   |  la          86.16    86.06     --      85.71
+    lzh            .9206    .9185     --      .9194   |  lzh         92.59    92.14     --      92.44
+
+Per-feature against the hashed bundle is a WASH (ar -0.08 / +0.09, en +0.03 / +0.10 dev/test), and
+against its own matched control it is noise with no consistent sign (test: ar -0.52, en -0.07,
+la -0.35, lzh +0.30). **Every arm is still below its released tagger.** So the bottleneck was never
+how FEATS is represented -- it is that predicted morphology carries almost no information about
+XPOS that the spelling does not already carry, once its own error rate is paid for.
+
+⚠ **Single seed per arm, and init is unseeded.** la is the measured warning: its control (explicit
+`MultiHashEmbed` + `MaxoutWindowEncoder`) scores .8886 against the shipping arm's .8945 while being
+architecturally IDENTICAL to it -- so the spread on that arm is ~0.5, larger than every conditioning
+delta in the table. Read the individual deltas as noise; what carries the result is that all four
+languages and both variants fail to beat the released tagger, in the same direction, and that the
+three languages with no informative feature were predicted in advance by the inventory.
+
+**RESOLVED: it was the injection point.** Both arms above put the channels in the EMBED, so a
+`MaxoutWindowEncoder` of depth 4 then convolves them over a +-4 token window -- each token's tag
+comes to depend on its NEIGHBOURS' predicted morphology, and the token representation is rebuilt
+from scratch instead of reusing the co-trained shared encoder. Move the identical information above
+the encoder (`sud.Tok2VecPlusFeats.v1`: keep the released tagger's `Tok2VecListener` on the frozen
+shared encoder, concatenate the morphology under the softmax) and it helps everywhere. See CLAUDE.md,
+"XPOS conditioned on UPOS+FEATS". The lesson worth carrying: **where a noisy predicted feature enters
+the network matters more than how it is represented** -- bundle vs per-feature was a wash (<= 0.10),
+bottom vs top was ~0.7. A feature that is right 75-99 % of the time should reach the decision it
+informs and nothing else; convolving it spreads its errors over every neighbour.
+
+Still unreached: the either-one-right ceiling sits 2-6 points above the tagger (ar 91.88 v 89.45,
+zh 93.98 v 90.82, en 95.76 v 93.13) and top injection recovers well under one point of it. Arms and
+configs are kept:
+`training_{ar,zh,en}_xposdown{,_ctl}`, `training_{ar,en,la,lzh}_xposfeat`,
+`training_{la,lzh}_xposdown_ctl`, `scripts/{make_xpos_config.py,train_xpos.sh,eval_xpos.sh,`
+`check_xpos_inputs.py,xpos_headroom.py,sud_feats_embed.py,check_feats_embed.py,`
+`build_feats_inventory.py}`.
+
 **Morphologiser co-training is dominated.** Verified on id: standalone-frozen 92.8 vs
 listener-on-frozen-encoder 92.2 (the XPOS-orthogonality penalty) vs co-train 92.95 **but LAS −0.3 /
 TAG −0.5**. No UPOS gain worth having, and it damages parsing — hence the freeze recipe with a

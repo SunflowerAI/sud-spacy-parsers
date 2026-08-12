@@ -583,6 +583,128 @@ them from a clean `--target` install, not from `build_sud/`.
 `metrics_release_la*.json` still holds the pre-normalisation TAG and is now stale on that one
 field; every other figure in it is unchanged and still correct.
 
+### XPOS conditioned on UPOS+FEATS — and WHERE the conditioning enters
+
+**BUILT AND MEASURED, NOT RELEASED.** Every arm grew the same way: base pipeline
+`[tok2vec, tagger, parser]`, morphologiser added later as a frozen layer. So the one component whose
+target is largely a restatement of UPOS+FEATS was the only one that could not see them, purely
+because of the order the layers were built in. Fixing that works, but **only if the conditioning
+enters ABOVE the encoder**, and the two attempts differ by more than the whole size of the effect.
+
+⚠ **Injecting at the BOTTOM — extra columns in the embed — LOSES 0.2–0.6 TAG** (NEGATIVE-RESULTS.md).
+A `MaxoutWindowEncoder` of depth 4 then convolves the channels over a ±4-token window, so each
+token's tag comes to depend on its NEIGHBOURS' predicted morphology, and the token representation is
+rebuilt from scratch instead of reusing the co-trained shared encoder. Whether the bundle is hashed
+whole (`MORPH`) or decomposed per feature makes almost no difference (≤ 0.10) — **the injection
+point was worth ~0.7, the representation ~0.1.**
+
+**`sud.Tok2VecPlusFeats.v1` (`scripts/sud_feats_embed.py`, `make_xpos_config.py --top`)** keeps the
+released tagger's own `spacy.Tok2VecListener.v1` on the FROZEN shared encoder — so the token
+representation is EXACTLY the shipping one and the experiment is single-variable — and concatenates
+a morphology side channel (width 32) immediately below the softmax. A token's own morphology then
+reaches that token's decision and nothing else. `--top --no-cond` is the tightest control the harness
+can make: the released tagger with a retrained head, and it reproduces the released row to within
+0.15, which is what licenses reading the conditioned one.
+
+    test TAG    released  top-ctl   top   Δcond  |   released  top-ctl   top   Δcond
+    ar             89.44    89.30  89.70  +0.40  | ja   95.09    95.21  95.35  +0.14
+    zh             90.81    90.34  91.01  +0.67  | yue  93.74    93.66  93.81  +0.15
+    en             93.09    93.08  93.38  +0.30  | fa   96.19    96.22  96.27  +0.05
+    lzh            92.59    92.77  92.80  +0.03  | id   92.12    92.18  92.19  +0.01
+    ko             72.92    72.61  72.67  +0.06  |
+
+**Positive in 9 of 9 languages**, and the arm beats the released tagger in 8 of 9 (ko −0.25, the one
+language where the retrained head does not match the released one). ar and en were replicated over
+**three seeds with NON-OVERLAPPING ranges** (ar control 88.67–88.75 v conditioned 89.03–89.13;
+en 93.00–93.00 v 93.23–93.26) — the spread is ≤ 0.001 precisely because the encoder is frozen and
+only the head trains, which is what makes a +0.25 effect readable at all. The other seven are single
+seed.
+
+**The side channel's contents are DERIVED, not chosen** (`scripts/build_feats_inventory.py`): each
+FEATS key is ranked by the information it carries about XPOS *once the form is already known*, which
+is the only question that matters since the tagger reads the form anyway. Its most useful output is
+that **zh, id and ko have no such key at all** — H(XPOS|form) is already 0.251 / 0.018 / 0.089 bits —
+so their XPOS is a function of the spelling and their side channel carries POS+MORPH only. Where keys
+do qualify the lists are sensible: ar Case/Number/Definite/Gender/AdpType/Mood (Case alone 0.444
+bits), en Number/PronType/VerbForm/Person/Tense/Mood/Degree — exactly the PTB VBD/VBN/VBP/VBZ and
+JJ/JJR/JJS distinctions. SUD's own FEATS-column keys are excluded, sourced from `sud_misc` so the two
+cannot drift; NB `ExtPos` is NOT excluded and is the only key ja qualifies on.
+
+⚠ **`build_feats_inventory.py`'s gold-feature ranking is a guide, not a prediction.** The
+`scripts/xpos_headroom.py --model` measurement is the cautionary one: a majority-class map on GOLD
+UPOS+FEATS beats the tagger on most arms, and the SAME map on PREDICTED features loses to it on all
+ten, because morphology is predicted at 0.75–0.99 exact and its errors land on the tokens the tagger
+also finds hard. The realised gains above are a fraction of the gold oracle, and that is expected.
+
+**WARM START (`--warm-start`, `sud.WarmStartTagger.v1`) is the version to use, and it covers all
+eleven arms.** Trained from scratch the head has to relearn what the released tagger already knew,
+and where the released head was the better one that deficit ate the gain (ko −0.31, zh −0.47 on the
+retrained-head control alone). So: copy the released tagger's output layer into the first W columns,
+**zero the S new ones**, and copy the inner encoder when it has one. At step 0 the model then IS the
+released tagger — `scripts/check_warm_start.py` confirms it token for token (ar 13 928/13 928,
+la 4 333/4 333) — and the side channel has to earn every column it uses. Copying the inner encoder
+is also what extends this to **la and en_gum**, whose shipping taggers carry a dedicated
+`HashEmbedCNN` from the XPOS-normalisation work instead of a listener; `--warm-start` reads the
+released tagger's architecture and reproduces it verbatim (24 tensors for la).
+
+⚠ **LABEL ORDER, not just the label set.** `W` is indexed by label id, so copying it into a tagger
+whose labels sit in a different order silently scrambles every class — the hazard
+`rename_deprel_label.py` guards for the parser's action table. `--warm-start` writes the released
+arm's label list to `labels_config_<arm>/tagger.json` and initialises from it, so the orders agree by
+construction, and the callback REFUSES to copy unless they match position for position.
+
+    test TAG   released  warm-ctl  warm   Δcond  |    released  warm-ctl  warm   Δcond
+    zh            90.81     90.63  91.12  +0.49  | id    92.12     92.13  92.27  +0.14
+    en            93.09     93.15  93.50  +0.35  | fa    96.19     96.13  96.23  +0.10
+    en_gum        94.22     94.14  94.45  +0.31  | lzh   92.59     92.81  92.88  +0.07
+    ar            89.44     89.46  89.71  +0.25  | ko    72.92     72.93  72.93  +0.00
+    yue           93.74     93.50  93.66  +0.16  | la    86.16     86.10  86.10  +0.00
+    ja            95.09     95.23  95.38  +0.15  |
+
+**Δcond >= 0 in 11 of 11**, mean +0.18, and the arm beats the released tagger in 9 of 11 (yue −0.08,
+la −0.06 — both inside the noise). The warm start is what fixed ko (−0.25 → +0.01). **la gains
+exactly nothing**, which is the one result worth flagging as a surprise: its composite XPOS tail is a
+restatement of FEATS by construction, but its morphologiser is the weakest of the family
+(`morph_acc` 0.826) and its tagger already reads a heavily orthographic signal, so training never
+improved on the warm start at all.
+
+### Released, 2026-08-12 (v0.2.0, clobbered) — the XPOS-downstream taggers
+
+All **eleven** arms re-packaged and re-uploaded with the warm-started conditioned tagger (sa is
+untouched: no warm arm was built for the joint multi-task arm, and it ships from v0.1.0 anyway).
+`scripts/graft_xpos_tagger.py` puts the donor tagger into each shipping arm and MOVES it behind the
+morphologiser, verifying three things per arm: the shared components are byte-identical, the
+reordered pipeline reproduces the recipient's PARSE token for token (heads and deprels — so every
+published LAS/UAS figure stands), and the grafted tagger reproduces the donor's tags exactly. All
+three held on all eleven; the parse check covered 8 227–26 164 tokens per arm.
+
+    ar 89.44 -> 89.71   ja 95.09 -> 95.38   yue 93.74 -> 93.66
+    en 93.09 -> 93.50   id 92.12 -> 92.27   la  86.16 -> 86.10
+    en_gum 94.22->94.45 fa 96.19 -> 96.23   ko  72.92 -> 72.93
+    zh 90.81 -> 91.12   lzh 92.59 -> 92.88
+
+yue and la go marginally BACKWARDS (−0.08 / −0.06, inside seed noise); shipped anyway by user
+decision, so the whole family has one tagger architecture. `metrics_release_*.json` updated on
+`tag_acc`/`tag_micro_*` only — every other field is unchanged, because every other component is
+byte-identical. ⚠ `metrics_release_la_{ittbproiel,perseus}.json` hold the per-slice TAG and were
+NOT re-measured; they are stale on that field.
+
+Packaging notes worth keeping: `pkg()` now appends `scripts/sud_feats_embed.py` to EVERY wheel's
+`--code` rather than to eleven separate lists — ko passes no `--code` at all, and a list that has to
+be remembered is a list that gets missed. Two surgery scripts still failed on the first run because
+they carry their own module lists that predate the layer (`add_id_lemma_case_fix.py` imports a
+curated set; `add_la_macronise.py`/`add_la_enclitic_tokenizer.py` take explicit `--code`), and both
+failures were SILENT in the driver (`>/dev/null 2>&1`), surfacing only as "SRC missing — skip" and a
+STALE 0.1.0 id wheel still sitting in `build_sud/`. `SUD_BASE` overrides the packaged arm per run.
+
+⚠ Same version, so `pip install -U` will NOT replace an older copy; `--force-reinstall` will.
+Verified by DOWNLOADING all eleven published assets (sha256 identical to what was built) and loading
+each from a clean `--target` install — pipeline order `morphologizer` before `tagger` confirmed in
+every wheel, and lzh's `clause_parser` correctly lands AFTER the tagger so its punctuation XPOS is
+not overwritten.
+
+Arms kept as `training_<lang>_xpos{down,feat,top,warm}{,_ctl}{,_s1,_s2}`; drivers `train_xpos.sh`
+(`XPOS_WARM=1`, `XPOS_TOP=1`, `XPOS_CTL=1`, `XPOS_FEATS=1`) and `eval_xpos.sh` (`XPOS_ARMS=...`).
 
 ## Language-specific notes
 

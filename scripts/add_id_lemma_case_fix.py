@@ -14,6 +14,7 @@ import importlib.util
 import spacy
 import char_seg_tokenizer  # noqa: F401 — the id arm's tokenizer is sud.CharSegTokenizer.v1;
 import sud_affix_embed     # noqa: F401   without these spacy.load raises E893
+import sud_feats_embed     # noqa: F401   sud.Tok2VecPlusFeats.v1, the XPOS-downstream tagger
 import gold_tok_corpus     # noqa: F401
 # The id arm now also carries a trained `sud_shared` pipe, so its factory has to be registered
 # here too or spacy.load raises E002 before this script gets to do anything.

@@ -37,6 +37,11 @@ for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            "la_tokenizer.py", "la_enclitics.py",
            # registers sud.MultiHashEmbedAffix.v1 (per-component affix windows; sa morph/lemma)
            "sud_affix_embed.py",
+           # registers sud.MultiHashEmbedFeats.v1 (one embedding table per morphological FEATURE,
+           # rather than one hash of the whole FEATS bundle) -- the XPOS-downstream arms
+           "sud_feats_embed.py",
+           # registers sud.WarmStartTagger.v1 (start a conditioned tagger AS the released one)
+           "warm_start_tagger.py",
            # registers sud.CharSegTokenizer.v1 — the treebank-trained character segmenter used as
            # the TOKENIZER for zh (pkuseg 0.8385 -> 0.9202, the last +3 from jieba's segmentation
            # decision as an input channel) and id (enclitic split, 0.9985).
