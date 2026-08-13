@@ -716,6 +716,129 @@ not overwritten.
 Arms kept as `training_<lang>_xpos{down,feat,top,warm}{,_ctl}{,_s1,_s2}`; drivers `train_xpos.sh`
 (`XPOS_WARM=1`, `XPOS_TOP=1`, `XPOS_CTL=1`, `XPOS_FEATS=1`) and `eval_xpos.sh` (`XPOS_ARMS=...`).
 
+## Vocalisation: restoring the vowels the script omits (`ar_vocalise`, `fa_vocalise`)
+
+Both released 2026-08-14 (v0.2.0, clobbered). Same component shape as `la_macronise` -- purely
+additive, `token._.vocalised` / `token._.vocalised_level` / `doc._.vocalised`, `doc.text` never
+touched -- and the same degrade-don't-fail posture. `add_vocalise.py --lang {ar,fa}` is the shared
+surgery; nothing reads the output, so no weight moves and every published figure stands.
+
+**They are NOT the same proposition, and the difference is the data, not the language.**
+
+### ar -- gold in the treebank, morphology does the work
+
+Every PADT token carries `Vform=` in MISC (223 881 train tokens), so the table is a straight
+extract. **The morphology is the whole difficulty**: a majority table keyed on the bare consonantal
+skeleton tops out at **84.92 %**, +UPOS 86.90 %, +FEATS **98.55 %** -- because the final short vowel
+is the case ending (iʿrāb), a syntactic fact. Two thirds of tokens sit under an ambiguous skeleton;
+under (form, UPOS, FEATS) that falls to 8 %.
+
+    PADT test, 28 264 tokens          WER      DER    WER-ce
+    gold morphology, table only      .0951    .0481    .0505
+    gold morphology + CAMeL          .0885    .0323    .0353
+    PREDICTED morphology + CAMeL     .1386    .0562    .0609   <- deployment, 86.14 % exact
+
+⚠ Do NOT read that WER against published diacritisers (Shakkala ~6.37): those are measured on
+Tashkeela, a largely pre-vocalised classical corpus, not MSA news.
+
+CAMeL Tools' `calima-msa` analyser is the fall-through for the 6.07 % of tokens whose skeleton train
+never saw. It is **GPL v2, never bundled** -- fetched with `camel_data`, which ar needs for its
+tokeniser anyway. ⚠ **CAMeL and PADT write different conventions and comparing them naively costs
+24 points**: sukūn (PADT writes 39 in 223 881 tokens), the fatḥa PADT writes before a long ā,
+tanwīn/alif order, and the article's hamzat waṣl. Oracle recall on out-of-table tokens is 13.63 %
+raw and **37.68 %** normalised, so `canon`/`to_padt` are most of the fall-through's value. It barely
+moves WER (+0.06) but cuts DER 17 % relative -- it gets an unknown word's vowels right and its case
+ending wrong.
+
+⚠ **`X`/PUNCT/SYM are harvested, not passed through.** PADT leaves most foreign material bare but
+vocalises what it recognises (`برلين` -> `بَرلِين`), so neither answer alone is right;
+table-then-identity scores **99.20 %** on test `X` against bare identity's 90.43 %. They take a
+shorter ladder (UPOS-keyed rungs, then the token unchanged), skipping the skeleton-only rung whose
+majority is taken over the other parts of speech.
+
+### fa -- no gold anywhere, so coverage is the only honest number
+
+**Nothing here annotates Persian vocalisation.** PerDT's `Translit=` is a mechanical romanisation of
+the CONSONANTAL spelling (`nšst` for نشست). No `Ezafe` feature either -- checked SUD PerDT, upstream
+UD PerDT and UD Seraji. So the table is RECONSTRUCTED by aligning a pronunciation lexicon onto
+spellings (`fa_align.py`, a DP over graphemes x phonemes: Persian writes long vowels as letters and
+leaves short ones unwritten, so every phoneme is either realised by a grapheme or inserted as a
+diacritic on the one before). 97.87 % of Tihu aligns, **zero round-trip failures** -- the aligner
+never alters the skeleton, which is the invariant that matters. It handles the silent و of `خواهر`
+-> `خواهَر` and gemination `بچه` -> `بَچّه`.
+
+Sources cascade **KaamelDict** (116 629 words, GPL, coverage) under **Tihu** (47 149, MIT-wrapped,
+consistency -- it wins on overlap, being one editor's single scheme). Coverage on PerDT test, over
+the 89.9 % of tokens that are not PUNCT/SYM/X/NUM: Tihu alone 72.80 % -> **94.30 %**. That is
+COVERAGE, not accuracy; no figure here is scored against Persian gold because none exists.
+
+⚠ **KaamelDict's homograph metadata is thinner than its README implies.** Of 116 629 entries only
+3 261 carry more than one pronunciation and only **580** carry any POS, and the lists are not always
+aligned 1:1 (شکر: four readings, two tags). The `prob` column contradicts the README on the very
+word the README uses -- در reads `[10.0, 90.0]` against `[dar, dorr]`, making the rare literary
+*dorr* the likely one. So POS is used only where it aligns one-to-one (**129 usable readings**),
+`prob` is never used to pick, and the rest falls back to Tihu or the first reading.
+
+**Ezāfe is the one part the pipeline really decides**, and it IS measurable. The ezāfe -e linking a
+head to its modifier is syntactic, so no dictionary supplies it and the parse can. Gold is derived
+from the one place Persian is FORCED to write it -- after a vowel-final stem, as ی or ٔ --
+(`build_fa_ezafe_rules.py`), giving a subset where presence and absence are both evidence:
+
+    host  rel   dep      n     ezāfe written        base rate, no following dependent: 12.5 %
+    NOUN  mod   ADJ    5377      92.6 %   kept
+    NOUN  mod   PROPN  1039      89.9 %   kept
+    NOUN  mod   NOUN   5778      85.0 %
+    NOUN  mod   VERB     52       1.9 %   a relative clause takes no ezāfe -- the rule working
+    NOUN  udep  ADP    1046      25.7 %
+
+⚠ **The observability test is on the FORM's ending, not on `form == lemma + ی`.** The latter looks
+right and is badly wrong -- it only catches uninflected stems, so `اعضای` (lemma عضو) and `نیروهای`
+were scored as counter-examples although they plainly carry the mark. Fixing it moved the headline
+`mod` cell from 54.1 % to 85.4 %. The kasra is added ONLY to a consonant-final host: on a vowel-final
+one the ezāfe is a LETTER, and writing it would change the skeleton.
+
+**The two fa data files have different provenance and therefore different fates.** The LEXICON is
+GPL and can never travel in a CC BY-SA wheel; the EZĀFE RULES are derived from PerDT, which is
+CC BY-SA 4.0 -- the wheel's own licence and its own training data. **So the shipped wheel is bare of
+the lexicon and still inserts ezāfe out of the box**, and `__call__` treats rules-without-lexicon as
+data rather than as "no data".
+
+### The ar licence was wrong, and correcting it is what let the table ship
+
+SUD_Arabic-PADT is **CC BY-NC-SA 3.0** ("distributed under the same license terms as PADT 1.0"), and
+`ar_sud_padt` had been falling through to the `CC BY-SA 4.0` default since v0.1.0. A survey of every
+`assets_*/` found ar to be the **only arm where the declaration and the training data disagreed**
+(PADT and the three Latin treebanks are the only NC sources; la was already declared). Corrected to
+`CC BY-NC-SA 4.0` -- 4.0 like la, whose sources are likewise 3.0, since ShareAlike permits licensing
+an adaptation under the later version. That is what makes bundling the `Vform` table legitimate:
+the table and the parser absorb the same annotation. **la stays `--no-lut` for the opposite reason**
+-- its data is Morpheus, CC BY-**SA**, and bundling that into an NC wheel would impose exactly the
+restriction ShareAlike forbids.
+
+### ⚠ The driver's defaults named PRE-GRAFT arms, and it nearly shipped ar backwards
+
+All twelve v0.2.0 wheels ship the warm-started tagger MOVED behind the morphologiser
+(`graft_xpos_tagger.py`). That release grafted per arm through `SUD_BASE` and kept a `_sud_xpos`
+directory only for **en_gum** and **la** -- so `package_sud.sh`'s combined `en|fa|yue|ar|id)` pattern
+sent five arms to bases whose tagger predates the graft. Repackaging ar therefore rebuilt the
+PREVIOUS tagger generation (89.71 -> 89.44). It built, loaded and parsed perfectly; **only a
+file-by-file diff against the DOWNLOADED asset caught it** (`tagger/model`, `tagger/cfg`,
+`vocab/strings.json` moved). Fourth time this lesson has been paid for, after lzh three times.
+
+Fixed three ways: ar and fa now name `training_<l>_sud_xpos` by default (`AR_BASE`/`FA_BASE` get the
+old arm back), and **`pkg()` REFUSES to package any arm whose pipeline has `tagger` before
+`morphologizer`** -- the cheap invariant that encodes the whole thing. ⚠ **en, yue and id still have
+no grafted arm on disk**; graft before repackaging, and note `graft_xpos_tagger.py` writes the model
+at the path you give it while the drivers expect `<arm>/model-best`, so nest it.
+
+Both wheels verified the standing three ways: the published asset's sha256 matches the built wheel,
+no weight file moved against the previous asset (ar 29 identical / fa 31, 0 weights), and a clean
+`--target` install runs. ⚠ Same version, so `pip install -U` will NOT replace an older copy;
+`--force-reinstall` will. ⚠ Two diffs that look alarming and are not: `vocab/strings.json` shrinks
+(incidental corpus tokens; **no label string is lost and `parser/moves` is byte-identical**, both
+checked), and fa's `AUX`/`CONJ`/`PART` tagger labels are absent from `strings.json` in the PUBLISHED
+wheel too -- they are restored from `tagger/cfg` at load, verified rendering without E018.
+
 ## Language-specific notes
 
 ### English — TWO arms, two licences (`en_sud_ewt`, `en_sud_ewt_gum`)

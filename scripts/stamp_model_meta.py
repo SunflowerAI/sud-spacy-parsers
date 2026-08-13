@@ -32,7 +32,14 @@ URL = "https://github.com/SunflowerAI/sud-spacy-parsers"
 # treebank is licensed under CC BY-NC-SA 4.0" -- which, read strictly, offers the ANNOTATIONS under
 # NC whatever the document, and annotations are what a trained model absorbs. So this wheel ships
 # NC regardless of the filter, and plain `en` (EWT-only) stays commercially usable.
-LICENSE = {"la": "CC BY-NC-SA 4.0", "en_gum": "CC BY-NC-SA 4.0"}
+# ar joined this list on 2026-08-14, correcting a mis-declaration rather than changing anything
+# about the model: SUD_Arabic-PADT has always been CC BY-NC-SA 3.0 (its LICENSE.txt: "distributed
+# under the same license terms as PADT 1.0"), and the wheel had been falling through to the
+# CC BY-SA 4.0 default since v0.1.0. The en_gum reasoning above applies unchanged -- annotations
+# are what a trained model absorbs -- and a survey of every assets_*/ found ar to be the only arm
+# where the declaration and the training data disagreed. Declared at 4.0 like la, whose sources are
+# likewise BY-NC-SA 3.0: ShareAlike permits licensing an adaptation under the later version.
+LICENSE = {"la": "CC BY-NC-SA 4.0", "en_gum": "CC BY-NC-SA 4.0", "ar": "CC BY-NC-SA 4.0"}
 DEFAULT_LICENSE = "CC BY-SA 4.0"
 
 # Runtime imports a wheel needs beyond spaCy, declared here so `pip install` yields a model that
@@ -49,6 +56,13 @@ REQUIREMENTS = {
 }
 
 SOURCES = {
+    "ar": [
+        {"name": "SUD_Arabic-PADT", "license": "CC BY-NC-SA 3.0",
+         "url": "https://github.com/surfacesyntacticud/SUD_Arabic-PADT",
+         "note": "Derived from the Prague Arabic Dependency Treebank 1.0, which is the source of "
+                 "the NonCommercial term. Its Vform column is also the source of the vocalisation "
+                 "table bundled with the ar_vocalise component."},
+    ],
     # GUM's LICENSE asks that the sources of the texts be cited and the annotators credited, so for
     # en_gum the attribution is an obligation, not a courtesy. Only the ten non-NonCommercial genres
     # are in the training data; their underlying sources carry three different CC licences, and two

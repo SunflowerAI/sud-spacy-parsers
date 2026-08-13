@@ -92,6 +92,23 @@ pkg() {  # $1=arm  $2=src model dir  $3=--name value  $4=comma-separated --code 
   local always="scripts/sud_feats_embed.py"
   if [ -n "$4" ]; then code="--code $4,$always"; else code="--code $always"; fi
   if [ ! -d "$src" ]; then echo "  $arm: SRC $src missing — skip"; return; fi
+  # ⚠ THE XPOS-DOWNSTREAM GUARD. All twelve v0.2.0 wheels ship the warm-started tagger MOVED behind
+  # the morphologiser so it can read UPOS+FEATS (graft_xpos_tagger.py; ar 89.44 -> 89.71, sa +1.52).
+  # That release grafted per arm through SUD_BASE and kept a `_sud_xpos` directory only for en_gum
+  # and la, so the DEFAULTS for en/fa/yue/id/ar still name pre-graft arms -- and rebuilding one
+  # produces a wheel that builds, loads and parses perfectly while shipping the previous tagger
+  # generation. Only a file-by-file diff against the downloaded asset catches that, which is how it
+  # was found on ar. The pipeline ORDER is the cheap invariant that encodes it, so assert it here
+  # rather than hope the next person diffs: a wheel whose tagger precedes its morphologiser is
+  # pre-graft, whatever else is right about it.
+  $PY - "$src" <<'GUARD' || { echo "  $arm: PRE-GRAFT arm — refusing to package. Rebuild with scripts/graft_xpos_tagger.py"; return; }
+import sys, json, pathlib
+cfg = (pathlib.Path(sys.argv[1]) / "meta.json")
+pipe = json.loads(cfg.read_text())["pipeline"] if cfg.exists() else []
+if "tagger" in pipe and "morphologizer" in pipe and pipe.index("tagger") < pipe.index("morphologizer"):
+    print("    tagger precedes morphologizer: %s" % pipe, file=sys.stderr)
+    sys.exit(1)
+GUARD
   # An arm straight out of `spacy train` has an EMPTY license field, and `spacy package` copies it
   # through without complaint -- so a rebuilt arm ships unlicensed unless this runs. Every model
   # here derives from CC BY-SA treebanks (la, and en_gum, from NonCommercial ones), so this is an
@@ -117,7 +134,14 @@ for lang in "$@"; do
     # ar/lzh/id joined this list when `Shared` did: their Subject/Reported layers ship as RULES,
     # so before that they had no reason to take the trained arm at all. The unwanted trained pipes
     # are dropped below, so no dead weights travel.
-    en|fa|yue|ar|id) base=training_${lang}_sud/model-best ;;
+    en|yue|id) base=training_${lang}_sud/model-best ;;
+    # fa names the GRAFTED arm, for the same reason ar does -- see the ar note below. Rebuilt with
+    #   python scripts/graft_xpos_tagger.py training_fa_sud/model-best \
+    #          training_fa_xposwarm/model-best <out> --corpus corpus_fa/fa_perdt-sud-dev.spacy
+    # (parse unchanged 10427/10427, tag_acc 0.9599 -> 0.9613). FA_BASE gets back the pre-graft arm.
+    # ⚠ en, yue and id above still have NO grafted arm on disk; graft before repackaging any of
+    # them, or pkg()'s guard will refuse.
+    fa)           base="${FA_BASE:-training_fa_sud_xpos/model-best}" ;;
     # en_gum takes the XPOS-NORMALISED arm: EWT and GUM disagreed on punctuation XPOS (EWT tags
     # `;` `,` 101 times of 101, GUM the PTB-standard `:`), so the same token in the same context
     # carried different gold depending on which treebank the sentence came from. EWT's half was
@@ -181,6 +205,18 @@ for lang in "$@"; do
     # is how the id wheel once shipped a generation stale. zh carries no SUD MISC layer, so the
     # lemma arm is the top of its chain.
     zh)           base="${ZH_BASE:-training_zh_trad_lemma/model-best}" ;;
+    # ar names the GRAFTED arm, for the fourth iteration of the same lesson. The v0.2.0 wheel ships
+    # the XPOS-downstream tagger -- warm-started, conditioned on UPOS+FEATS, and MOVED behind the
+    # morphologiser so it can read them (TAG 89.44 -> 89.71) -- but that release grafted per arm
+    # through SUD_BASE and kept no `_sud_xpos` directory for ar, so the default still pointed at
+    # `training_ar_sud`, whose tagger predates the graft and whose pipeline has `tagger` second.
+    # Packaging ar the routine way therefore rebuilt the PREVIOUS generation: it built, loaded and
+    # parsed correctly, and only a file-by-file diff against the downloaded asset said otherwise
+    # (tagger/model, tagger/cfg and vocab/strings.json moved). Rebuild the arm with
+    #   python scripts/graft_xpos_tagger.py training_ar_sud/model-best \
+    #          training_ar_xposwarm/model-best training_ar_sud_xpos --corpus corpus_ar/*-dev.spacy
+    # AR_BASE gets back the pre-graft arm. A default that names the right arm is the fix.
+    ar)           base="${AR_BASE:-training_ar_sud_xpos/model-best}" ;;
     *)            base=training_${lang}_lemma/model-best ;;
   esac
   # SUD_BASE overrides the arm for THIS run, whatever the language -- used to package the
@@ -221,8 +257,18 @@ case $lang in
        # F 23.53. It stays the one arm where the trained pipe beats the rule for this feature,
        # because fa's Reported gold is 87 % LLM-decided and a rule can only reach the 13 % it
        # committed itself (rule P 1.00, R 0.13).
-  fa)  add_idiom "$base" "$work"
-       pkg fa  "$work" sud_perdt "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py" ;;
+       # fa additionally ships `fa_vocalise`, bare (--no-lut), on the la/ar pattern. ⚠ It is NOT
+       # the same proposition as ar's: Persian has no vocalised gold anywhere in this project, so
+       # nothing about it is scored -- the lexicon is reconstructed from Tihu by aligning
+       # pronunciations onto spellings, and Tihu holds one reading per word, so the morphological
+       # disambiguation that makes ar_vocalise worth pipelining has no alternatives to choose
+       # between. It answers 72.80 % of vocalisable PerDT test tokens; that is COVERAGE, not
+       # accuracy. See fa_vocalise.py before quoting anything about it.
+  fa)  add_idiom "$base" "$work.idiom"
+       $PY scripts/add_vocalise.py --lang fa "$work.idiom" "$work" --no-lut --verify \
+            --code sud_tagger.py,sud_misc.py,sud_idiom.py,sud_shared_data.py,sud_shared_rule.py,sud_reported_data.py,sud_reported_rule.py,sud_feats_embed.py \
+            || { echo "  fa: fa_vocalise surgery FAILED — skip"; continue; }
+       pkg fa  "$work" sud_perdt "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/fa_vocalise.py,scripts/fa_align.py" ;;
        # la additionally ships `la_macronise` IN THE PIPELINE, with NO lookup table (--no-lut): the
        # vowel lengths are Morpheus-derived (CC BY-SA 3.0 US) and this wheel is CC BY-NC-SA, so the
        # data cannot travel with it -- but the COMPONENT can, and it starts macronising the moment
@@ -262,9 +308,29 @@ case $lang in
             "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py" ;;
        # ar now takes the TRAINED arm as its base (for sud_shared); add_sud_reported_rule drops
        # the trained sud_reported it also carries, since ar ships the Reported RULE (73.5 v 46.0).
-  ar)  $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang ar >/dev/null 2>&1
-       add_idiom "$work.rep" "$work"
-       pkg ar  "$work" sud_padt  "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py,scripts/ar_tokenizer.py" ;;
+       # ar ships `ar_vocalise` WITH its table, which is what separates it from la_macronise.
+       # The table is harvested from SUD_Arabic-PADT's own Vform column and is therefore
+       # CC BY-NC-SA, exactly like the parser trained on the same annotation -- so once the wheel
+       # declares NC (stamp_model_meta.LICENSE["ar"], corrected 2026-08-14) there is nothing to
+       # keep the two apart. la's case is different and stays --no-lut: its vowel lengths come from
+       # Morpheus, a CC BY-SA source, and bundling THAT into an NC wheel would impose exactly the
+       # restriction ShareAlike forbids. Same shape of component, opposite conclusion, because the
+       # data has a different provenance from the model.
+       # The calima-msa analyser fall-through is still never bundled (GPL v2): it activates when
+       # the user runs `camel_data -i morphology-db-msa-r13`, which they need for the tokeniser
+       # anyway. Added AFTER add_idiom so it lands last: it only writes `token._.vocalised`, reads
+       # nothing sud_idiom writes, and nothing downstream reads it.
+       # ⚠ NOT `>/dev/null 2>&1`. Three surgery scripts once failed silently in this driver and
+       # surfaced only as a stale wheel; this one is allowed to speak, and to stop the arm.
+  ar)  # The table is DERIVED data: gitignored like scripts/la_*_lut.json.gz and rebuilt on demand,
+       # so a fresh clone packages correctly instead of failing on a missing file.
+       [ -f scripts/ar_vocalise_lut.json.gz ] || $PY scripts/build_ar_vocalise_lut.py
+       $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang ar >/dev/null 2>&1
+       add_idiom "$work.rep" "$work.idiom"
+       $PY scripts/add_vocalise.py --lang ar "$work.idiom" "$work" --verify \
+            --code sud_tagger.py,sud_misc.py,sud_idiom.py,sud_shared_data.py,sud_shared_rule.py,sud_reported_data.py,sud_reported_rule.py,sud_feats_embed.py \
+            || { echo "  ar: ar_vocalise surgery FAILED — skip"; continue; }
+       pkg ar  "$work" sud_padt  "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py,scripts/ar_tokenizer.py,scripts/ar_vocalise.py" ;;
   ja)  add_idiom "$base" "$work"
        pkg ja  "$work" sud_gsd   "$CODE_BASE" ;;
        # zh ships NO Subject layer: trained F 27.7 / rule 31.6 on test, both too weak to be worth
