@@ -803,6 +803,75 @@ CC BY-SA 4.0 -- the wheel's own licence and its own training data. **So the ship
 the lexicon and still inserts ezāfe out of the box**, and `__call__` treats rules-without-lexicon as
 data rather than as "no data".
 
+### Vocalisation augmentation: one copy, resampled every epoch (BUILT, NOT RELEASED)
+
+`ar_vocalise`/`fa_vocalise` make the models WRITE the vowels. This makes them READ them, which is
+the other half and turned out to be the bigger defect. Measured on the SAME trees with only the
+FORM column rewritten (`make_ar_variant_conllu.py` / `make_fa_variant_conllu.py`, scored by
+`eval_ar_variants.py`), the released arms collapse on text they were never shown:
+
+    ar   bare 72.92 LAS   shadda-only 63.72   half-pointed 44.81   fully pointed 18.50
+    fa   bare 87.18 LAS   no-ZWNJ     82.93   Arabic ی/ک  57.55   fully pointed 33.28
+
+ar's spread is **54.42**, which is to the decimal what Latin had before its own augmentation (54.4).
+fa's is **64.40**, and its worst row is not vocalisation at all: `ی`/`ي` and `ک`/`ك` are what an
+ARABIC KEYBOARD produces, so that is a large share of real Persian text rather than an exotic
+edition, and it cost 29.6 LAS.
+
+**TWO DIRECTIONS, forced by the data, and this is the thing to understand before touching it.**
+ar stores the corpus FULLY POINTED (`make_ar_vocalised_corpus.py` sets FORM = PADT's gold `Vform`)
+and the augmenter only ever REMOVES marks -- a strict superset, exactly as Latin stores the
+macronised copy and strips, so the bare spelling is derived and can never drift from the pointed
+one. `fold(strip(Vform))` reproduces the treebank's own FORM on **97.50 %** of 223 881 train tokens;
+the two folds are hamza (the vocalised column RESTORES the hamza running text omits) and
+Arabic-Indic vs ASCII digits (9 765 tokens), and both are sampled axes rather than errors. fa has no
+vocalised gold anywhere, so its corpus stays as the treebank writes it and the augmenter ADDS marks
+from the same reconstructed table and the same syntactically-derived ezāfe rules `fa_vocalise` ships
+against. ⚠ That asymmetry has a consequence: the ar augmentation is exact, the fa one is only as
+good as the reconstruction -- mitigated because the parser is being taught to IGNORE these marks,
+so a wrong vowel is noise in the input, not a corrupted label.
+
+**Results, full chains (base → morph → lemma), gold-preproc, same trees throughout:**
+
+| | ar released | **ar vocal** | fa released | **fa vocal** |
+|---|---|---|---|---|
+| bare LAS | 72.92 | **72.92** | 87.18 | **87.28** |
+| bare TAG | 89.62 | **90.03** | 96.19 | **96.25** |
+| bare LEMMA | 90.33 | **92.54** | 98.71 | 98.65 |
+| fully pointed LAS | 18.50 | **73.71** | 33.28 | **86.39** |
+| Arabic letterforms LAS | — | — | 57.55 | **86.09** |
+| **LAS spread** | **54.42** | **1.42** | **64.40** | **2.04** |
+
+**This is a better bargain than Latin's, and the difference is instructive.** Latin paid ~0.5 LAS
+and 2.7 TAG on plain text to bring its spread 54.4 → 7.0. Arabic pays NOTHING -- bare LAS identical
+to the decimal, TAG +0.41, LEMMA **+2.21** -- and Persian pays nothing either (LAS +0.10, POS −0.13
+and LEMMA −0.06, both inside noise). The reason is that Latin's axes (breves, ligatures) are
+perturbations that add no information, whereas the vocalisation IS information: on fully pointed
+text the ar arm now BEATS its own bare score (LAS 73.71, TAG 94.45, LEMMA 94.54), which is what
+should happen once a model can read marks that disambiguate. As in Latin, the LEMMATISER gains most
+-- edit trees are literal string edits, so it was the component least able to generalise across
+spellings on its own.
+
+⚠ One row to read carefully: ar `final` (case-ending-only pointing) has vocal LEMMA **80.72** against
+~93 on every other vocalised row. That is the edit-tree lemmatiser's weak spot by construction -- a
+diacritic on the LAST character changes exactly the part of the string an edit tree keys on.
+
+**Mechanics, all inherited from the Latin recipe and all load-bearing.** `max_epochs = -1` (at `0`
+spaCy lists the corpus ONCE and a corpus-level augmenter samples a single style per document for the
+whole run -- the run looks normal and trains on one fixed perturbation), `shuffle = true` on the
+reader (because `-1` turns off the loop's own shuffling), and `init_aug_labels.py` because
+`init_nlp` initialises from `islice(train_corpus(nlp), 100)`. As in Latin the LEMMATISER is the one
+that really needs the label passes: its labels are properties of the FORM, so `كتاب` and `كِتاب` are
+different trees, and a missing tree does NOT raise -- `get_loss` maps it to label 0 and the token is
+quietly taught the wrong edit. **Dev stays BARE and un-augmented for both**, so `model-best` is
+chosen on the spelling the arm is judged on rather than drifting toward whatever the augmenter
+sampled. Freeze recipe verified: tok2vec/tagger/parser (and morphologizer at the lemma layer) come
+out byte-identical up both chains.
+
+Driver `train_vocal.sh` (`corpus | variants | labels | base | morph | lemma | eval`);
+`metrics_{ar,fa}_variants.json` hold the tables. **NOT RELEASED** -- adopting a new base is the same
+decision Latin's augmented arm needed.
+
 ### The ar licence was wrong, and correcting it is what let the table ship
 
 SUD_Arabic-PADT is **CC BY-NC-SA 3.0** ("distributed under the same license terms as PADT 1.0"), and
