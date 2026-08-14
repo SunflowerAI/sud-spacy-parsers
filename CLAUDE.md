@@ -1099,9 +1099,33 @@ file-by-file diff against the DOWNLOADED asset caught it** (`tagger/model`, `tag
 
 Fixed three ways: ar and fa now name `training_<l>_sud_xpos` by default (`AR_BASE`/`FA_BASE` get the
 old arm back), and **`pkg()` REFUSES to package any arm whose pipeline has `tagger` before
-`morphologizer`** -- the cheap invariant that encodes the whole thing. ⚠ **en, yue and id still have
-no grafted arm on disk**; graft before repackaging, and note `graft_xpos_tagger.py` writes the model
-at the path you give it while the drivers expect `<arm>/model-best`, so nest it.
+`morphologizer`** -- the cheap invariant that encodes the whole thing. Note `graft_xpos_tagger.py`
+writes the model at the path you give it while the drivers expect `<arm>/model-best`, so nest it.
+
+**en, yue and id caught up 2026-08-15**, so all twelve arms now have a grafted `_sud_xpos` directory
+and the driver names it (`EN_BASE`/`YUE_BASE`/`ID_BASE` get the pre-graft arm back). Each was rebuilt
+from `training_<l>_sud` + `training_<l>_xposwarm`, verified on `corpus_<l>_sud/test.spacy`: parse
+unchanged en 8 585/8 585, yue 1 261/1 261, id 11 756/11 756, tags matching the donor on every token,
+`tag_acc` 0.9287 -> 0.9325 / 0.9286 -> 0.9313 / 0.9264 -> 0.9288.
+
+**Nothing was re-released, because nothing needed to be** -- these arms RECONSTRUCT what v0.2.0 already
+ships rather than making a new generation, and that is the claim worth checking rather than asserting.
+Every weight file in each arm -- the five base components and the `sud_*` pipes alike -- is
+byte-identical to the one hashed out of the DOWNLOADED wheel. Repackaged at 0.2.0 from the new
+defaults, **yue comes out byte-for-byte identical in all 37 files**, and en/id differ in exactly
+`vocab/strings.json` plus the `RECORD` that hashes it.
+
+⚠ That `strings.json` diff is the same false alarm this file has recorded before, and this time it
+has a cause worth naming: the differing strings are morph bundles carrying `SudShared=`/`SudReported=`
+against the published wheel's bare `Shared=`, i.e. the hoisted-gold prefix from whichever corpus the
+graft's verification pass happened to read. Incidental interning, 0 label strings lost, `parser/moves`
+and every `*/cfg` byte-identical, and all three load from a clean `--target` install and render tags
+without E018.
+
+⚠ Found on the way: **`package_sud.sh` was still defaulting to `VERSION=0.1.0`** long after all
+twelve wheels went to 0.2.0, so a bare call built wheels named a generation behind and said nothing.
+Default bumped to 0.2.0, `VERSION=` still overrides -- the same fix as a default that names the right
+arm, for the same reason.
 
 Both wheels verified the standing three ways: the published asset's sha256 matches the built wheel,
 no weight file moved against the previous asset (ar 29 identical / fa 31, 0 weights), and a clean
