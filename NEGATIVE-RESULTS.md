@@ -450,3 +450,24 @@ our `parataxis` or its `comp:obj`.
   vs-empty MORPH and the CoNLL-U `_` kept as a literal — when annotation is meant to be absent,
   verify what the CONSUMER sees, not what the setter reports.
 
+## Trained `Idiom`/`InIdiom` for ja, lzh and sa (2026-08-14)
+
+Training the idiom layer instead of deriving it by rule works in Arabic (+3.70 F) and **fails in
+the other three languages that annotate idioms**. Measured on test, end-to-end, against the rule on
+the same base:
+
+    ja   Idiom 96.88 -> 96.71   InIdiom 96.32 -> 95.40
+    lzh  Idiom 75.68 -> 76.05   InIdiom 85.54 -> 73.91
+    sa   Idiom 76.99 -> 76.60   InIdiom 80.48 -> 81.30
+
+Two factors predict it, and neither is sufficient alone. **ja has no headroom**: its parser
+supplies both rule inputs (`ExtPos` + an `unk` dependent) on 95.7 % of gold idiom heads, so the
+rule is already at 96.88. **lzh and sa have headroom (49.5 % / 40.8 %) but half ar's training
+data** -- 1 050 and 838 idiom heads against ar's 1 993.
+
+The lesson worth keeping is lzh's InIdiom, which loses **11.63 F**: the rule there is a TRANSITIVE
+CLOSURE (walk consecutive `unk` links up to a head bearing `ExtPos`), not a local classification,
+and it is exact given `unk`. A classifier must rediscover transitivity from the data. Where a rule
+expresses a closure rather than a local decision, prefer the rule unless the data is abundant.
+
+Do not re-run this without more data; the arms are kept as `training_{ja,lzh,sa}_idiom/`.

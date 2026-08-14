@@ -115,6 +115,11 @@ src_conllu() {
     # ko's released arm is the EOJEOL one, trained on the ORIGINAL SUD_Korean-GSD -- not the
     # superseded mecab-morpheme retokenisation, whose corpora carry no Shared at all.
     ko)  echo "assets_ko/SUD_Korean-GSD/ko_gsd-sud-$2.relabeled_ext.conllu" ;;
+    # ja had no entry until 2026-08-14, because it ships only the RULE-based Idiom layer and so
+    # never needed this driver. Added to train the Idiom pilot. `.udep_ruled` is the released
+    # generation for ja (802 cells committed: NOUN<-AUX た/だ -> mod), the same files its base arm
+    # was retrained on -- the plain `.relabeled_ext` ones are a generation behind.
+    ja)  echo "assets_ja/SUD_Japanese-GSD/ja_gsd-sud-$2.relabeled_ext.udep_ruled.conllu" ;;
     # sa trains on Vedic-train + UFAL combined (rebuild_sa_csl_rev.sh); dev/test are Vedic only
     sa)  if [ "$2" = train ]; then echo "corpus_sa_csl_rev/train.csl_rev.conllu"
          else echo "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-$2.csl_rev.conllu"; fi ;;

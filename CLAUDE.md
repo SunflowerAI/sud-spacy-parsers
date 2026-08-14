@@ -830,7 +830,7 @@ order, often the rarer lexeme first: `للمدرسة` gave `لِلمُدَرِّ
 lemma counts; calima's `lex` and PADT's LEMMA are both vocalised lemmas in the same convention)
 ranks them. +0.04 MB. Released 2026-08-14 (v0.2.0, clobbered; verified by download).
 
-### Idiom: trained beats the rule (PILOT, ar only, dev only)
+### Idiom: trained beats the rule in ARABIC ONLY (measured on test, four languages)
 
 The `Idiom`/`InIdiom` rule is EXACT on gold trees and loses end-to-end purely to upstream error --
 and it is a CONJUNCTION, so those errors multiply. Decomposing ar's 240 gold heads on predicted
@@ -862,6 +862,48 @@ is optimistic; **`spacy evaluate` reports 0.00 for these pipes on a converted te
 the gold present** (its scorer setup differs from the training loop's), so a test figure needs a
 harness like `eval_sud_shared.py` rather than the CLI. Not shipped. Data exists for ja (13 320),
 lzh (2 452), sa (1 741); fa (258) and la stay rule-based.
+
+#### The sweep: ar ships trained, ja/lzh/sa keep the rule
+
+All four idiom-annotating languages with enough data were trained with `--encoder structural` and
+scored end-to-end on TEST against the rule on the SAME base (`eval_sud_idiom.py`, gold tokens):
+
+| | rule Idiom | trained | Δ | rule InIdiom | trained | Δ |
+|---|---|---|---|---|---|---|
+| **ar** | 61.89 | **65.59** | **+3.70** | 62.30 | **66.11** | **+3.81** |
+| ja | **96.88** | 96.71 | −0.17 | **96.32** | 95.40 | −0.92 |
+| lzh | 75.68 | 76.05 | +0.37 | **85.54** | 73.91 | **−11.63** |
+| sa | **76.99** | 76.60 | −0.39 | 80.48 | **81.30** | +0.82 |
+
+**Only Arabic gains, and TWO measured factors predict the whole table.** Neither alone does:
+
+    lang   rule inputs BOTH present   train Idiom heads   Δ Idiom
+    ar               50.4 %                  1 993        +3.70
+    ja               95.7 %                  5 861        -0.17
+    lzh              49.5 %                  1 050        +0.37
+    sa               40.8 %                    838        -0.39
+
+**ja has the data but no headroom**: its parser supplies `ExtPos` and `unk` on 95.7 % of gold idiom
+heads, so the rule is already at 96.88 and there is nothing for a classifier to recover -- the same
+fact `NEGATIVE-RESULTS.md` records from the other side (99.2 % of ja `unk` tokens are idiom-chain
+continuations). **lzh and sa have the headroom but half ar's data** (1 050 / 838 heads against
+1 993), and a structural encoder cannot learn from what it has not seen. ar is the only arm where
+both conditions hold.
+
+⚠ **lzh's InIdiom is the sharpest negative in the table (−11.63), and it is instructive.** The
+rule's `InIdiom` is not a classification but a CHAIN WALK -- follow consecutive `unk` links up to a
+head bearing `ExtPos` -- which is exact given `unk`, and lzh's parser supplies `unk` on 65.9 % of
+heads. So the rule scores 85.54 on InIdiom, HIGHER than its own Idiom 75.68. A trained pipe has to
+rediscover transitivity from 1 226 examples, and does not. Where a rule expresses a transitive
+closure rather than a local decision, prefer it unless the data is abundant.
+
+⚠ **`grep -c 'Idiom=Yes'` OVERCOUNTS: it also matches `InIdiom=Yes`.** An earlier draft of this
+section quoted ja at 13 320 and sa at 1 741 on that basis, which are the two keys summed. Use
+`grep -oE '(^|\|)Idiom=Yes'`.
+
+**`ja` had no `src_conllu` entry** until this sweep, because it ships only the rule and so never
+needed `train_sud.sh`. Added, pointing at `.udep_ruled` -- the released generation for ja (802
+committed cells), not the plain `.relabeled_ext` files, which are a generation behind.
 
 ### Vocalisation augmentation: one copy, resampled every epoch (ADOPTED 2026-08-14)
 
