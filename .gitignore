@@ -148,3 +148,10 @@ vectors_*_floret.vec
 vectors_*_sem48/
 corpus_en_tokens.txt
 corpus_la_tokens.txt
+
+# Derived vocalisation tables, on the same footing as scripts/la_*_lut.json.gz: built by
+# build_{ar,fa}_vocalise_lut.py, never bundled in a wheel and never committed. ar's is extracted
+# from SUD_Arabic-PADT (CC BY-NC-SA 3.0) and fa's from the Tihu lexicon, so keeping them out of
+# git is a licence position, not just hygiene.
+scripts/ar_vocalise_lut.json.gz
+scripts/fa_vocalise_lut.json.gz

@@ -1,0 +1,5 @@
+{
+ "NOUN|mod|ADJ": 0.926,
+ "NOUN|mod|PROPN": 0.8989,
+ "ADJ|comp:obl|NOUN": 0.8528
+}
