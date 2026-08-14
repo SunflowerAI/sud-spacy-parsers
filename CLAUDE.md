@@ -905,6 +905,53 @@ section quoted ja at 13 320 and sa at 1 741 on that basis, which are the two key
 needed `train_sud.sh`. Added, pointing at `.udep_ruled` -- the released generation for ja (802
 committed cells), not the plain `.relabeled_ext` files, which are a generation behind.
 
+### Normalise at the boundary, or augment? Both — and which one depends on the AXIS
+
+The cheaper alternative to augmentation is to normalise the INPUT instead of teaching the model to
+read it, which is what zh already does (`ZhTradTokenizer` converts simplified in, `zh_script`
+converts back out) rather than training on two scripts. Measured against the augmented arms, on the
+same variant corpora:
+
+    ARABIC, fully pointed input          LAS     TAG   LEMMA
+    released, raw                      18.50   19.77   36.46
+    released + strip diacritics        72.92   89.62   90.32
+    AUGMENTED, raw                     73.71   94.45   94.54   <- best
+    augmented + strip                  72.94   90.03   92.53
+
+    PERSIAN, Arabic letterforms          LAS     TAG   LEMMA
+    released, raw                      57.55   79.22   62.73
+    released + normalise               86.92   95.96   98.48
+    augmented, raw                     86.09   95.65   94.60
+    AUGMENTED + normalise              87.02   96.04   98.42   <- best
+
+    PERSIAN, all axes (incl. ZWNJ)       LAS
+    released + normalise               82.65
+    augmented, raw                     85.64
+    AUGMENTED + normalise              86.75   <- best
+
+**Three rules fall out, and the third is the one worth keeping.**
+
+1. **Normalise whatever is REVERSIBLE and carries no information.** Persian's `ی`/`ي` and `ک`/`ك`
+   are an Arabic-keyboard artefact with no linguistic content, and mapping them back is exact: it
+   recovers 86.92 LAS from 57.55 with the RELEASED arm and no retraining at all.
+2. **Do NOT normalise away information.** Stripping Arabic diacritics costs the augmented arm
+   **0.77 LAS and 4.42 TAG** (73.71 -> 72.94, 94.45 -> 90.03), because the marks it is deleting are
+   the case endings. Arabic vocalisation is syntax; Persian vocalisation is not (Persian has no
+   case system), which is why stripping *helps* fa (+0.63 LAS) and *hurts* ar.
+3. **Augment for what cannot be normalised away.** Dropping a ZWNJ is IRREVERSIBLE -- `میرود` gives
+   no way to know where the joiner was without a lexicon -- so on the all-axes row normalisation
+   alone reaches only 82.65 against the augmented arm's 85.64. This is the axis that justifies the
+   augmentation for fa on its own.
+
+**They compose**, and for fa the combination is best on every axis (87.02 / 86.75). ⚠ For ar it is
+NOT: normalising before an augmented arm actively destroys the signal the augmentation exists to
+read. The general form -- *normalise the information-free axes at the boundary, augment for the
+information-bearing and the irreversible ones* -- is the rule, and neither half subsumes the other.
+
+**NOT IMPLEMENTED.** A fa boundary normaliser would change `doc.text`, which is a contract decision
+(cf. `ar_vocalise` returning the caller's spelling); the gain is +0.93 LAS on Arabic-keyboard input
+and +1.11 on the all-axes row.
+
 ### Vocalisation augmentation: one copy, resampled every epoch (ADOPTED 2026-08-14)
 
 `ar_vocalise`/`fa_vocalise` make the models WRITE the vowels. This makes them READ them, which is
