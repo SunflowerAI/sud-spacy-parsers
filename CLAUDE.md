@@ -841,7 +841,21 @@ idiom-head lemmas are the commonest function words (بِ 9.7 %, مِن 9.3 %, ف
 occurrences), so a >50 %-dominance lexical rule gets P 87.1 % / **R 11.2 %**. The lemma says which
 tokens COULD head an idiom; only context says when -- which is what a classifier is for.
 
-Trained with `--encoder structural` (reads DEP, **LEMMA**, POS, MORPH), ar **dev**, same augmented
+**CONFIRMED ON TEST.** Trained with `--encoder structural` (reads DEP, **LEMMA**, POS, MORPH),
+ar test, same augmented base: Idiom **65.59** v the rule's 61.89, InIdiom **66.11** v 62.30 --
+recall 59.17 v 50.42 against precision 73.58 v 80.13. The dev result was not checkpoint-selection
+optimism; the trade is the same shape on both splits. ⚠ It still does not reach the 67.30 the rule
+scored on the UN-augmented base, so training recovers most but not all of what the vocalisation
+augmentation cost this layer.
+
+⚠ **No harness had to be built, and the earlier 0.00 was my own error.** `eval_sud_idiom.py`
+already scores a trained pipe: `get_misc` reads `Token._.sud_misc`, which BOTH the rule and
+`sud_tagger` write, and the script only injects the rule when no `sud_idiom` pipe is present. So
+`--model training_<l>_vocal_idiom/model-best` scores the trained pipes and `--model
+training_<l>_vocal_sud/model-best` scores the rule on the same base. `spacy evaluate` was simply
+the wrong tool.
+
+Original dev figures, ar, same augmented
 base: Idiom **74.84** v the rule's 70.73, InIdiom **75.05** v 71.01. Recall is where it comes from
 (71.60 v 59.67) at ~8 points of precision. ⚠ DEV ONLY, and `model-best` was selected on it, so this
 is optimistic; **`spacy evaluate` reports 0.00 for these pipes on a converted test corpus even with
