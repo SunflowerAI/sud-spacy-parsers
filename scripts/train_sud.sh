@@ -150,7 +150,13 @@ src_model() {
     # training_id_lemma is the older COARSENED arm -- exactly the fall-through that shipped a
     # stale id wheel in v0.1.0. Both read the same CoNLL-U; only the tokeniser differs.
     id) echo "training_id_split_lemma/model-best" ;;
-    *)  echo "training_$1_lemma/model-best" ;;
+    # SUD_SRC_MODEL / SUD_BASE_CONFIG override the arm the MISC pipes stack on. Added for the
+    # vocalisation-augmented chains (training_{ar,fa}_vocal_lemma): this layer reads the base's own
+    # predictions, so it CANNOT be carried over from a differently-trained base -- sud_shared's
+    # coordination mask is a fact about that parser, and the idiom rule is a conjunction of two of
+    # its predictions. An override rather than a new hardcoded case, because these arms are
+    # candidates until they are adopted.
+    *)  echo "${SUD_SRC_MODEL:-training_$1_lemma/model-best}" ;;
   esac
 }
 
@@ -161,7 +167,7 @@ base_config() {
     sa) echo "configs/config_sa_multitask.cfg" ;;
     ko) echo "configs/config_ko_eojeol_lemma.cfg" ;;
     id) echo "configs/config_id_split_lemma.cfg" ;;
-    *)  echo "configs/config_$1_lemma.cfg" ;;
+    *)  echo "${SUD_BASE_CONFIG:-configs/config_$1_lemma.cfg}" ;;
   esac
 }
 
@@ -207,7 +213,11 @@ train_one() {   # $1=lang  $2...=features
   local suffix=${SUD_SUFFIX:-$(arm_suffix "$lang")}
   local arm=training_${lang}${suffix}
   local cfg=configs/config_${lang}${suffix}.cfg
-  local out=corpus_${lang}$(arm_suffix "$lang")
+  # SUD_CORPUS overrides the hoisted corpus. Needed for ar's augmented arm: its augmenter only
+  # REMOVES diacritics, so it must be fed the VOCALISED corpus or it can only ever produce bare
+  # text and the augmentation silently does nothing. fa needs no override -- its augmenter ADDS
+  # marks from the lexicon, so the ordinary bare corpus is already the right input.
+  local out=${SUD_CORPUS:-corpus_${lang}$(arm_suffix "$lang")}
 
   if [ ! -d "$src" ]; then echo "$lang: source model $src missing -- skip"; return 1; fi
   if [ ! -f "$base" ]; then echo "$lang: base config $base missing -- skip"; return 1; fi
@@ -224,6 +234,18 @@ train_one() {   # $1=lang  $2...=features
   fi
   $PY scripts/make_sud_config.py "$base" "$src" --feats $feats --encoder $encoders \
       "${mask_args[@]}" --out "$cfg" || return 1
+  # SUD_AUGMENT=<lang>: train these pipes THROUGH the vocalisation augmenter. Necessary whenever the
+  # base underneath is an augmented arm, for the reason la's SUD layer is trained through ITS
+  # augmenter: `sud_subject` reads NORM/PREFIX/SUFFIX/SHAPE, so a pipe trained on one spelling and
+  # sitting on an orthography-robust parser is the arm's own weak point. `sud_shared` is much less
+  # exposed -- sud.HeadDepsTagger.v1 reads the head and the head's other dependents, which is
+  # structure rather than surface -- but the layer is trained as one arm, so it goes through
+  # together. Also brings max_epochs=-1 and shuffle=true, which the augmenter needs to resample.
+  if [ -n "${SUD_AUGMENT:-}" ]; then
+    $PY scripts/make_vocal_aug_config.py "$cfg" --out "$cfg" --lang "$SUD_AUGMENT" >/dev/null \
+      || { echo "  $lang: augmenting the SUD config FAILED"; return 1; }
+    echo "  $lang: SUD pipes will train through sud.${SUD_AUGMENT}_vocal_variants.v1"
+  fi
   echo "  $lang: training -> $arm/ (feats:$feats; encoders:$encoders; log: ${arm#training_}.log)"
   $PY -m spacy train "$cfg" $CODE --output "$arm/" \
       --paths.train "$tr" --paths.dev "$dv" > "train_${lang}${suffix}.log" 2>&1

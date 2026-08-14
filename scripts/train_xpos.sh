@@ -57,7 +57,11 @@ tagger_arm() { case "$1" in
   ko)     echo training_ko_eojeol_lemma/model-best ;;
   zh)     echo training_zh_trad_lemma/model-best ;;
   sa)     echo training_sa_multitask/model-best ;;
-  *)      echo training_$1_lemma/model-best ;;
+  # XPOS_SRC_ARM overrides it. Needed for the vocalisation-augmented chains: the conditioned
+  # tagger must be trained on the AUGMENTED corpus, or a tagger that has only seen bare text gets
+  # grafted into a pipeline whose whole point is reading pointed text -- and the tagger is the
+  # component most sensitive to spelling of the lot.
+  *)      echo "${XPOS_SRC_ARM:-training_$1_lemma/model-best}" ;;
 esac; }
 
 # The treebank each language's XPOS gold comes from -- read ONLY to derive the feature inventory.

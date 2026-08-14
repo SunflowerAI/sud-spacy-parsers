@@ -29,7 +29,11 @@ def _load(fname):
         print(f"seg_code: skipped {fname}: {type(e).__name__}: {e}")
 
 
-for _f in ("ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
+# vocal_augment registers the ar/fa vocalisation augmenters (and pulls in warm_start_tagger and
+# sud_feats_embed). Added here rather than to each driver's own --code, because `spacy train` takes
+# ONE file and a list that has to be remembered per driver is a list that gets missed -- the reason
+# this module exists at all.
+for _f in ("vocal_augment.py", "ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            "sa_tokenizer.py", "clause_parser.py", "sud_unsandhi.py", "sa_devanagari.py",
            # registers sud.LatinEncliticTokenizer.v1. Its absence here meant every script that
            # loads a released la model through this file died with E893 -- found only once

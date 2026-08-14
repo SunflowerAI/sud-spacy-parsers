@@ -59,6 +59,7 @@ import fa_orth   # noqa: E402
 # module scope (which broke the zh wheel twice) does not apply.
 import gold_tok_corpus      # noqa: E402,F401  sud.GoldTokCorpus.v1
 import sud_feats_embed      # noqa: E402,F401  sud.Tok2VecPlusFeats.v1
+import warm_start_tagger    # noqa: E402,F401  sud.WarmStartTagger.v1
 try:
     import ar_tokenizer     # noqa: F401       ar.CamelAtbTokenizer.v1
 except Exception:           # camel-tools absent: fine unless an ar config asks for it

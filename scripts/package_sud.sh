@@ -141,7 +141,12 @@ for lang in "$@"; do
     # (parse unchanged 10427/10427, tag_acc 0.9599 -> 0.9613). FA_BASE gets back the pre-graft arm.
     # ⚠ en, yue and id above still have NO grafted arm on disk; graft before repackaging any of
     # them, or pkg()'s guard will refuse.
-    fa)           base="${FA_BASE:-training_fa_sud_xpos/model-best}" ;;
+    # ADOPTED 2026-08-14 (user decision): the vocalisation-augmented chain, as ar. LAS spread
+    # 64.40 -> 2.04, bare LAS +0.10. Its worst released row was not vocalisation at all -- Arabic
+    # keyboard letterforms (ی/ي, ک/ك) cost 29.6 LAS and now cost 1.2. Ship decisions re-measured:
+    # Shared trained 68.59 v rule 58.51, Reported trained 58.33 v rule 23.53 (both unchanged, and
+    # Reported IMPROVED from 46.15), Idiom 72.73 unchanged. FA_BASE gets back the old arm.
+    fa)           base="${FA_BASE:-training_fa_vocal_sud_xpos/model-best}" ;;
     # en_gum takes the XPOS-NORMALISED arm: EWT and GUM disagreed on punctuation XPOS (EWT tags
     # `;` `,` 101 times of 101, GUM the PTB-standard `:`), so the same token in the same context
     # carried different gold depending on which treebank the sentence came from. EWT's half was
@@ -216,7 +221,16 @@ for lang in "$@"; do
     #   python scripts/graft_xpos_tagger.py training_ar_sud/model-best \
     #          training_ar_xposwarm/model-best training_ar_sud_xpos --corpus corpus_ar/*-dev.spacy
     # AR_BASE gets back the pre-graft arm. A default that names the right arm is the fix.
-    ar)           base="${AR_BASE:-training_ar_sud_xpos/model-best}" ;;
+    # ADOPTED 2026-08-14 (user decision): the VOCALISATION-AUGMENTED chain. Trained on the fully
+    # pointed corpus with marks removed per document per epoch, so the arm reads any level of
+    # pointing. LAS spread across orthographies 54.42 -> 1.42 at NO cost on bare text (LAS
+    # identical to the decimal, TAG +0.41, LEMMA +2.21). ⚠ It does cost the IDIOM layer: F 67.30
+    # -> 61.89 end-to-end, precision up 78.0 -> 80.1 but recall down 59.2 -> 50.4 -- the standing
+    # pattern for a rule that is a CONJUNCTION of two of the base's own predictions. Shared and
+    # Reported ship decisions both re-measured and both unchanged (Shared trained 52.17 v rule
+    # 51.70 -- narrowed from ~2.0, so re-check it after any further base change; Reported rule
+    # 73.49 v trained 34.78). AR_BASE gets back the un-augmented arm.
+    ar)           base="${AR_BASE:-training_ar_vocal_sud_xpos/model-best}" ;;
     *)            base=training_${lang}_lemma/model-best ;;
   esac
   # SUD_BASE overrides the arm for THIS run, whatever the language -- used to package the

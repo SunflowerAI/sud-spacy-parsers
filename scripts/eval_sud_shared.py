@@ -20,6 +20,7 @@ the gold says `No` is both a false positive and a false negative -- the same con
     scripts/eval_sud_shared.py --lang lzh --split dev
 """
 import argparse
+import os
 import pathlib
 import sys
 
@@ -54,7 +55,12 @@ EXTRA_CODE = {"la": "la_macronise"}
 
 
 def lemma_arm(lang):
-    return LEMMA_ARM.get(lang, f"training_{lang}_lemma/model-best")
+    # EVAL_LEMMA_ARM / EVAL_SHARED_ARM: score a CANDIDATE base rather than the released one, without
+    # editing the tables above. Added for the vocalisation-augmented arms, whose ship decisions have
+    # to be re-measured because this layer reads the base's own predictions -- the coordination mask
+    # is a fact about that parser, not about the language.
+    return os.environ.get("EVAL_LEMMA_ARM") or LEMMA_ARM.get(
+        lang, f"training_{lang}_lemma/model-best")
 
 
 # Which trained arm to score, named EXPLICITLY rather than "whichever directory happens to exist".
@@ -73,7 +79,8 @@ SHARED_ARM = {
 
 
 def trained_arm(lang):
-    cand = SHARED_ARM.get(lang, f"training_{lang}_sud/model-best")
+    cand = os.environ.get("EVAL_SHARED_ARM") or SHARED_ARM.get(
+        lang, f"training_{lang}_sud/model-best")
     return cand if pathlib.Path(cand).exists() else None
 
 

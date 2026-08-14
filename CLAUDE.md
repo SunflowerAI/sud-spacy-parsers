@@ -803,7 +803,7 @@ CC BY-SA 4.0 -- the wheel's own licence and its own training data. **So the ship
 the lexicon and still inserts ezāfe out of the box**, and `__call__` treats rules-without-lexicon as
 data rather than as "no data".
 
-### Vocalisation augmentation: one copy, resampled every epoch (BUILT, NOT RELEASED)
+### Vocalisation augmentation: one copy, resampled every epoch (ADOPTED 2026-08-14)
 
 `ar_vocalise`/`fa_vocalise` make the models WRITE the vowels. This makes them READ them, which is
 the other half and turned out to be the bigger defect. Measured on the SAME trees with only the
@@ -869,8 +869,35 @@ sampled. Freeze recipe verified: tok2vec/tagger/parser (and morphologizer at the
 out byte-identical up both chains.
 
 Driver `train_vocal.sh` (`corpus | variants | labels | base | morph | lemma | eval`);
-`metrics_{ar,fa}_variants.json` hold the tables. **NOT RELEASED** -- adopting a new base is the same
-decision Latin's augmented arm needed.
+`metrics_{ar,fa}_variants.json` hold the tables.
+
+**ADOPTED 2026-08-14 (user decision), released at v0.2.0 (clobbered).** `package_sud.sh` now names
+`training_{ar,fa}_vocal_sud_xpos` by default; `AR_BASE`/`FA_BASE` get the old arms back. Adoption
+was NOT a repackage -- the whole storey above the base had to be rebuilt on it:
+
+  * **The conditioned tagger had to be retrained**, not carried over. Grafting the released
+    `_xposwarm` donor would have put a tagger that has only ever seen bare text into a pipeline
+    whose entire point is reading pointed text, and the tagger is the component most sensitive to
+    spelling. New donors are warm-started from the augmented arm's OWN tagger and trained through
+    the augmenter; `XPOS_SRC_ARM` overrides the source arm.
+  * **The SUD MISC layer had to be retrained too**, because it reads the base's own predictions --
+    `sud_shared`'s coordination mask is a fact about that parser. `SUD_SRC_MODEL`,
+    `SUD_BASE_CONFIG`, `SUD_CORPUS` and `SUD_AUGMENT` were added for this. ⚠ ar needs
+    `SUD_CORPUS=corpus_ar_vocal_sud`: its augmenter only REMOVES marks, so fed the ordinary bare
+    corpus it can only ever produce bare text and the augmentation silently does nothing. fa needs
+    no override, its augmenter ADDS marks. `Vform` survives `hoist_sud_gold.py`, which is what
+    makes the vocalised SUD corpus buildable at all.
+
+**Every ship decision re-measured, and one real cost found.** Shared: ar trained 52.17 v rule 51.70
+(still trained, but the margin narrowed from ~2.0 -- re-check after any further base change), fa
+trained 68.59 v rule 58.51. Reported: ar rule 73.49 v trained 34.78, fa trained 58.33 v rule 23.53
+(fa IMPROVED, 46.15 -> 58.33). **⚠ ar's IDIOM layer costs 5.41 F: 67.30 -> 61.89 end-to-end**,
+precision UP 78.0 -> 80.1 and recall DOWN 59.2 -> 50.4, measured like-for-like with the same script
+on both arms. That is the standing pattern for a rule that is a CONJUNCTION of two of the base's own
+predictions, and it is the price of the orthographic robustness. fa's Idiom is unchanged (72.73,
+n=6). Verified by downloading both published assets (sha256 identical to what was built) and loading
+them from a clean `--target` install on bare, fully pointed and Arabic-letterform input.
+⚠ Same version, so `pip install -U` will NOT replace an older copy; `--force-reinstall` will.
 
 ### The ar licence was wrong, and correcting it is what let the table ship
 
