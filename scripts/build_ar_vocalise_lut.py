@@ -51,7 +51,7 @@ def read_conllu(path):
         misc = dict(kv.split("=", 1) for kv in f[9].split("|") if "=" in kv)
         v = misc.get("Vform")
         if v:
-            yield f[1], f[3], f[5], v
+            yield f[1], f[3], f[5], v, f[2]
 
 
 def build(paths):
@@ -59,8 +59,13 @@ def build(paths):
     c2 = collections.defaultdict(collections.Counter)
     c3 = collections.defaultdict(collections.Counter)
     n = 0
+    lex = collections.Counter()
     for p in paths:
-        for form, upos, feats, v in read_conllu(p):
+        for form, upos, feats, v, lemma in read_conllu(p):
+            # PADT's LEMMA is a vocalised lemma in the same convention as calima's `lex`, so this
+            # counter ranks the analyser's rival readings by how common the LEXEME actually is.
+            if lemma and lemma != "_":
+                lex[canon(lemma)] += 1
             n += 1
             k = strip_diac(form)
             c1[(k, upos, feats)][v] += 1
@@ -96,7 +101,7 @@ def build(paths):
         fb = l2p[(f, u)] if (f, u) in l2p else fallback(f, u)
         if fb is None or canon(fb) != canon(m):
             l1p[(f, u, x)] = m
-    return l1p, l2p, l3, before, n
+    return l1p, l2p, l3, before, n, lex
 
 
 def main():
@@ -105,7 +110,7 @@ def main():
     ap.add_argument("--out", default=str(DEFAULT_OUT))
     ap.add_argument("--stats", action="store_true", help="report and write nothing")
     a = ap.parse_args()
-    l1, l2, l3, before, n = build(a.train)
+    l1, l2, l3, before, n, lex = build(a.train)
     print(f"harvested {n} tokens carrying Vform")
     print(f"  L1 (skeleton, upos, feats) {before[0]:7d} -> {len(l1):7d} after pruning")
     print(f"  L2 (skeleton, upos)        {before[1]:7d} -> {len(l2):7d}")
@@ -114,7 +119,11 @@ def main():
         return
     blob = {"L1": [[f, u, x, m] for (f, u, x), m in l1.items()],
             "L2": [[f, u, m] for (f, u), m in l2.items()],
-            "L3": [[f, m] for f, m in l3.items()]}
+            "L3": [[f, m] for f, m in l3.items()],
+            # LEX ranks the analyser's rival readings of one skeleton. Without it `للمدرسة` came
+            # back as لِلمُدَرِّسَة "for the teacher" -- a legitimate vocalisation of that skeleton,
+            # but calima lists it first and the component took the first surviving reading.
+            "LEX": [[k, c] for k, c in lex.most_common() if c > 1]}
     with gzip.open(a.out, "wb", compresslevel=9) as fh:
         fh.write(json.dumps(blob, ensure_ascii=False).encode("utf-8"))
     print(f"wrote {a.out} ({Path(a.out).stat().st_size / 1e6:.2f} MB)")

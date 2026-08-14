@@ -84,6 +84,45 @@ ALIF, WAW, YA, ALIF_MAQ = "اويى"
 DIAC = set(FATHA + DAMMA + KASRA + SUKUN + SHADDA + FATHATAN + DAMMATAN + KASRATAN
            + DAGGER_ALIF + "ٕٔٓ")
 HAMZA_ALIF = {"أ": ALIF, "إ": ALIF, "آ": ALIF, "ٱ": ALIF}
+_AR_DIGITS = {ord(c): str(i) for i, c in enumerate("٠١٢٣٤٥٦٧٨٩")}
+
+
+def _fold_orth(s):
+    """Hamza carriers -> bare alif, Arabic-Indic digits -> ASCII. Two spellings that agree under
+    this are the SAME WORD written two ways; two that disagree are different words."""
+    return "".join(HAMZA_ALIF.get(c, c) for c in s).translate(_AR_DIGITS)
+
+
+def reproject(cand, form):
+    """Return `cand`'s diacritics laid onto `form`'s own spelling, or None if they are not the
+    same word.
+
+    ⚠ THE INVARIANT THIS ENFORCES. A vocalisation may only ADD marks: stripping them from the
+    output must give back exactly what the caller passed in. `la_macronise` holds this by contract
+    (`jussit` stays `jussit`) and `fa_align` is verified to zero round-trip failures; this module
+    shipped without it, and 5.41 % of PADT test tokens came back with a DIFFERENT consonantal
+    skeleton -- 836 with a hamza the caller had not written (`الانباء` -> `اَلأَنبَاءِ`), 410 with
+    the digits transliterated (`8` -> `٨`), and **282 that were simply the wrong word**
+    (`دوامة` -> `دَوامُهُ`). The first two are PADT's `Vform` being an orthographic NORMALISATION of
+    the running text, not merely a pointing of it; the third is a lookup miss.
+
+    So: same skeleton -> take it. Same skeleton up to hamza/digits and the same length -> transfer
+    the marks positionally, keeping the CALLER's letters. Anything else is a different word and is
+    refused, so the caller gets its input back rather than a confident wrong answer.
+    """
+    a, b = strip_diac(cand), strip_diac(form)
+    if a == b:
+        return cand
+    if len(a) != len(b) or _fold_orth(a) != _fold_orth(b):
+        return None
+    out, i = [], 0
+    for ch in cand:
+        if ch in DIAC:
+            out.append(ch)
+        else:
+            out.append(b[i])   # the caller's letter, not the table's
+            i += 1
+    return "".join(out)
 
 
 def strip_diac(s):
@@ -158,6 +197,7 @@ class ArVocalise:
         self.require_data = require_data
         self._warned = False
         self.l1 = self.l2 = self.l3 = {}
+        self.lex = {}
         # A build-time convenience only: in a packaged model the table travels in the model
         # directory and arrives via from_disk(), which runs AFTER __init__ -- so a config naming a
         # path that no longer exists must not be fatal, or the wheel fails to load.
@@ -191,11 +231,20 @@ class ArVocalise:
             return None
         want = _CAMEL_POS.get(upos)
         pool = [a for a in reads if want and a.get("pos") in want] or reads
-        diacs = [a["diac"] for a in pool if a.get("diac")]
+        pool = list(enumerate(pool))            # keep calima's order as the tie-break
+        diacs = [a["diac"] for _, a in pool if a.get("diac")]
         if not diacs:
             return None
-        # calima returns readings in the database's own order with no frequency attached, so there
-        # is nothing to rank on beyond the UPOS filter above; take the first surviving reading.
+        # calima returns readings in its database's own order with no frequency attached, and its
+        # first reading is often the rarer lexeme -- `للمدرسة` lists لِلمُدَرِّسَة "for the teacher"
+        # ahead of لِلمَدْرَسَة "for the school". Rank by how common the LEXEME is in PADT instead:
+        # calima's `lex` and PADT's LEMMA are both vocalised lemmas in the same convention, so the
+        # harvested counter is directly comparable. Ties and unknown lexemes keep calima's order,
+        # which is what `enumerate` in the key preserves.
+        if self.lex:
+            pool = sorted(pool, key=lambda t: (-self.lex.get(canon(t[1].get("lex") or ""), 0), t[0]),
+                          )  # noqa: E501
+            diacs = [a["diac"] for _, a in pool if a.get("diac")]
         return to_padt(diacs[0])
 
     # --- lookup ---------------------------------------------------------------------------------
@@ -217,12 +266,17 @@ class ArVocalise:
             for table, rung, k in rungs:
                 hit = table.get(k)
                 if hit is not None:
-                    return hit, rung
+                    fixed = reproject(hit, form)
+                    if fixed is not None:
+                        return fixed, rung
+                    # a table entry for a DIFFERENT word that shares this skeleton: keep looking
         if passthrough:
             return form, "X"
         got = self._from_camel(form, upos)
         if got:
-            return got, "C"
+            fixed = reproject(got, form)
+            if fixed is not None:
+                return fixed, "C"
         return form, None
 
     def __call__(self, doc):
@@ -259,12 +313,14 @@ class ArVocalise:
     def _blob(self):
         return {"L1": [[f, u, x, m] for (f, u, x), m in self.l1.items()],
                 "L2": [[f, u, m] for (f, u), m in self.l2.items()],
-                "L3": [[f, m] for f, m in self.l3.items()]}
+                "L3": [[f, m] for f, m in self.l3.items()],
+                "LEX": [[k, c] for k, c in self.lex.items()]}
 
     def _load_blob(self, blob):
         self.l1 = {(f, u, x): m for f, u, x, m in blob.get("L1", [])}
         self.l2 = {(f, u): m for f, u, m in blob.get("L2", [])}
         self.l3 = {f: m for f, m in blob.get("L3", [])}
+        self.lex = {k: c for k, c in blob.get("LEX", [])}
 
     def to_disk(self, path, exclude=tuple()):
         path = Path(path)
