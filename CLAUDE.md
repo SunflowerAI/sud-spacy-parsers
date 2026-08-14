@@ -803,6 +803,52 @@ CC BY-SA 4.0 -- the wheel's own licence and its own training data. **So the ship
 the lexicon and still inserts ezāfe out of the box**, and `__call__` treats rules-without-lexicon as
 data rather than as "no data".
 
+### `ar_vocalise` returns the CALLER's spelling (user decision, 2026-08-14)
+
+A vocalisation may only ADD marks: stripping them from the output must give back exactly what was
+passed in. `la_macronise` holds that by contract and `fa_align` is verified to zero round-trip
+failures; **ar_vocalise shipped without it**, and 5.41 % of PADT test tokens came back RESPELLED --
+836 with a hamza the caller had not written (`الانباء` -> `اَلأَنبَاءِ`), 410 with digits
+transliterated (`8` -> `٨`), and **282 that were simply the wrong word** (`دوامة` -> `دَوامُهُ`).
+The cause: PADT's `Vform` is an orthographic NORMALISATION of the running text, not merely a
+pointing of it, and the component treated it as only a pointing. `reproject()` enforces the
+invariant -- same skeleton is taken as-is; one differing only by hamza carrier or digit form has
+its marks transferred positionally onto the CALLER's letters; anything else is a different word and
+is refused, so the caller gets its input back rather than a confident wrong answer. **0 of 28 264
+skeleton changes.**
+
+⚠ **MEASURE IT FOLD-BLIND, or you will punish the component for honouring its contract.** Scoring
+the caller's spelling letter-for-letter against a gold that normalises orthography understates it
+by ~4.7 points (81.73 % against a fair **85.71 %**). `eval_ar_vocalise.py` now compares hamza- and
+digit-blind. The real cost of the guard is 86.14 -> 85.71 = **0.43**, all of it the 289 tokens where
+every candidate was a different word and the component now declines to guess. Same shape as
+`la_macronise`'s `_PARADIGM`: measured agreement falls, behaviour improves.
+
+**The analyser rung is ranked by LEXEME FREQUENCY.** calima lists readings in its database's own
+order, often the rarer lexeme first: `للمدرسة` gave `لِلمُدَرِّسَة` "for the teacher" ahead of
+`لِلمَدْرَسَة` "for the school", and the code took the first survivor. The `LEX` table (7 370 PADT
+lemma counts; calima's `lex` and PADT's LEMMA are both vocalised lemmas in the same convention)
+ranks them. +0.04 MB. Released 2026-08-14 (v0.2.0, clobbered; verified by download).
+
+### Idiom: trained beats the rule (PILOT, ar only, dev only)
+
+The `Idiom`/`InIdiom` rule is EXACT on gold trees and loses end-to-end purely to upstream error --
+and it is a CONJUNCTION, so those errors multiply. Decomposing ar's 240 gold heads on predicted
+annotation: rule fires 50.4 %, **both inputs missing 30.8 %**, ExtPos alone 12.5 %, no `unk` 6.2 %.
+So 43.3 % fail on `ExtPos`. Meanwhile **97.5 % of test gold idiom heads have a lemma seen as an
+idiom head in train** -- signal the rule reads none of. A lexicon alone will NOT do it: the
+idiom-head lemmas are the commonest function words (بِ 9.7 %, مِن 9.3 %, فِي 3.1 % of their
+occurrences), so a >50 %-dominance lexical rule gets P 87.1 % / **R 11.2 %**. The lemma says which
+tokens COULD head an idiom; only context says when -- which is what a classifier is for.
+
+Trained with `--encoder structural` (reads DEP, **LEMMA**, POS, MORPH), ar **dev**, same augmented
+base: Idiom **74.84** v the rule's 70.73, InIdiom **75.05** v 71.01. Recall is where it comes from
+(71.60 v 59.67) at ~8 points of precision. ⚠ DEV ONLY, and `model-best` was selected on it, so this
+is optimistic; **`spacy evaluate` reports 0.00 for these pipes on a converted test corpus even with
+the gold present** (its scorer setup differs from the training loop's), so a test figure needs a
+harness like `eval_sud_shared.py` rather than the CLI. Not shipped. Data exists for ja (13 320),
+lzh (2 452), sa (1 741); fa (258) and la stay rule-based.
+
 ### Vocalisation augmentation: one copy, resampled every epoch (ADOPTED 2026-08-14)
 
 `ar_vocalise`/`fa_vocalise` make the models WRITE the vowels. This makes them READ them, which is
