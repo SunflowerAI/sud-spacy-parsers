@@ -71,7 +71,11 @@ PY=.venv/bin/python
 # from the base arm, shipping the trained `sud_reported` at F 35.0 instead of the rule at 66.7 and
 # omitting `sud_idiom` entirely). Overridable so the driver can do those releases itself:
 #   VERSION=0.2.1 bash scripts/package_sud.sh en
-VERSION="${VERSION:-0.1.0}"
+# The default is the version every wheel on the release CURRENTLY carries. It was left at 0.1.0
+# long after all twelve went to 0.2.0, so a bare call built a wheel named a whole generation behind
+# and said nothing -- the same shape as a default that names a pre-graft arm, and the same fix: make
+# the default right rather than write a note asking the next person to remember.
+VERSION="${VERSION:-0.2.0}"
 CODE_BASE="scripts/sud_misc.py,scripts/sud_idiom.py"
 # arms that also ship the Reported rule (en/ar/sa -- see the table below)
 CODE_REP="$CODE_BASE,scripts/sud_reported_data.py,scripts/sud_reported_rule.py"
@@ -131,16 +135,28 @@ add_idiom() { $PY scripts/add_sud_idiom.py "$1" "$2" >/dev/null 2>&1; }
 for lang in "$@"; do
   # Base arm: the trained SUD arm where it won, else the released lemma arm.
   case $lang in
-    # ar/lzh/id joined this list when `Shared` did: their Subject/Reported layers ship as RULES,
-    # so before that they had no reason to take the trained arm at all. The unwanted trained pipes
-    # are dropped below, so no dead weights travel.
-    en|yue|id) base=training_${lang}_sud/model-best ;;
+    # en, yue and id all take a trained SUD arm; ar/lzh/id joined them when `Shared` did, their
+    # Subject/Reported layers shipping as RULES, so before that they had no reason to take the
+    # trained arm at all. The unwanted trained pipes are dropped below, so no dead weights travel.
+    # All three name the GRAFTED arm, as every other language does. The v0.2.0 release
+    # grafted these three per arm through SUD_BASE and kept no directory, so the default named a
+    # base whose tagger predates the graft and repackaging would have shipped the tagger BACKWARDS
+    # -- the same trap ar fell into. Rebuilt (2026-08-15) with, per language,
+    #   python scripts/graft_xpos_tagger.py training_<l>_sud/model-best \
+    #          training_<l>_xposwarm/model-best training_<l>_sud_xpos/model-best \
+    #          --corpus corpus_<l>_sud/test.spacy
+    # parse unchanged en 8585/8585, yue 1261/1261, id 11756/11756; tag_acc 0.9287 -> 0.9325,
+    # 0.9286 -> 0.9313, 0.9264 -> 0.9288. These reproduce what SHIPPED rather than making a new
+    # generation, and that is checked rather than argued: every weight file in the arm -- the five
+    # base components AND the sud_* pipes -- is byte-identical to the one hashed out of the
+    # DOWNLOADED v0.2.0 wheel. EN_BASE/YUE_BASE/ID_BASE get back the pre-graft arm.
+    en)  base="${EN_BASE:-training_en_sud_xpos/model-best}" ;;
+    yue) base="${YUE_BASE:-training_yue_sud_xpos/model-best}" ;;
+    id)  base="${ID_BASE:-training_id_sud_xpos/model-best}" ;;
     # fa names the GRAFTED arm, for the same reason ar does -- see the ar note below. Rebuilt with
     #   python scripts/graft_xpos_tagger.py training_fa_sud/model-best \
     #          training_fa_xposwarm/model-best <out> --corpus corpus_fa/fa_perdt-sud-dev.spacy
     # (parse unchanged 10427/10427, tag_acc 0.9599 -> 0.9613). FA_BASE gets back the pre-graft arm.
-    # ⚠ en, yue and id above still have NO grafted arm on disk; graft before repackaging any of
-    # them, or pkg()'s guard will refuse.
     # ADOPTED 2026-08-14 (user decision): the vocalisation-augmented chain, as ar. LAS spread
     # 64.40 -> 2.04, bare LAS +0.10. Its worst released row was not vocalisation at all -- Arabic
     # keyboard letterforms (ی/ي, ک/ك) cost 29.6 LAS and now cost 1.2. Ship decisions re-measured:
