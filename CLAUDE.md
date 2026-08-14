@@ -905,6 +905,28 @@ section quoted ja at 13 320 and sa at 1 741 on that basis, which are the two key
 needed `train_sud.sh`. Added, pointing at `.udep_ruled` -- the released generation for ja (802
 committed cells), not the plain `.relabeled_ext` files, which are a generation behind.
 
+### Why the augmentation cost the Idiom rule, and why de-augmenting cannot fix it
+
+The rule reads two of the base's own predictions, so the question "can we recover it by normalising
+the input?" has a precise answer: **no, because the input was never augmented.** The Idiom
+comparison feeds the plain treebank, 98.5 % of whose tokens carry no diacritic at all, to both
+arms -- there is nothing to strip. The loss is inside the morphologiser's weights. On that
+identical bare text:
+
+    base                                 ExtPos     unk    BOTH
+    un-augmented (training_ar_sud)        66.7 %  65.8 %  59.2 %
+    augmented (training_ar_vocal_sud)     56.7 %  62.9 %  50.4 %
+
+**`ExtPos` prediction fell 10 points while the headline metrics ROSE** (bare TAG +0.41, LEMMA
++2.21, LAS identical). That is the lesson worth keeping: **augmentation costs are not uniform
+across labels.** Overall `morph_acc` is dominated by common features -- Number, Case, Gender -- which
+are robust to spelling; `ExtPos` is rare, and rare labels pay for the capacity spent on spelling
+invariance first. Any ship decision in the MISC layer rests on rare labels, which is exactly why
+CLAUDE.md requires re-measuring them after a base change rather than trusting the headline.
+
+The fix is therefore not to touch the input but to stop making the layer depend on a degraded
+prediction -- i.e. to train it, which recovers 61.89 -> 64.98 of the 67.30.
+
 ### Normalise at the boundary, or augment? Both — and which one depends on the AXIS
 
 The cheaper alternative to augmentation is to normalise the INPUT instead of teaching the model to
@@ -948,9 +970,14 @@ NOT: normalising before an augmented arm actively destroys the signal the augmen
 read. The general form -- *normalise the information-free axes at the boundary, augment for the
 information-bearing and the irreversible ones* -- is the rule, and neither half subsumes the other.
 
-**NOT IMPLEMENTED.** A fa boundary normaliser would change `doc.text`, which is a contract decision
-(cf. `ar_vocalise` returning the caller's spelling); the gain is +0.93 LAS on Arabic-keyboard input
-and +1.11 on the all-axes row.
+**IMPLEMENTED AND RELEASED 2026-08-14** as `sud.FaNormTokenizer.v1` (`scripts/fa_normalise.py`,
+swapped in by `add_fa_normaliser.py`). ⚠ `doc.text` IS the normalised text -- deliberately the
+OPPOSITE contract to `ar_vocalise`, which must give the caller's spelling back, because a vocaliser
+adds to what it was given whereas a tokeniser's job here is to hand the model the spelling it was
+trained on. The caller's original is kept on `doc.user_data["fa_source_text"]`, with
+`doc.user_data["fa_normalised"]` recording whether anything changed. Pure surgery: no weight file
+moved, and `--verify` checks the RELOADED model, since assigning `nlp.tokenizer` does not update
+the config.
 
 ### Vocalisation augmentation: one copy, resampled every epoch (ADOPTED 2026-08-14)
 

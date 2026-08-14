@@ -33,7 +33,10 @@ def _load(fname):
 # sud_feats_embed). Added here rather than to each driver's own --code, because `spacy train` takes
 # ONE file and a list that has to be remembered per driver is a list that gets missed -- the reason
 # this module exists at all.
-for _f in ("vocal_augment.py", "ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
+# The released vocalisers and the fa boundary normaliser: their factories are named in the ar/fa
+# wheels' configs, so anything loading those models through this file needs them registered.
+for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py",
+           "fa_normalise.py", "ar_tokenizer.py", "yue_tokenizer.py", "lzh_tokenizer.py",
            "sa_tokenizer.py", "clause_parser.py", "sud_unsandhi.py", "sa_devanagari.py",
            # registers sud.LatinEncliticTokenizer.v1. Its absence here meant every script that
            # loads a released la model through this file died with E893 -- found only once

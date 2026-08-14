@@ -230,7 +230,18 @@ for lang in "$@"; do
     # Reported ship decisions both re-measured and both unchanged (Shared trained 52.17 v rule
     # 51.70 -- narrowed from ~2.0, so re-check it after any further base change; Reported rule
     # 73.49 v trained 34.78). AR_BASE gets back the un-augmented arm.
-    ar)           base="${AR_BASE:-training_ar_vocal_sud_xpos/model-best}" ;;
+    # ⚠ The base is now the arm carrying the TRAINED Idiom pipes, and `add_idiom` is NOT run for
+    # ar below. On the augmented base the rule loses to a trained pipe: Idiom 61.89 -> **64.98**,
+    # InIdiom 62.30 -> **66.11** end-to-end on test, measured on this exact arm. The gain is recall
+    # (58.75 v 50.42) against ~7 points of precision, and it comes from a signal the rule reads
+    # NONE of -- 97.5 % of gold idiom heads have a lemma seen as an idiom head in train, while the
+    # rule sees only ExtPos and `unk`, whose conjunction the augmented base supplies on just 50.4 %
+    # of them. ar is the ONLY language where this wins: ja has no headroom (95.7 % availability,
+    # rule already 96.88) and lzh/sa have half ar's data. See NEGATIVE-RESULTS.md.
+    # Rebuild with: train the pipes against the SHIPPING arm (SUD_SRC_MODEL=..._sud_xpos), then
+    # graft_pipe.py them in -- graft_pipe REFUSES if the two arms' frozen components differ, which
+    # is what caught an earlier attempt to graft pipes trained against the pre-graft tagger.
+    ar)           base="${AR_BASE:-training_ar_vocal_sud_idiom/model-best}" ;;
     *)            base=training_${lang}_lemma/model-best ;;
   esac
   # SUD_BASE overrides the arm for THIS run, whatever the language -- used to package the
@@ -282,7 +293,22 @@ case $lang in
        $PY scripts/add_vocalise.py --lang fa "$work.idiom" "$work" --no-lut --verify \
             --code sud_tagger.py,sud_misc.py,sud_idiom.py,sud_shared_data.py,sud_shared_rule.py,sud_reported_data.py,sud_reported_rule.py,sud_feats_embed.py \
             || { echo "  fa: fa_vocalise surgery FAILED — skip"; continue; }
-       pkg fa  "$work" sud_perdt "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/fa_vocalise.py,scripts/fa_align.py" ;;
+       # fa also swaps in the NORMALISING tokeniser (sud.FaNormTokenizer.v1), which maps the
+       # Arabic codepoints an Arabic keyboard produces (ي/ك -> ی/ک) and strips diacritics before
+       # tokenising. This is the zh move -- normalise at the boundary rather than train for every
+       # spelling -- and it is worth having ON TOP of the augmentation: 86.09 -> 87.02 LAS on
+       # Arabic-letterform input, 85.64 -> 86.75 on all axes at once.
+       # ⚠ Do NOT copy this to ar. Stripping diacritics costs the augmented ARABIC arm 0.77 LAS
+       # and 4.42 TAG, because there the marks are the case endings. Persian has no case system,
+       # so its short vowels carry no syntax and removing them is free. Normalise what is
+       # information-free; augment for what is not, and for the ZWNJ, which cannot be reversed.
+       # It goes LAST because it rewrites [nlp.tokenizer] in the config, and it re-verifies the
+       # RELOADED model -- assigning nlp.tokenizer alone does not update the config.
+       $PY scripts/add_fa_normaliser.py "$work" "$work.norm" --verify \
+            --code sud_tagger.py,sud_misc.py,sud_idiom.py,sud_shared_data.py,sud_shared_rule.py,sud_reported_data.py,sud_reported_rule.py,sud_feats_embed.py,fa_vocalise.py,fa_align.py \
+            || { echo "  fa: normalising tokeniser swap FAILED — skip"; continue; }
+       rm -rf "$work" && mv "$work.norm" "$work"
+       pkg fa  "$work" sud_perdt "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/fa_vocalise.py,scripts/fa_align.py,scripts/fa_normalise.py" ;;
        # la additionally ships `la_macronise` IN THE PIPELINE, with NO lookup table (--no-lut): the
        # vowel lengths are Morpheus-derived (CC BY-SA 3.0 US) and this wheel is CC BY-NC-SA, so the
        # data cannot travel with it -- but the COMPONENT can, and it starts macronising the moment
@@ -340,8 +366,10 @@ case $lang in
        # so a fresh clone packages correctly instead of failing on a missing file.
        [ -f scripts/ar_vocalise_lut.json.gz ] || $PY scripts/build_ar_vocalise_lut.py
        $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang ar >/dev/null 2>&1
-       add_idiom "$work.rep" "$work.idiom"
-       $PY scripts/add_vocalise.py --lang ar "$work.idiom" "$work" --verify \
+       # NO add_idiom for ar: the base already carries the TRAINED sud_idiom/sud_inidiom pipes,
+       # and add_sud_idiom.py would append the RULE on top of them, so the wheel would ship two
+       # answers for one key with the rule silently winning by running last.
+       $PY scripts/add_vocalise.py --lang ar "$work.rep" "$work" --verify \
             --code sud_tagger.py,sud_misc.py,sud_idiom.py,sud_shared_data.py,sud_shared_rule.py,sud_reported_data.py,sud_reported_rule.py,sud_feats_embed.py \
             || { echo "  ar: ar_vocalise surgery FAILED — skip"; continue; }
        pkg ar  "$work" sud_padt  "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py,scripts/ar_tokenizer.py,scripts/ar_vocalise.py" ;;
