@@ -55,7 +55,7 @@ marginals are unimodal-centred, 8/22/36/21/12 %), rank stability, and band lopsi
 codes used, top three carry 29.6 %). Binary membership IS nearly vacuous (1.46× enrichment, code 3
 at 64 % of non-breaks) and something better must exist, but five attempts found only the simplest
 one. **Stop here unless a new idea arrives; do not re-run the encoding search.** (The idea that did
-arrive was jieba's *decision* rather than its dictionary — see CLAUDE.md.)
+arrive was jieba's *decision* rather than its dictionary — see `docs/layers-and-tokenisers.md`.)
 
 **Pre-correcting jieba buys nothing as a feature.** A force-split userdict harvested from train
 (`del_word`) lifts jieba *as a standalone segmenter* from token F 0.7989 to **0.8570**, halving the
@@ -121,7 +121,7 @@ miniature — milder because it is per-component and suffix-only, same direction
 suffix window helps components predicting WORD-level properties (tagger, morphologiser, lemmatiser)
 and hurts the parser, which wants the short shared ending as a generalisation cue. This was the
 clean single-variable base experiment the entry above asked for; the answer is no. (The layer IS a
-win on the *dedicated* encoders — see CLAUDE.md.)
+win on the *dedicated* encoders — see `docs/sanskrit.md`.)
 
 **More rows and longer windows are both worse** for the affix layer: suffix 5 at 8 000 rows beats
 the same window at 16 000, and beats suffix 6 at 24 000. The cheapest good configuration wins.
@@ -145,7 +145,7 @@ form in `NORM`. Left at `[]`, matching the other ten arms.
 **Conditioning XPOS on UPOS+FEATS at the BOTTOM of the encoder costs 0.2-0.6 TAG.** ⚠ Read this
 entry as being about the INJECTION POINT, not about the idea: injecting the same information at the
 TOP, under the softmax, is a WIN of +0.05 to +0.48 in all nine languages tried and is described in
-CLAUDE.md. What follows is why the bottom is the wrong place, and it cost three arms to learn. Every arm grew the same way -- base pipeline `[tok2vec, tagger,
+`docs/xpos.md`. What follows is why the bottom is the wrong place, and it cost three arms to learn. Every arm grew the same way -- base pipeline `[tok2vec, tagger,
 parser]`, morphologiser added later as a frozen layer -- so the one component whose target is
 largely a restatement of UPOS+FEATS is the only one that cannot see them, purely because of the
 order the layers were built in. Fixing that looks obviously right and is not.
@@ -228,8 +228,8 @@ three languages with no informative feature were predicted in advance by the inv
 comes to depend on its NEIGHBOURS' predicted morphology, and the token representation is rebuilt
 from scratch instead of reusing the co-trained shared encoder. Move the identical information above
 the encoder (`sud.Tok2VecPlusFeats.v1`: keep the released tagger's `Tok2VecListener` on the frozen
-shared encoder, concatenate the morphology under the softmax) and it helps everywhere. See CLAUDE.md,
-"XPOS conditioned on UPOS+FEATS". The lesson worth carrying: **where a noisy predicted feature enters
+shared encoder, concatenate the morphology under the softmax) and it helps everywhere. See
+`docs/xpos.md`, "XPOS conditioned on UPOS+FEATS". The lesson worth carrying: **where a noisy predicted feature enters
 the network matters more than how it is represented** -- bundle vs per-feature was a wash (<= 0.10),
 bottom vs top was ~0.7. A feature that is right 75-99 % of the time should reach the decision it
 informs and nothing else; convolving it spreads its errors over every neighbour.
@@ -277,7 +277,7 @@ with far more positives, where `pool=closed` is the variant to try.
 **The plain added-layer encoder is the wrong one for `Reported`** (F 0.12–0.40, recall-limited).
 The standard dedicated `HashEmbedCNN` over NORM/PREFIX/SUFFIX/SHAPE, window 1 / depth 3, has a ±3
 receptive field — right for `Subject` (the raising complement sits *next to* its control verb, F
-0.72–0.92) and wrong here, where every cue is non-local. See `--structural` in CLAUDE.md.
+0.72–0.92) and wrong here, where every cue is non-local. See `--structural` in `docs/sud-misc-layer.md`.
 
 ---
 
