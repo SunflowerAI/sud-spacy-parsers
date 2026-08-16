@@ -50,7 +50,9 @@ def read_sents(path):
         if len(f) < 10 or "-" in f[0] or "." in f[0]:
             continue
         misc = dict(kv.split("=", 1) for kv in f[9].split("|") if "=" in kv)
-        cur.append((f[1], f[3], f[5], misc.get("Vform")))
+        # SpaceAfter rides along: Doc(words=...) otherwise spaces every token and
+        # doc.text stops being the string the model would meet at inference.
+        cur.append((f[1], f[3], f[5], misc.get("Vform"), misc.get("SpaceAfter") != "No"))
     if cur:
         sents.append(cur)
     return sents
@@ -130,7 +132,7 @@ def main():
 
     if a.gold_morph:
         for s in sents:
-            for form, upos, feats, v in s:
+            for form, upos, feats, v, _sp in s:
                 if not v:
                     continue
                 pred, lvl = comp.lookup(form, upos, feats)
@@ -143,10 +145,10 @@ def main():
         for s in sents:
             # gold WORDS, predicted annotation: the tokenisation is not under test here, and
             # re-tokenising would misalign the comparison with the gold Vform column.
-            doc = Doc(nlp.vocab, words=[t[0] for t in s])
+            doc = Doc(nlp.vocab, words=[t[0] for t in s], spaces=[t[4] for t in s])
             for _, pipe in nlp.pipeline:
                 doc = pipe(doc)
-            for (form, _, _, v), tok in zip(s, doc):
+            for (form, _, _, v, _sp), tok in zip(s, doc):
                 if not v:
                     continue
                 pred, lvl = comp.lookup(tok.text, tok.pos_, str(tok.morph) or "_")

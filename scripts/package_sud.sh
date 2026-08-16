@@ -113,6 +113,32 @@ if "tagger" in pipe and "morphologizer" in pipe and pipe.index("tagger") < pipe.
     print("    tagger precedes morphologizer: %s" % pipe, file=sys.stderr)
     sys.exit(1)
 GUARD
+  # ⚠ THE SILENCED-TAGGER GUARD. spaCy's tagger writes only where `token.tag == 0` unless
+  # `overwrite` is on, and the stock configs here all carry `overwrite = false`. Harmless for
+  # eleven arms -- nothing sets a tag before the tagger runs -- but `spacy.ja.JapaneseTokenizer`
+  # assigns `token.tag_` at TOKENISATION, so ja's trained tagger was a NO-OP at inference and users
+  # got SudachiPy's raw UniDic tag (0.7673 against gold) where the tagger would have given 0.9457.
+  # It shipped in ja_sud_gsd-0.2.0 and gold_preproc could never have caught it: the predicted doc
+  # is built from gold words, carries no tag, so the tagger DOES write and tag_acc looked healthy.
+  # BEHAVIOURAL, not a list of languages: tokenise an ASCII probe and ask the arm whether its own
+  # tokeniser pre-set anything. ja pre-sets 3/3 on "Test 1.", en/ko/zh 0/3 -- so one probe
+  # separates them with no per-language table to fall out of date. Fix with
+  # scripts/fix_tagger_overwrite.py, which patches config.cfg AND the pipe's serialised cfg (the
+  # latter is what from_disk restores, so patching the config alone changes nothing).
+  $PY - "$src" <<'GUARD' || { echo "  $arm: SILENCED TAGGER — refusing to package. Fix with scripts/fix_tagger_overwrite.py $src"; return; }
+import pathlib, sys
+sys.path.insert(0, "scripts")
+import seg_code  # noqa: F401  (custom architectures/tokenisers)
+import spacy
+nlp = spacy.load(sys.argv[1])
+if "tagger" not in nlp.pipe_names:
+    sys.exit(0)
+preset = sum(1 for t in nlp.make_doc("Test 1.") if t.tag != 0)
+if preset and not nlp.get_pipe("tagger").cfg.get("overwrite"):
+    print("    tokeniser pre-sets tags and tagger.overwrite=false: "
+          "the trained tagger is a no-op at inference", file=sys.stderr)
+    sys.exit(1)
+GUARD
   # An arm straight out of `spacy train` has an EMPTY license field, and `spacy package` copies it
   # through without complaint -- so a rebuilt arm ships unlicensed unless this runs. Every model
   # here derives from CC BY-SA treebanks (la, and en_gum, from NonCommercial ones), so this is an

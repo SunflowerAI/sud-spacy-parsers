@@ -99,3 +99,143 @@ class CompoundCorpus(Corpus):
                 if ref_tok.morph.get("Compound"):
                     pred_tok.set_morph("Compound=Yes")
         return eg
+
+# ---------------------------------------------------------------------------------------------
+# ja: the tokeniser-supplied Inflection channel
+# ---------------------------------------------------------------------------------------------
+
+def _move_infl(predicted, reference) -> int:
+    """Move ``SudInfl`` from the reference onto the predicted doc as ``Inflection``.
+
+    MOVE, not copy, and the direction matters in both halves:
+
+    * onto the PREDICTED doc under the name the tokeniser uses at inference (``Inflection``), since
+      that is the string ``sud.MultiHashEmbedFeats.v1`` hashes and the whole point is that training
+      and inference hash the same thing;
+    * OFF the reference, because the reference is the scoring target. ``SudInfl`` is a transport
+      key, not gold morphology, and leaving it there would drag ``morph_acc`` down against a
+      feature the morphologiser is not being asked to predict -- a wrong number in a log, which is
+      how this repo has been misled before.
+
+    Tokens with no value are left UNSET rather than set to an empty morph: the two are different
+    inputs (CLAUDE.md), and ``MultiHashEmbedFeats`` already maps an absent feature to its own
+    ``Inflection=`` row.
+    """
+    if len(predicted) != len(reference):
+        return 0
+    n = 0
+    for pred_tok, ref_tok in zip(predicted, reference):
+        vals = ref_tok.morph.get("SudInfl")
+        if not vals:
+            continue
+        pred_tok.set_morph({"Inflection": ",".join(vals)})
+        d = ref_tok.morph.to_dict()
+        d.pop("SudInfl", None)
+        ref_tok.set_morph(d or None)
+        n += 1
+    return n
+
+
+@registry.readers("sud.InflCorpus.v1")
+def create_infl_reader(path, max_length: int = 0, limit: int = 0, augmenter=None,
+                       shuffle: bool = False):
+    return InflCorpus(path, max_length=max_length, limit=limit, augmenter=augmenter,
+                      shuffle=shuffle)
+
+
+class InflCorpus(GoldTokCorpus):
+    """``GoldTokCorpus`` plus the tokeniser-supplied ``Inflection`` on the predicted doc.
+
+    TRAIN-TIME reader for the ja conditioned-XPOS arms. The corpus must have been stamped by
+    ``scripts/stamp_ja_inflection.py`` first; an unstamped corpus read through here is silently a
+    plain ``GoldTokCorpus`` with a constant channel, so ``check_xpos_inputs.py`` reports the
+    coverage before any training run is burned.
+    """
+
+    def _make_example(self, nlp, reference, gold_preproc) -> Example:
+        eg = super()._make_example(nlp, reference, gold_preproc)
+        _move_infl(eg.predicted, reference)
+        return eg
+
+
+@registry.readers("sud.InflEvalCorpus.v1")
+def create_infl_eval_reader(path, gold_preproc: bool = True, max_length: int = 0,
+                            limit: int = 0, augmenter=None):
+    return InflEvalCorpus(path, gold_preproc=gold_preproc, max_length=max_length,
+                          limit=limit, augmenter=augmenter)
+
+
+class InflEvalCorpus(Corpus):
+    """EVAL-time counterpart, mirroring what ``spacy evaluate --gold-preproc`` builds.
+
+    ``spacy evaluate --gold-preproc`` uses the stock reader, which never runs the tokeniser, so an
+    arm conditioned on ``Inflection`` would be scored with one of its inputs deleted. Same reason
+    ``eval_sa_compound.py`` exists for ``Compound``, one language over.
+    """
+
+    def _make_example(self, nlp, reference, gold_preproc) -> Example:
+        eg = super()._make_example(nlp, reference, gold_preproc)
+        _move_infl(eg.predicted, reference)
+        return eg
+
+
+def _move_infl_tag(predicted, reference) -> int:
+    """As ``_move_infl``, plus the tokeniser's XPOS onto the predicted doc's ``tag``.
+
+    The tag goes on the TAG ATTRIBUTE, not into MORPH, because that is where the tokeniser puts it
+    at inference (``token.tag_ = dtoken.tag``) and therefore what an ``attrs=[..., "TAG"]`` embed
+    column reads. Transporting it through FEATS and leaving it there would train on a channel that
+    is empty at inference -- the exact skew this whole mechanism exists to close.
+
+    ⚠ The value is the TOKENISER's tag, carried in ``SudTag``; the reference's own ``tag`` is GOLD
+    XPOS and is never copied. Gold would be leakage into the tagger's own target, and it would
+    misrepresent inference, where the tokeniser agrees with gold on 76.7 % of tokens.
+    """
+    if len(predicted) != len(reference):
+        return 0
+    n = 0
+    for pred_tok, ref_tok in zip(predicted, reference):
+        d = ref_tok.morph.to_dict()
+        infl = d.pop("SudInfl", None)
+        tag = d.pop("SudTag", None)
+        if infl:
+            pred_tok.set_morph({"Inflection": infl})
+        if tag:
+            pred_tok.tag_ = tag
+            n += 1
+        ref_tok.set_morph(d or None)
+    return n
+
+
+@registry.readers("sud.InflTagCorpus.v1")
+def create_infl_tag_reader(path, max_length: int = 0, limit: int = 0, augmenter=None,
+                           shuffle: bool = False):
+    return InflTagCorpus(path, max_length=max_length, limit=limit, augmenter=augmenter,
+                         shuffle=shuffle)
+
+
+class InflTagCorpus(GoldTokCorpus):
+    """TRAIN-time reader for the ja arms conditioned on Inflection AND the tokeniser's XPOS."""
+
+    def _make_example(self, nlp, reference, gold_preproc) -> Example:
+        eg = super()._make_example(nlp, reference, gold_preproc)
+        _move_infl_tag(eg.predicted, reference)
+        return eg
+
+
+@registry.readers("sud.InflTagEvalCorpus.v1")
+def create_infl_tag_eval_reader(path, gold_preproc: bool = True, max_length: int = 0,
+                                limit: int = 0, augmenter=None):
+    return InflTagEvalCorpus(path, gold_preproc=gold_preproc, max_length=max_length,
+                             limit=limit, augmenter=augmenter)
+
+
+class InflTagEvalCorpus(Corpus):
+    """EVAL-time counterpart. Scoring one of these arms through the stock reader deletes BOTH
+    channels; scoring it through ``InflEvalCorpus`` deletes only the tag, which is worse than
+    useless because it looks like it worked."""
+
+    def _make_example(self, nlp, reference, gold_preproc) -> Example:
+        eg = super()._make_example(nlp, reference, gold_preproc)
+        _move_infl_tag(eg.predicted, reference)
+        return eg

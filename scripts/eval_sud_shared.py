@@ -29,6 +29,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import spacy  # noqa: E402
 from spacy.tokens import Doc  # noqa: E402
 
+import stamp_ja_inflection  # noqa: E402,F401
 import seg_code  # noqa: E402,F401  (custom tokenisers + sud_tagger)
 import sud_shared_rule  # noqa: E402,F401  (registers the rule factory)
 from build_sud_shared_frames import TRAIN, gold_shared, path_for, sentences  # noqa: E402
@@ -84,11 +85,42 @@ def trained_arm(lang):
     return cand if pathlib.Path(cand).exists() else None
 
 
+
+# ⚠ Any harness that builds a doc from GOLD WORDS must put back what the tokeniser would have
+# supplied. `Doc(vocab, words=[...])` yields tag == 0 and MORPH unset, so an arm whose encoder
+# reads tokeniser-set channels (ja: XPOS + Inflection) runs with those inputs DELETED and every
+# number still prints. Measured on ja's idiom layer: the parser's `unk` F fell 0.948 -> 0.786 and
+# the rule lost ~6-8 F, which looked exactly like a base regression and was not one.
+# `spaces=` matters for the same reason: without it doc.text gets a space after every token, and
+# re-running the tokeniser over that analyses a string that never occurs at inference -- which
+# measured WORSE than supplying no channels at all.
+_CHAN_CACHE = {}
+
+
+def _channel_nlp(nlp):
+    """The tokeniser whose channels this arm reads, or None. Behavioural, so no language table:
+    ja pre-sets 3/3 tags on an ASCII probe, en/ko/zh 0/3. Cached -- building it is not free."""
+    key = id(nlp)
+    if key not in _CHAN_CACHE:
+        _CHAN_CACHE[key] = (stamp_ja_inflection.build_tokenizer()
+                            if stamp_ja_inflection.needs_channels(nlp) else None)
+    return _CHAN_CACHE[key]
+
+
+def _gold_doc(nlp, rows):
+    doc = Doc(nlp.vocab, words=[f[1] or "_" for f in rows],
+              spaces=["SpaceAfter=No" not in (f[9] if len(f) > 9 else "") for f in rows])
+    chan = _channel_nlp(nlp)
+    if chan is not None:
+        stamp_ja_inflection.apply_channels(doc, chan)
+    return doc
+
+
 def score(nlp, rows_iter, source):
     """`source` is "slot" (Token._.sud_misc) or "morph" (token.morph, the morphologiser)."""
     tp = fp = fn = skipped = 0
     for rows in rows_iter:
-        doc = Doc(nlp.vocab, words=[f[1] or "_" for f in rows])
+        doc = _gold_doc(nlp, rows)
         doc = nlp(doc)
         if len(doc) != len(rows):
             skipped += 1
@@ -123,7 +155,7 @@ def mask_ceiling(nlp, rows_iter):
     """
     inside = total = size = 0
     for rows in rows_iter:
-        doc = nlp(Doc(nlp.vocab, words=[f[1] or "_" for f in rows]))
+        doc = nlp(_gold_doc(nlp, rows))
         if len(doc) != len(rows):
             continue
         cand = {i for i, _ in doc_candidates(doc)}

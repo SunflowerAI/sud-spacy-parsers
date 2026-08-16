@@ -158,12 +158,16 @@ def _parse_all(model_dir, conllu):
     nlp = spacy.load(model_dir)
     out = []
     words = []
+    # SpaceAfter, so doc.text is the string the model would actually meet. Without it every token
+    # gets a trailing space, which changes doc.text for any component that reads it.
+    spaces = []
     for line in pathlib.Path(conllu).read_text(encoding="utf-8").splitlines():
         if not line.strip():
             if words:
-                doc = nlp(Doc(nlp.vocab, words=words))
+                doc = nlp(Doc(nlp.vocab, words=words, spaces=spaces))
                 out.append(([t.head.i for t in doc], [t.dep_ for t in doc]))
                 words = []
+                spaces = []
             continue
         if line.startswith("#"):
             continue
@@ -171,8 +175,9 @@ def _parse_all(model_dir, conllu):
         if "-" in c[0] or "." in c[0]:
             continue
         words.append(c[1])
+        spaces.append("SpaceAfter=No" not in (c[9] if len(c) > 9 else ""))
     if words:
-        doc = nlp(Doc(nlp.vocab, words=words))
+        doc = nlp(Doc(nlp.vocab, words=words, spaces=spaces))
         out.append(([t.head.i for t in doc], [t.dep_ for t in doc]))
     return out
 

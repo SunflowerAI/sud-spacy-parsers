@@ -42,7 +42,7 @@ def strip_macron(s):
 
 
 def sentences(plain, macron):
-    """Yield (forms, macronised forms, upos, feats) per sentence block."""
+    """Yield (forms, macronised forms, upos, feats, spaces) per sentence block."""
 
     def blocks(path):
         cur = []
@@ -58,8 +58,11 @@ def sentences(plain, macron):
             yield cur
 
     for pb, mb in zip(blocks(plain), blocks(macron)):
+        # SpaceAfter travels with the sentence: Doc(words=...) otherwise spaces every token, and
+        # doc.text stops being the string the model would meet.
         yield ([r[1] for r in pb], [r[1] for r in mb],
-               [r[3] for r in pb], [r[5] for r in pb])
+               [r[3] for r in pb], [r[5] for r in pb],
+               ["SpaceAfter=No" not in (r[9] if len(r) > 9 else "") for r in pb])
 
 
 def main():
@@ -92,13 +95,13 @@ def main():
 
     fired, corr = Counter(), Counter()
     tok_ok = tok_n = v_ok = v_n = 0
-    for forms, macd, upos, feats in sentences(args.plain, args.macron):
+    for forms, macd, upos, feats, sp in sentences(args.plain, args.macron):
         if args.gold:
             pairs = zip(forms, macd, upos, feats)
         else:
             words = list(forms)
             for _ in range(args.passes):
-                doc = nlp(Doc(nlp.vocab, words=words))
+                doc = nlp(Doc(nlp.vocab, words=words, spaces=sp))
                 # feed the pipeline its own macronised tokens on the next pass
                 words = [t._.macron for t in doc]
             pairs = zip(forms, macd, [t.pos_ for t in doc],

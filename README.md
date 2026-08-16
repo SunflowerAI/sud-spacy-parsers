@@ -14,14 +14,16 @@ English ships twice at two licences (see
 Twelve wheels over eleven languages (English ships twice — see the licence column). The version
 is the one on the [Releases](https://github.com/SunflowerAI/sud-spacy-parsers/releases) page: seven
 models were rebuilt at **0.2.0**, the other five are unchanged since **0.1.0** and install from that
-release.
+release. Japanese is at **0.3.0**: its tagger was a no-op at inference (the tokeniser pre-sets every
+tag and spaCy's tagger does not overwrite by default), and its encoder now reads the conjugation and
+XPOS channels SudachiPy already supplies.
 
 | Model | Language | Version | Treebank | Licence |
 |-------|----------|:-------:|----------|---------|
 | `en_sud_ewt` | English | 0.2.0 | SUD_English-EWT | CC BY-SA 4.0 |
 | `en_sud_ewt_gum` | English | 0.2.0 | SUD_English-EWT + GUM (ten non-NC genres) | CC BY-NC-SA 4.0 |
 | `zh_sud_gsd` | Chinese | 0.2.0 | SUD_Chinese-GSD | CC BY-SA 4.0 |
-| `ja_sud_gsd` | Japanese | 0.2.0 | SUD_Japanese-GSD | CC BY-SA 4.0 |
+| `ja_sud_gsd` | Japanese | 0.3.0 | SUD_Japanese-GSD | CC BY-SA 4.0 |
 | `ko_sud_gsd` | Korean | 0.2.0 | SUD_Korean-GSD | CC BY-SA 4.0 |
 | `la_sud_ittb_proiel_perseus` | Latin | 0.2.0 | SUD_Latin-ITTB + PROIEL + Perseus | CC BY-NC-SA 4.0 |
 | `lzh_sud_kyoto` | Classical Chinese | 0.2.0 | SUD_Classical_Chinese-Kyoto (+ kanripo punctuation) | CC BY-SA 4.0 |
@@ -83,7 +85,7 @@ end-to-end token accuracy, which is where the tokeniser is measured instead.
 | `en_sud_ewt` | English | 0.2.0 | 86.3 | 81.3 | 70.9 | 99.6 |
 | `en_sud_ewt_gum` | English (EWT+GUM) | 0.2.0 | 86.8 | 81.9 | 70.8 | 99.7 |
 | `zh_sud_gsd` | Chinese | 0.2.0 | 73.3 | 68.9 | 28.7 | 96.9 ⚑ |
-| `ja_sud_gsd` | Japanese | 0.2.0 | 91.1 | 88.2 | 69.6 | 99.4 |
+| `ja_sud_gsd` | Japanese | 0.3.0 | 92.0 | 90.0 | 72.9 | 99.4 |
 | `ko_sud_gsd` | Korean | 0.2.0 | 65.6 | 56.8 | 35.5 | 99.8 § |
 | `la_sud_ittb_proiel_perseus` | Latin | 0.2.0 | 78.7 | 71.7 | 64.7 | 100.0 ¶ |
 | `lzh_sud_kyoto` | Classical Chinese | 0.2.0 | 82.9 | 77.2 | 66.5 | 100.0 † ‖ |
