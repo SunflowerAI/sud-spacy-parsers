@@ -155,3 +155,17 @@ corpus_la_tokens.txt
 # git is a licence position, not just hygiene.
 scripts/ar_vocalise_lut.json.gz
 scripts/fa_vocalise_lut.json.gz
+
+# vidyut's linguistic data bundle (~100M generated Sanskrit word forms), downloaded by
+# vidyut.download_data(). Never committed: it is a third-party redistribution whose licence is
+# unresolved, and it is reproducible with one call.
+vidyut-data/
+
+# lzh kanripo vector artefacts (regenerate: make_leakfree_lzh_corpus.py -> build_lzh_vectors.py)
+corpus_lzh_kanripo_leakfree*.txt
+vectors_lzh_*.vec
+vectors_lzh_leakfree*/
+vectors_lzh_shuffled*/
+build_lzh_vectors_leakfree.log
+# CC0 Qieyun data, refetched by build_lzh_vectors.py (URL in its docstring)
+assets_qieyun/

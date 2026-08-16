@@ -47,6 +47,11 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            # registers sud.MultiHashEmbedFeats.v1 (one embedding table per morphological FEATURE,
            # rather than one hash of the whole FEATS bundle) -- the XPOS-downstream arms
            "sud_feats_embed.py",
+           # registers sud.LexFieldEmbed.v1 (one table per comma-separated XPOS FIELD, read from a
+           # shipped per-form lexicon). The lzh parser runs BEFORE any tagger, so there is no
+           # predicted TAG for it to read; the lexicon is what supplies the channel at inference,
+           # and it travels inside the model's own bytes.
+           "sud_lex_embed.py",
            # registers sud.WarmStartTagger.v1 (start a conditioned tagger AS the released one)
            "warm_start_tagger.py",
            # registers sud.CharSegTokenizer.v1 — the treebank-trained character segmenter used as

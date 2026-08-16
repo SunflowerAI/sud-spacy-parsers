@@ -471,3 +471,136 @@ and it is exact given `unk`. A classifier must rediscover transitivity from the 
 expresses a closure rather than a local decision, prefer the rule unless the data is abundant.
 
 Do not re-run this without more data; the arms are kept as `training_{ja,lzh,sa}_idiom/`.
+
+---
+
+## XPOS as a parser input, and kanripo vectors, for lzh (2026-08-16)
+
+Four channels intended to give the lzh parser information it lacks. **None beat its capacity
+control**, and three of them could have been ruled out before any training run. Baseline is
+`training_lzh_trad` (traditional-only, punctuation-restored, rule-merged) on test with
+`--gold-preproc`: TAG 92.59 / UAS 82.92 / LAS 77.20.
+
+    arm                                  TAG     UAS     LAS   vs its control
+    constant-channel control           92.46   82.58   77.10        --
+    XPOS fields 1+2, per-form lexicon   92.59   82.36   76.91      -0.19
+    whole 118-way tag, same route       92.50   82.96   77.33      +0.24
+    predicted XPOS fields (tagger)      92.56   82.43   76.84      -0.25
+    shuffled-vector control            92.63   82.42   77.04        --
+    kanripo static vectors, 300d       92.82   82.98   77.50      +0.46   <- seed 0 ONLY
+
+The whole spread is 0.49 LAS on one seed, and this arm family's seed spread is ~0.5. The vectors
+row is the trap: **+0.46 on seed 0 became +0.04 mean over three seeds** (+0.46 / -0.13 / -0.20,
+sd 0.29). Read no single-seed row in that table as a result, in either direction.
+
+**1. A per-form lexicon carries ZERO information beyond `NORM`, and that is an identity.** A
+majority-XPOS-per-form table is a deterministic function of the form, so conditioning on
+`(form, f(form))` is conditioning on `form` -- which the parser already holds. Measured on test
+with one plug-in estimator throughout, 34 233 tokens:
+
+    H(deprel | form)                  1.1941 bits
+    H(deprel | form, GOLD xpos)       0.9719   -> gold adds     0.2222 bits
+    H(deprel | form, PREDICTED xpos)  1.0466   -> a tagger adds 0.1475 bits
+    H(deprel | form, LEXICON fields)  1.1941   -> the lexicon adds 0.0000 bits
+
+The useful part of XPOS is the WITHIN-FORM variation -- 58.8 % of lzh tokens have a form whose XPOS
+field 2 varies (`H(XPOS field2 | form)` = 0.2808 bits) -- and a majority table destroys exactly
+that. It was not obvious in advance: the lexicon looks strong on the metric that flatters it, a form
+seen once or twice having its coarse field right 88.6 % of the time against 76.0 % for the whole
+118-way tag. **A channel can be accurate and still carry nothing.**
+
+**2. A feature predicted by a head that SHARES the encoder is already linearly present in every
+other head's input.** `spacy.Tagger.v2` is a LINEAR softmax on the listener output; the parser's
+first operation on the same listener output is also linear; `listener_map` shows both heads on the
+one `tok2vec`. So XPOS is linearly decodable from the parser's own input at the tagger's own
+accuracy, 92.59, by construction. Handing back a hashed embedding of the predicted tag gives the
+first linear layer nothing it could not already extract -- which is why 0.1475 bits of genuinely
+available information bought -0.25 LAS. The wiring was verified, not assumed: with
+`annotating_components = ["xpos_prepass"]` the parser sees a tag on 100 % of tokens during
+training, without it 0 %.
+
+**3. Kanripo static vectors do not help parsing: +0.04 LAS mean over three seeds.** floret CBOW over
+42 M tokens of Kanseki Repository text (~90x the treebank), trained on IDS-expanded strings so
+subword n-grams share strength between graphically related characters, written out keyed by the
+bare character. The channel has neither defect above: it is genuinely new information and it is
+populated at 100 % of test tokens in every frequency slice. It still does not pay.
+
+**The frequency-split probe says why, and it is the diagnostic worth reusing.** Predicting UPOS from
+the vector for a HELD-OUT character, split by how often that character occurs in kanripo:
+
+    kanripo freq   types   majority   vector
+             1-5     289     47.40%   57.79%
+            6-50     803     40.72%   60.27%
+          51-500    1692     43.20%   62.77%
+            >500    2715     45.86%   65.12%
+
+At frequency 1-5 the vector has decayed to 57.79 %, which is the RADICAL probe's 57.00 to within
+noise -- the distributional content is gone and only the graphic backoff remains. And that is
+exactly the population the parser needed help with: treebank-unseen forms have a **median kanripo
+frequency of 4**, with 59.2 % at five or fewer. So the vectors are informative where the parser
+already copes and near-empty where it does not. Aggregate probe accuracy hides this completely
+(63.30 % UPOS, 71.12 % XPOS field 2, both far above majority).
+
+**96 dimensions do not preserve the aggregate** (PCA, 64.7 % variance retained, 6.8 MB against
+20 MB): +0.06 LAS vs its own control, against 300d's seed-0 +0.46. One seed each, so the comparison
+is weak, but there is nothing here to justify the wheel growing by 20 MB on a 12 MB base.
+
+**4. The sub-character probe that preceded all of this, and which nobody should re-run.** Predicting
+a held-out character's class from symbolic features, 5 472 types, logistic regression with the
+regularisation swept and a bias-only null:
+
+                     UPOS            XPOS field3 (44 classes)
+    NULL (bias)      44.59%          33.33%
+    radical          57.00%  +12.4   44.17%  +10.8
+    IDS (depth 2)    55.30%  +10.7   39.42%   +6.1
+    Qieyun           48.06%   +3.5   33.17%   -0.2
+    all three        57.36%          42.69%
+
+**The Kangxi radical (Unihan `kRSUnicode`, Unicode licence) beats full IDS (cjkvi-ids, GPLv2) and
+adding IDS to it buys nothing**, so the licence question that would have blocked shipping never
+arises. Qieyun (nk2028, CC0, 98.8 % token coverage) is far behind on lexical class and does not
+stack. It was not built as a vector arm: it would be a third BACKOFF for the same starved
+population, and the backoffs do not add. ⚠ An earlier version of this probe scored BELOW the null
+because `cross_val_predict` used contiguous folds over codepoint-sorted characters, which groups
+characters by Unicode block and therefore by radical. The null control caught it. **Run the null
+before reading any ablation.**
+
+**The corpus contained the evaluation text, and the treebank is why.** Kyoto was built FROM kanripo
+(the sent_ids ARE kanripo ids, which is how `align_kanripo_punct.py` restored the punctuation), so
+200 of 200 sampled test sentences appear verbatim as kanripo lines, and **127 of 279 treebank-unseen
+types have their ONLY kanripo occurrence inside a test sentence**. Not label leakage, but the
+vectors would have been fitted to the very text they were scored on, for exactly the population
+under test. `make_leakfree_lzh_corpus.py` removes dev/test at a cost of 0.15 % of tokens; short
+formulaic sentences (子曰, 何也) are exempt UNLESS they carry a form train never saw, which takes the
+contaminated count to 160 of 279. All figures above are on the leak-free set.
+
+⚠ **PRUNE VECTORS BY DIMENSION, NEVER BY VOCABULARY.** `vectors_lzh_apt96` in the aptness repo is
+what the other mistake looks like: pruned to a training vocabulary, it covers **0 %** of
+treebank-unseen forms and 83.0 % of test tokens overall, 93 % of the gap being punctuation it
+predates. The rows are the value; the dimensions are the cost. Building the leak-free set hits the
+same trap from the other side -- removing dev/test drops 577 treebank types out of the corpus
+vocabulary, so `build_lzh_vectors.py --extra-types` emits their rows anyway (composed from subwords,
+using no held-out text).
+
+**Two pre-flight checks that cost minutes and would have killed three of these four.**
+
+1. **Is the channel a function of something the component already reads?** If so it carries zero
+   bits, whatever its accuracy. One conditional-entropy calculation.
+2. **Does a head sharing the encoder already predict it?** If so it is linearly present in the
+   input. One look at the model tree and `listener_map`.
+
+And one that explains the fourth: **split any probe by the frequency of the thing being backed off
+to.** An aggregate says the channel is informative; the split says whether it is informative where
+it is needed.
+
+A validity check worth copying: the constant-channel control was trained twice from different
+configs (renamed component, `annotating_components` set) and came out with **bit-identical parser
+weights**, max |Δ| 0.000e+00 over 431 723 parameters -- confirming that a `constant = true` channel
+really is inert and that the two experiments shared one correctly-matched control.
+
+Kept: `sud.LexFieldEmbed.v1` (`sud_lex_embed.py`, both `lexicon` and per-token `tag` sources),
+`build_xpos_lexicon.py`, `check_lex_embed.py`, `make_xposlex_config.py`, `make_vec_config.py`,
+`make_leakfree_lzh_corpus.py`, `build_lzh_vectors.py` (with an unbuilt `--qieyun` arm),
+`shrink_vectors.py`, `init_lzh_vectors.py`, `eval_lex_slices.py` (the frequency-slice harness), and
+`train_xposlex.sh`. Arms: `training_lzh_{xposlex,xposlex_ctl,xposlex_whole,xpostagpred,`
+`xpostagpred_ctl,vec,vec_ctl,vec_s1,vec_ctl_s1,vec_s2,vec_ctl_s2,vec96,vec96_ctl}`.
