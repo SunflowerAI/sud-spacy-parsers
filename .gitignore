@@ -169,3 +169,8 @@ vectors_lzh_shuffled*/
 build_lzh_vectors_leakfree.log
 # CC0 Qieyun data, refetched by build_lzh_vectors.py (URL in its docstring)
 assets_qieyun/
+assets_cbeta/
+assets_unihan/
+assets_dila/
+assets_soothill/
+assets_wiktionary/

@@ -97,6 +97,7 @@ evidence**. Which release figures are stale, and on which single field:
 | `docs/latin.md` | three treebanks, macrons in and out, orthographic augmentation, `la_macronise` | the macron table's lookup key must be orthography-tolerant, least-normalised first |
 | `docs/sanskrit.md` | the raw-sandhied-text front end, the CSLiser, the sandhi machinery, the joint multi-task arm | an **unset** MORPH and an **empty** one are different inputs (cost 6.8 LAS) |
 | `docs/chinese-family.md` | zh traditional-only + `zh_script`, lzh's restored punctuation and `clause_parser`, yue | `_looks_simplified` cannot be "would `s2t` change it?"; `keep_marks` is coupled to the arm underneath |
+| `docs/lzh-tokenisation.md` | lzh's multi-character tokens, the trained char segmenter, the Heart Sūtra gold set, and every lexicon/gazetteer route measured | the released lzh tokeniser splits 孔子, and **no standard metric can see it** — `gold_preproc` bypasses the tokeniser |
 | `docs/languages.md` | en's two arms and two licences; id's FEATS and lemma-casing fixes; ko's eojeol arm | an arm name is not a language — the two places that confused them both failed silently |
 
 ## The twelve wheels
@@ -113,7 +114,7 @@ All at v0.2.0 (re-clobbered as layers landed), published on the GitHub Release, 
 | sa | `sa_sud_vedic_ufal_dcs` | CC BY-SA 4.0 | `sa.SanskritInputTokenizer.v3` | accepts **raw sandhied** IAST or Devanagari; joint multi-task arm |
 | zh | `zh_sud_gsd` | CC BY-SA 4.0 | char tagger + jackknifed lexicon + jieba BMES | traditional-only; vendors a pruned jieba |
 | yue | `yue_sud_hk` | CC BY-SA 4.0 | pkuseg trained on yue | test-only treebank → deterministic 80/10/10 split |
-| lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | one Han char = one token | custom `lzh` language; `clause_parser`; punctuation restored from kanripo |
+| lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) | custom `lzh` language; `clause_parser`; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825) |
 | ja | `ja_sud_gsd` | CC BY-SA 4.0 | SudachiPy | |
 | ko | `ko_sud_gsd` | CC BY-SA 4.0 | eojeol, spaCy's rule tokeniser | no SUD MISC layer — nothing cleared the precision floor |
 | id | `id_sud_gsd` | CC BY-SA 4.0 | char tagger, enclitics SPLIT | `id_lemma_case_fix` after the lemmatiser |

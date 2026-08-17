@@ -98,13 +98,22 @@ pkg() {  # $1=arm  $2=src model dir  $3=--name value  $4=comma-separated --code 
   if [ ! -d "$src" ]; then echo "  $arm: SRC $src missing — skip"; return; fi
   # ⚠ THE XPOS-DOWNSTREAM GUARD. All twelve v0.2.0 wheels ship the warm-started tagger MOVED behind
   # the morphologiser so it can read UPOS+FEATS (graft_xpos_tagger.py; ar 89.44 -> 89.71, sa +1.52).
-  # That release grafted per arm through SUD_BASE and kept a `_sud_xpos` directory only for en_gum
-  # and la, so the DEFAULTS for en/fa/yue/id/ar still name pre-graft arms -- and rebuilding one
-  # produces a wheel that builds, loads and parses perfectly while shipping the previous tagger
-  # generation. Only a file-by-file diff against the downloaded asset catches that, which is how it
-  # was found on ar. The pipeline ORDER is the cheap invariant that encodes it, so assert it here
-  # rather than hope the next person diffs: a wheel whose tagger precedes its morphologiser is
-  # pre-graft, whatever else is right about it.
+  # That release grafted per arm through SUD_BASE and kept no directory, so the defaults named
+  # pre-graft arms -- and rebuilding one produces a wheel that builds, loads and parses perfectly
+  # while shipping the previous tagger generation. Only a file-by-file diff against the downloaded
+  # asset catches that, which is how it was found on ar.
+  #
+  # STATE OF THE DEFAULTS, re-derived from the arms themselves on 2026-08-17 (do not trust the
+  # prose -- run the check): en, yue, id (7eafb16), ar and fa are POST-graft and safe. en_gum was
+  # NOT, although an earlier version of this comment exempted it and la on the grounds that a
+  # `_sud_xpos` directory had been kept for them; that claim was false for both. en_gum's default
+  # now names `training_en_gum_sud_xw`, rebuilt and verified byte-identical to the released asset.
+  # ⚠ `training_la_aug_sud_xpos` IS STILL PRE-GRAFT -- la cannot be repackaged until the graft is
+  # re-run against `training_la_xposwarm`.
+  #
+  # The pipeline ORDER is the cheap invariant that encodes all of this, so assert it here rather
+  # than hope the next person diffs: a wheel whose tagger precedes its morphologiser is pre-graft,
+  # whatever else is right about it.
   $PY - "$src" <<'GUARD' || { echo "  $arm: PRE-GRAFT arm — refusing to package. Rebuild with scripts/graft_xpos_tagger.py"; return; }
 import sys, json, pathlib
 cfg = (pathlib.Path(sys.argv[1]) / "meta.json")
@@ -141,9 +150,10 @@ if preset and not nlp.get_pipe("tagger").cfg.get("overwrite"):
 GUARD
   # An arm straight out of `spacy train` has an EMPTY license field, and `spacy package` copies it
   # through without complaint -- so a rebuilt arm ships unlicensed unless this runs. Every model
-  # here derives from CC BY-SA treebanks (la, and en_gum, from NonCommercial ones), so this is an
+  # here derives from CC BY-SA treebanks (la and ar, from NonCommercial ones), so this is an
   # obligation. --arm keys the licence/sources tables, --lang goes into the meta: en ships TWO
-  # wheels at two licences, so keying on the language code alone would flip both.
+  # wheels and only en_gum owes GUM's CC BY attribution, so keying on the language code alone
+  # would give it to both.
   $PY scripts/stamp_model_meta.py "$src" --lang "$lang" --arm "$arm" \
     ${DESCRIPTION:+--description "$DESCRIPTION"} \
     >/dev/null || { echo "  $arm: meta stamp FAILED"; return; }
@@ -196,7 +206,18 @@ for lang in "$@"; do
     # component byte-identical. Headline TAG is flat (0.3 % of the corpus) but accuracy on the
     # affected punctuation goes 72.47 -> 82.98. `en` (EWT-only) is deliberately NOT in this arm:
     # on its own, EWT's convention is internally consistent.
-    en_gum)       base=training_en_gum_sud_xpos/model-best ;;
+    #
+    # ⚠ THE DEFAULT NAMED `training_en_gum_sud_xpos/model-best` UNTIL 2026-08-17, AND THAT ARM IS
+    # PRE-GRAFT -- its tagger sits before the morphologiser, so the guard in pkg() refuses it and
+    # the shipped wheel could not be rebuilt from this script at all. The comment in pkg() said
+    # v0.2.0 "kept a `_sud_xpos` directory only for en_gum and la", implying those two defaults were
+    # safe; they are not, and `training_la_aug_sud_xpos` is pre-graft in exactly the same way.
+    # `training_en_gum_sud_xw` is the GRAFTED arm, rebuilt with (and reproducible by):
+    #   graft_xpos_tagger.py training_en_gum_sud_xpos/model-best training_en_gum_xposwarm/model-best \
+    #     training_en_gum_sud_xw --corpus corpus_en_gum_ext/en_ewtgum-sud-test.relabeled_ext.spacy
+    # All three of that script's checks pass, and the wheel it packages is byte-identical to the
+    # released v0.2.0 asset in every weight file -- only the licence metadata differs.
+    en_gum)       base=training_en_gum_sud_xw ;;
     # la ships the ORTHOGRAPHICALLY AUGMENTED chain, not the plain-plus-macron union: one copy of
     # the macronised treebank resampled into a fresh edition style every epoch (macrons, breves,
     # u/v, i/j, æ/œ, sentence-initial capitals). It costs ~0.5 LAS and 2.7 TAG on ordinary input
@@ -245,7 +266,15 @@ for lang in "$@"; do
     # asset file by file -- the wheel built, loaded and ran, and nothing else would have said so.
     # Third time this repo has shipped lzh a generation backwards; a default that names the arm is
     # the fix, not a note telling the next person to remember.
-    lzh)          base="${LZH_BASE:-training_lzh_trad_sud/model-best}" ;;
+      # ⚠ AND THIS DEFAULT WAS PRE-GRAFT TOO. `training_lzh_trad_sud` has the tagger BEFORE the
+    # morphologiser, so pkg()'s guard refuses it and the shipped wheel could not be rebuilt from
+    # this script -- the same defect recorded for en_gum and la above, in a third place.
+    # `training_lzh_trad_sud_xw` is the grafted arm, rebuilt with (and reproducible by):
+    #   graft_xpos_tagger.py training_lzh_trad_sud/model-best training_lzh_xposwarm/model-best \
+    #     training_lzh_trad_sud_xw --corpus corpus_lzh_trad/lzh_kyoto-sud-test.<suffix>.spacy
+    # All three of that script's checks pass (parse unchanged 5628/5628, tags match donor
+    # 5628/5628) and TAG goes 0.8469 -> 0.9254, which is the released wheel's generation.
+  lzh)          base="${LZH_BASE:-training_lzh_trad_sud_xw}" ;;
     # zh is TRADITIONAL-ONLY end to end, like lzh, and for the same reason -- a both-scripts
     # inventory never pools 個 with 个. Naming the arm here rather than falling through to
     # `training_zh_lemma` is not tidiness: the fall-through is the both-scripts generation, and it
@@ -303,9 +332,11 @@ case $lang in
        add_idiom "$work.rep" "$work"
        pkg en  "$work" sud_ewt   "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py" ;;
        # en_gum: the SECOND English wheel, EWT + the ten non-NonCommercial GUM genres. Same pipe
-       # surgery as en, different corpus and a different licence -- CC BY-NC-SA 4.0, keyed off the
-       # ARM name so plain `en_sud_ewt` stays CC BY-SA and commercially usable. The two wheels
-       # coexist deliberately; users choose. See scripts/build_en_ewt_gum.sh for the data build.
+       # surgery as en, different corpus. It is CC BY-SA 4.0 like plain `en`, since 2026-08-17 --
+       # GUM's maintainer confirmed the annotations are CC BY and the NC belongs to the individual
+       # documents, which the genre filter already drops. The ARM key still matters: en_gum owes
+       # GUM's CC BY ATTRIBUTION (SOURCES in stamp_model_meta.py) and plain en does not.
+       # See scripts/build_en_ewt_gum.sh for the data build.
        # ⚠ Which Reported arm ships here is NOT inherited from en: the MISC layer reads the base
        # arm's own predictions, so the rule-vs-trained comparison must be re-run on this arm
        # (eval_sud_reported.py) before this line is trusted.
@@ -462,7 +493,18 @@ case $lang in
        # yue (99.762 / 99.841) are one token apart either way, so they keep the trained layer.
        # HARVEST FROM THE TREEBANK THE ARM WAS TRAINED ON -- a table built from a different
        # generation of the data silently disagrees with the model's own vocabulary.
-  lzh) $PY scripts/han_lemma_lut.py --build "$base" "$work.lut" \
+       # THE CHARACTER SEGMENTER. lzh shipped "one Han character = one token" for its whole life,
+       # but the Kyoto treebank is not: 852 of the traditional test set's 34,233 tokens are
+       # multi-character (孔子 君子 匈奴 五十), so the rule tokeniser scored token F 0.9624 with
+       # multi-char recall of exactly ZERO. The trained segmenter scores 0.9825 / 0.7124.
+       # NO RETRAIN IS INVOLVED: gold_preproc + sud.GoldTokCorpus.v1 make the parser
+       # segmenter-agnostic, and bundle_lzh_charseg.py asserts every component comes out
+       # BYTE-IDENTICAL. It also refuses a segmenter whose stamped training corpus is not the
+       # traditional one -- the both-scripts model differs by nothing a weight check can see.
+  lzh) $PY scripts/bundle_lzh_charseg.py --src "$base" --seg "${LZH_SEG:-models/lzh_seg_char_trad}" \
+            --out "$work.tok" --verify >/dev/null 2>&1 \
+            || { echo "  lzh: charseg bundling FAILED — skip"; continue; }
+       $PY scripts/han_lemma_lut.py --build "$work.tok" "$work.lut" \
             --conllu "$LZH_TRAIN_CONLLU" >/dev/null 2>&1
        # --keep-marks is COUPLED to the base: worth +2.34 LAS on the punctuation-trained arm and
        # -3.80 on one that has never seen a mark. Drop it if you set LZH_BASE to a pre-punctuation
@@ -472,7 +514,7 @@ case $lang in
        $PY scripts/add_sud_subject_rule.py "$work.seg" "$work.rule" --lang lzh >/dev/null 2>&1
        $PY scripts/add_sud_idiom.py "$work.rule" "$work" --drop sud_subject >/dev/null 2>&1
        pkg lzh "$work" sud_kyoto \
-            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/han_lemma_lut.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py" ;;
+            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/han_lemma_lut.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py" ;;
        # sa: Subject is too sparse to ship (142 train / 14 test); the idiom layer still applies.
        # sa_compound must stay FIRST (the encoder reads MORPH); clause_parser before sud_idiom.
        # sa: the whole front end (CSLiser + de-CSLizer + de-sandhifier + Devanagari rendering)

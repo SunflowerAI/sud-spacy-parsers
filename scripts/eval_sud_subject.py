@@ -153,6 +153,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lang", required=True, choices=sorted(TEST))
     ap.add_argument("--split", default="test")
+    # ⚠ SUD_ARM / LEMMA_ARM name FIXED directories, several of which are superseded generations
+    # (lzh's entries are the BOTH-SCRIPTS arm while the wheel ships traditional-only). Standing
+    # hazard 5 says re-measure this layer after any base change -- which is impossible if the arm
+    # cannot be pointed at the thing that changed. --model does that.
+    ap.add_argument("--model", default=None,
+                    help="evaluate THIS pipeline instead of the hardcoded arm (e.g. the built wheel)")
     args = ap.parse_args()
 
     path = TEST[args.lang].format(split=args.split)
@@ -162,7 +168,7 @@ def main():
 
     print(f"{args.lang} {args.split}   (gold tokens, everything else predicted)")
 
-    trained_dir = SUD_ARM.get(args.lang, f"training_{args.lang}_sud/model-best")
+    trained_dir = args.model or SUD_ARM.get(args.lang, f"training_{args.lang}_sud/model-best")
     if pathlib.Path(trained_dir).exists():
         nlp = spacy.load(trained_dir)
         P, R, F, n, sk = score(nlp, rows)
@@ -172,7 +178,7 @@ def main():
         print(f"  sud_tagger (trained)  -- {trained_dir} missing")
 
     lemma = (lzh_rule_arm() if args.lang == "lzh"
-             else LEMMA_ARM.get(args.lang, f"training_{args.lang}_lemma/model-best"))
+             else args.model or LEMMA_ARM.get(args.lang, f"training_{args.lang}_lemma/model-best"))
     if pathlib.Path(lemma).exists():
         nlp = spacy.load(lemma)
         if "sud_subject_rule" in nlp.pipe_names:

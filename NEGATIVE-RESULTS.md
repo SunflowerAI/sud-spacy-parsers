@@ -604,3 +604,256 @@ Kept: `sud.LexFieldEmbed.v1` (`sud_lex_embed.py`, both `lexicon` and per-token `
 `shrink_vectors.py`, `init_lzh_vectors.py`, `eval_lex_slices.py` (the frequency-slice harness), and
 `train_xposlex.sh`. Arms: `training_lzh_{xposlex,xposlex_ctl,xposlex_whole,xpostagpred,`
 `xpostagpred_ctl,vec,vec_ctl,vec_s1,vec_ctl_s1,vec_s2,vec_ctl_s2,vec96,vec96_ctl}`.
+
+---
+
+## Grafting the lzh encoder into zh (2026-08-17)
+
+The question came from a real asymmetry: lzh outscores zh (released gold-preproc LAS **77.20** vs
+**69.01**), and unlike every earlier transfer idea here the donor/recipient ratio finally pointed
+the right way. **It still does not pay: −0.61 LAS over three paired seeds.** The entry is worth
+reading less for the number than for the two pre-flight bounds that priced it, and the wiring trap
+that nearly voided the whole table.
+
+    seed   arm       TAG     UAS     LAS
+       0   control  90.81   73.82   69.01
+       0   graft    90.93   72.67   68.05
+       1   control  90.67   72.45   67.70
+       1   graft    90.97   72.97   68.26
+       2   control  90.62   73.02   68.23
+       2   graft    90.29   71.93   66.80
+
+    paired mean      TAG +0.04 (sd 0.33)   UAS −0.57 (sd 0.95)   LAS −0.61 (sd 1.04)
+    per-seed LAS delta                     −0.96 / +0.55 / −1.43
+
+The sd exceeds the mean, so the defensible claim is **no gain**, not "it hurts". Note the CONTROL's
+own spread — 69.01 / 67.70 / 68.23 — which is why three seeds is the floor here: zh's test set is
+12 010 tokens, a third of lzh's, so the noise floor is WIDER than the ~0.5 LAS of the lzh arm
+family.
+
+**The direction that looked obvious is the one that was already dead, and vice versa.** Two
+conditional-coverage counts, minutes each, settled both before any training:
+
+  * **zh → lzh** (the intuitive direction, since zh is the bigger "language"): **92.6 %** of lzh's
+    unseen-form test tokens are absent from zh GSD entirely, and those present have a median zh
+    frequency of 2. The donor is also SMALLER than the recipient (98 614 tokens against 460 390).
+    Ruled out unmeasured.
+  * **lzh → zh**: every quantity flips. Donor 4.7× the recipient, zh's OOV rate is **12.46 %**
+    against lzh's **1.15 %**, and **84.0 %** of zh's OOV tokens have a first character the donor
+    knows at median frequency **44**. This is the arm that was built.
+
+**The transfer is CHARACTER-level, and that is a ceiling, not a detail.** Only 4.4 % of zh's OOV
+tokens have their full form as an lzh key — OOV zh words are multi-character and lzh is one Han
+character per token (97.2 %). So `NORM` carries almost nothing for the population that needs it and
+`PREFIX` carries 84.0 %; `SUFFIX` is `orth_[-3:]`, which for a two-character word is the whole word,
+so it transfers at 4.5 %. One of four tables does the work.
+
+**Re-tokenising the donor into zh's word regime does not lift that ceiling, and the bound is
+segmentation-INDEPENDENT.** A token must be a contiguous substring of the text, so ask directly
+whether lzh text can yield zh's OOV word types at all. Of 1 319 such types, **13.3 %** occur
+anywhere in 460 k tokens of lzh train text, and the distribution is the whole story:
+
+    zh OOV type length    1 char   2 chars   3 chars   4 chars   5-6 chars
+    present in lzh text    78.3%     15.6%      0.0%      0.8%       0.0%
+
+The only healthy column is the single characters, which **already transfer without any
+re-tokenisation**. Classical Chinese does not contain modern Mandarin vocabulary under any
+segmentation. Worse, the surgery would destroy the channel that does work: jieba over Classical text
+puts **31.9 %** of tokens into multi-character groups against lzh's true rule-merged rate of
+**2.84 %**, and of the 4 991 distinct multi-character tokens it invents, only **5.5 %** are real zh
+training types — pseudo-words in place of well-attested characters. ⚠ And note that "retrain lzh
+with the zh tokeniser" is a **no-op** in this repo regardless: both arms train through gold tokens
+(`gold_preproc = true` / `sud.GoldTokCorpus.v1`), which is the same property that makes the parser
+segmenter-agnostic. Changing the donor's key inventory means treebank surgery, not a config edit.
+
+**Why it loses, from the slice split — the donor is most informative where it is most wrong.** LAS
+delta by training frequency of the token's form:
+
+    slice     tokens   share    mean d     sd    per-seed
+    unseen      1497   12.5%     +0.33   1.47    +0.66  +1.61  −1.27
+    1-2          955    8.0%     +0.32   0.63    +0.32  +0.94  −0.31
+    3-10        1518   12.6%     −2.00   0.93    −2.04  −1.05  −2.90   <- all three same sign
+    11-50       2278   19.0%     −1.01   1.49    −1.85  +0.71  −1.90
+    >50         5762   48.0%     −0.43   0.92    −0.98  +0.63  −0.95
+
+The coverage argument predicted help on the rare tail and the sign there is positive in both tail
+slices — but at +0.33 on 12.5 % of tokens it is inside noise, and it is swamped by the **3-10 band,
+the only slice with a consistent sign across all three seeds**. That band is forms zh has its own
+evidence for but little of it, and it is exactly where a Classical prior must be UN-learned rather
+than built on: the characters that transfer most confidently (之, 而, 以) are the ones whose modern
+distribution diverges most from their Classical one. **A donor can be well-attested, cover the right
+population, and still be worth less than nothing** — which is a different failure from the kanripo
+vectors (informative, but empty where needed) and worth keeping distinct from it.
+
+**Two wiring traps, the second of which silently voided the first sweep.**
+
+1. Cross-language `source=` is blocked by **E150** (nlp lang vs vocab lang), so the encoder moves as
+   a BLOB through `[initialize] init_tok2vec` — bytes carry no language. This is the route yue's
+   Mandarin init already takes. The recipient config must also carry a filled **`[pretraining]`**
+   block: spaCy resolves the target through `get_tok2vec_ref(nlp, config["pretraining"])`, and every
+   base config here ships that block empty.
+2. ⚠ **`Loaded pretrained weights` is NOT evidence of anything, and its absence is not evidence
+   either.** In `spacy/training/initialize.py` the `layer.from_bytes(weights_data)` call is
+   unconditional; only the `logger.info` AFTER it is level-gated, so the line never appears without
+   `--verbose` even though the load happened. A driver guard grepping for it **rejected all three
+   graft arms** on the first sweep — the models were correct and were scored separately. The guard
+   now checks the SAVED config (`init_tok2vec = "<blob>"` in `model-best/config.cfg`), verified to
+   pass all three graft arms and reject all three controls.
+
+Two positive checks worth copying. The graft was confirmed against the donor BEFORE the sweep, by
+training both arms two steps and summing |Δ| over all 24 tok2vec tensors — graft−donor **797**,
+control−donor **117 065**. Verify the wiring, never assume it. And the CONTROL was reconciled
+against the shipped arm afterwards: seed 0 reproduces `metrics_release_zh.json` to every decimal on
+UAS **73.8219**, LAS **69.0076** and SENTS_F **99.1027**, which proves the added `[pretraining]`
+block is inert and that the thing the graft was compared against really is the released recipe. Only
+TAG differs (90.81 against 91.12) — expected, because the wheel ships the later warm-started tagger
+conditioned on UPOS+FEATS, not the base arm's. **Reconcile a control against a known arm whenever
+one exists**; it costs one command and converts "plausibly matched" into "matched".
+
+**One confound not separated.** The graft arms early-stopped systematically sooner — 5 400 / 7 000 /
+3 800 steps against the controls' 6 600 / 8 000 / 7 200, same patience 1600 — and the worst graft
+seed trained least. So "lands in a worse basin" and "would recover with more training" are not
+distinguished. A longer-patience or LR-warmup rerun, or a freeze-then-unfreeze schedule, would
+settle it; given the 13.3 % ceiling above, it was not judged worth the compute.
+
+**What would justify revisiting.** A donor whose OOV coverage of the recipient survives the
+LENGTH split above, not just the aggregate — i.e. a corpus that actually contains the recipient's
+multi-character vocabulary. Classical Chinese is not that corpus for modern Mandarin, and no
+segmenter can make it one. Contrast yue, where the same graft pays **+1.15 LAS**: there the donor is
+**18×** the recipient (197 k against 11 k) rather than 4.7×, and the varieties share a vocabulary.
+
+Kept: `extract_tok2vec.py` (blob dump, with the E150 rationale), `make_graft_config.py` (fills
+`[pretraining]` from a config proven to work, leaving `init_tok2vec` CLI-controlled so ONE config
+serves both arms), `train_zh_graft.sh`, `configs/config_zh_graft.cfg`, `lzh_trad_tok2vec.bin`.
+`eval_lex_slices.py` is language-agnostic and produced the slice table unchanged. Arms:
+`training_zh_{graft,ctl}_s{0,1,2}`, `metrics_zh_{graft,ctl}_s{0,1,2}.json`.
+
+---
+
+## Sub-character channels for the lzh segmenter (2026-08-17)
+
+Two attempts to give the character segmenter a phonological/graphic backoff so it could merge a
+multi-character token it had never seen. **Both fail, and the second fails even after the missing
+ingredient was supplied.** See `docs/lzh-tokenisation.md` for the harness and for the one cue that
+DID work.
+
+**1. Radical + Qieyun as an extra embedding channel: −0.49 held-out recall over three seeds.**
+Measured on the jackknife (158 multi-char types split apart in train+dev, 611 held-out multi-char
+tokens in an untouched test split), matched control, three seeds each:
+
+    metric              phon     ctl    delta   per-seed
+    token F            97.21   97.27    −0.06   −0.21 / −0.04 / +0.07
+    retained recall    65.93   62.61    +3.32   +1.92 / +5.85 / +2.20
+    HELD-OUT recall     5.13    5.62    −0.49   +0.17 / +0.33 / −1.96
+
+**The channel is backwards from its own rationale**: it consistently helps the MEMORISATION slice
+(positive on all three seeds) and does nothing for generalisation, when its entire purpose was to
+fire where identity cannot.
+
+⚠ **The denominator was 611 but the effective sample is the ~30 tokens actually recovered.** Control
+seeds recovered 28 / 30 / 45 — a 2.78-point swing that is Poisson noise on ~30 events, larger than
+any effect under test. Three seeds could not resolve a sub-point difference here; a future run needs
+a larger hold-out fraction, not just more seeds.
+
+**2. A dedicated transliteration classifier from IDS / radical / Qieyun: below the null.** The
+obvious objection to (1) is that the segmentation objective is weak supervision for "is this
+character phonetic". Wiktionary's `Chinese terms borrowed from Sanskrit` supplies explicit labels
+(228 multi-char terms, 248 characters), so the question can be asked directly — 5-fold CV, shuffled
+folds, negatives sampled from frequent kanripo characters in no Sanskrit-derived term:
+
+    arm                accuracy   pos-F   precision   (base rate 0.250)
+    NULL (majority)      0.7500   0.000       --
+    radical              0.5948   0.400     0.318
+    qieyun               0.7137   0.216     0.342
+    IDS                  0.6472   0.373     0.336
+    radical+qieyun       0.6532   0.353     0.331
+    all three            0.6673   0.337     0.336
+
+**Every arm is below the null on accuracy and barely above the base rate on precision.** Supervision
+was not the missing piece. The likely reason is that this is not a natural class: ANY character can
+be pressed into phonetic service and which ones were is conventional, not systematic. The radical's
+better recall is probably the mouth-radical convention (嚩, 囉, 誐) and nothing more.
+
+⚠ **The two probes ORDER THE CHANNELS OPPOSITELY** — Qieyun beats radical on character-pair merging
+(0.092 vs 0.055) and radical beats Qieyun here (0.400 vs 0.216). When two measurements of "which
+channel is better" disagree, neither is measuring a mechanism. `NEGATIVE-RESULTS.md` already
+recorded radical > Qieyun for lexical class; that ordering is now known to be task-dependent and
+should not be carried anywhere.
+
+**What did work, and why it is a different shape:** an INDUCED inventory of transliteration
+characters (Buddhist/classical log-odds) used as a RUN cue, gating a Wiktionary term list — 21/21
+correct on two gold sutras. The lesson is that the signal is sequence-level and lexical, not
+sub-character: 帝 ranks 976 in the inventory because 帝 "emperor" is ordinary classical vocabulary,
+so 揭帝 is visible only as a run. Details in `docs/lzh-tokenisation.md`.
+
+Kept: `make_seg_jackknife.py`, `eval_seg_jackknife.py`, `lzh_char_channels.py`,
+`probe_translit_char.py`, `train_seg_phon.sh`, and `sa_presegment.py`'s optional `aux` channels
+(**verified byte-identical to pre-patch when unused**, since sa/zh/id share that file). Arms:
+`models/lzh_seg_jk_{ctl,phon}_s{0,1,2}`.
+
+---
+
+## A rule for lzh's `unk`, to rescue the Idiom layer (2026-08-17)
+
+The lzh wheel's `Idiom`/`InIdiom` sit ~22-31 F below their documented figures (53.01 / 54.18 against
+75.68 / 85.54). The cause is NOT the Idiom pipe -- `add_sud_idiom.py` installs the non-trainable
+RULE, which is what the ship decision called for, and a trained pipe would cost a further 11.63 F on
+InIdiom. The cause is upstream and is standing hazards 5 and 6 compounding:
+
+    per 1,500 test sentences      ExtPos    unk
+    gold                              67     68
+    both-scripts arm (documented)     38     56
+    traditional arm (SHIPS)           36     42
+
+⚠ **THAT TABLE COUNTS PREDICTIONS, AND READING IT AS RECALL IS WRONG -- as it was here first time.**
+Scored properly against gold, `unk` recall barely moved; what changed is PRECISION:
+
+    arm                   unk P      R        F      tp / fp / fn
+    traditional (ships)  0.9836   0.6061   0.7500    60 /  1 / 39
+    both-scripts         0.7326   0.6364   0.6811    63 / 23 / 36
+
+The traditional arm is BETTER on its own metric. It predicts `unk` less often because it makes ONE
+false positive against the other arm's 23 -- not because it misses more.
+
+**The Idiom rule nevertheless prefers the loose arm, and that is the finding.** Same rule, same
+eval, only the arm differs:
+
+    Idiom rule on the both-scripts arm    P 100.00   R 49.45   F 66.18
+    Idiom rule on the traditional arm     P  98.51   R 36.26   F 53.01
+
+Because the rule is a CONJUNCTION of `ExtPos` and `unk`, the `ExtPos` conjunct filters the loose
+arm's false positives, and the ones that survive land on tokens that really are idiom heads:
+precision stays at 100 % while recall rises 36 % -> 49 %. **A component that is worse on its own
+metric makes the downstream rule better.** That is standing hazard 5's "upstream errors multiply
+rather than add" running in the unexpected direction, and it means tuning `unk` for precision --
+which looks like an improvement in isolation -- silently costs the MISC layer.
+
+`unk` is 99 tokens in 34,233, so no headline metric can see any of this.
+
+**A pair lexicon does not beat the parser.** `unk` looks lexically closed -- 670 train tokens over
+just **28 distinct dependents**, 可以 alone accounting for 224 -- so a (head, dependent) list
+harvested from train is the obvious rule. Measured on test against the parser it would supplement:
+
+    method                          P        R        F
+    parser (what ships)          0.9836   0.6061   0.7500     (tp 60, fp 1, fn 39)
+    pair lexicon, min count 2    0.7303   0.6566   0.6915     (fires 89x)
+    pair lexicon, min count 1    0.5500   0.7778   0.6444     (fires 140x)
+
+The rule buys +0.05 recall for -0.25 precision, and the parser makes **one** false positive in the
+entire test set. The lexical concentration is real but it is information the parser has already
+absorbed -- the same shape as the XPOS-lexicon result above, where a table that is a deterministic
+function of the form carries nothing beyond `NORM`. The lexicon's own ceiling is 77.8 % (the share
+of test `unk` whose pair occurs in train at all), below what the parser already achieves in F.
+
+**So the lead is not a rule and not `unk` recall: it is that the Idiom rule wants a LIBERAL `unk`
+predictor and the traditional arm is a conservative one.** The tunable is the parser's willingness
+to emit `unk`, not the Idiom pipe. Note also that neither arm reaches the 75.68 / 85.54 recorded for
+lzh above, so those figures describe a third configuration again -- worth resolving before any
+target is set from them. All of this predates the segmenter work and is already in the released
+wheel.
+
+Kept: `eval_misc_raw_delta.py` (raw-side MISC comparison -- all three
+`eval_sud_{subject,shared,idiom}.py` build `Doc(vocab, words=gold)` and so cannot see a tokeniser
+change at all), and `--model` on `eval_sud_subject.py`. ⚠ `eval_sud_shared.py` already had
+`EVAL_SHARED_ARM`/`EVAL_LEMMA_ARM` env overrides -- a `--model` flag added there by regex silently
+did not wire up, and an accepted-but-ignored flag is worse than none.
