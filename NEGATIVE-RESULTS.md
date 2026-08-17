@@ -470,6 +470,22 @@ CLOSURE (walk consecutive `unk` links up to a head bearing `ExtPos`), not a loca
 and it is exact given `unk`. A classifier must rediscover transitivity from the data. Where a rule
 expresses a closure rather than a local decision, prefer the rule unless the data is abundant.
 
+⚠ **THE lzh RULE FIGURES ABOVE ARE UNRECONCILED WITH THIS ENTRY'S OWN AVAILABILITY NUMBER, AND
+75.68 IS THE SUSPECT ONE** (found 2026-08-17, chasing a supposed regression that turned out not to
+be one). The rule is EXACT given its inputs, so the 49.5 % availability stated three lines up is a
+recall ceiling, and at P = 100 % it implies
+
+    F = 2(1.000)(0.495) / (1.000 + 0.495) = 66.2
+
+Re-measured with `eval_sud_idiom.py`, the rule on the both-scripts arm gives **P 100.00 / R 49.45 /
+F 66.18** -- this entry's availability figure reproduced to two decimals, and the F that follows
+from it. For the headline 75.68 to hold at P 100 the recall would have to be ~60.9 %, contradicting
+the 49.5 %. The likely cause is a different DENOMINATOR (the eval reports `gold=182`; a rule scored
+only over the heads where it fires inflates exactly this way). **Do not set a target from 75.68 /
+85.54 until it is reconciled** -- and note the trained-vs-rule DELTAS in the table may still be
+sound even if the absolute figures are not, since both arms of each comparison share whatever
+denominator was used.
+
 Do not re-run this without more data; the arms are kept as `training_{ja,lzh,sa}_idiom/`.
 
 ---
@@ -795,8 +811,11 @@ Kept: `make_seg_jackknife.py`, `eval_seg_jackknife.py`, `lzh_char_channels.py`,
 
 ## A rule for lzh's `unk`, to rescue the Idiom layer (2026-08-17)
 
-The lzh wheel's `Idiom`/`InIdiom` sit ~22-31 F below their documented figures (53.01 / 54.18 against
-75.68 / 85.54). The cause is NOT the Idiom pipe -- `add_sud_idiom.py` installs the non-trainable
+The lzh wheel's `Idiom`/`InIdiom` score 53.01 / 54.18. ⚠ An earlier version of this entry called
+that "~22-31 F below the documented figures" of 75.68 / 85.54; that comparison is wrong at both
+ends. The attributable gap is **13 F against the same rule on the both-scripts arm (66.18)**, and
+75.68 itself does not reconcile with its own entry's availability number -- see the ⚠ added there.
+The cause is NOT the Idiom pipe -- `add_sud_idiom.py` installs the non-trainable
 RULE, which is what the ship decision called for, and a trained pipe would cost a further 11.63 F on
 InIdiom. The cause is upstream and is standing hazards 5 and 6 compounding:
 
@@ -847,10 +866,10 @@ of test `unk` whose pair occurs in train at all), below what the parser already 
 
 **So the lead is not a rule and not `unk` recall: it is that the Idiom rule wants a LIBERAL `unk`
 predictor and the traditional arm is a conservative one.** The tunable is the parser's willingness
-to emit `unk`, not the Idiom pipe. Note also that neither arm reaches the 75.68 / 85.54 recorded for
-lzh above, so those figures describe a third configuration again -- worth resolving before any
-target is set from them. All of this predates the segmenter work and is already in the released
-wheel.
+to emit `unk`, not the Idiom pipe. The both-scripts arm reaches exactly the availability its own
+entry records (49.45 % against 49.5 %), so the real quantity to explain is why the traditional arm
+supplies both rule inputs on only 36.26 % of gold idiom heads. All of this predates the segmenter
+work and is already in the released wheel.
 
 Kept: `eval_misc_raw_delta.py` (raw-side MISC comparison -- all three
 `eval_sud_{subject,shared,idiom}.py` build `Doc(vocab, words=gold)` and so cannot see a tokeniser
