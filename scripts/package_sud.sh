@@ -114,10 +114,18 @@ pkg() {  # $1=arm  $2=src model dir  $3=--name value  $4=comma-separated --code 
   # The pipeline ORDER is the cheap invariant that encodes all of this, so assert it here rather
   # than hope the next person diffs: a wheel whose tagger precedes its morphologiser is pre-graft,
   # whatever else is right about it.
-  $PY - "$src" <<'GUARD' || { echo "  $arm: PRE-GRAFT arm — refusing to package. Rebuild with scripts/graft_xpos_tagger.py"; return; }
+  # sa is the ONE documented exemption, and it is not a loophole: its XPOS is a COPY of UPOS on
+  # 100 % of tokens in both halves of its corpus (docs/sanskrit.md), so there is no XPOS tagset to
+  # condition on and nothing for graft_xpos_tagger.py to graft. Its tagger sits before the
+  # morphologiser because the arm is JOINT MULTI-TASK — one shared encoder feeding all four heads
+  # at once, so "before" is a listing order, not a data dependency. Left implicit, this guard
+  # refused the RELEASED sa arm too, i.e. sa could not be rebuilt by its own packaging script.
+  $PY - "$src" "$arm" <<'GUARD' || { echo "  $arm: PRE-GRAFT arm — refusing to package. Rebuild with scripts/graft_xpos_tagger.py"; return; }
 import sys, json, pathlib
 cfg = (pathlib.Path(sys.argv[1]) / "meta.json")
 pipe = json.loads(cfg.read_text())["pipeline"] if cfg.exists() else []
+if sys.argv[2] == "sa":
+    sys.exit(0)
 if "tagger" in pipe and "morphologizer" in pipe and pipe.index("tagger") < pipe.index("morphologizer"):
     print("    tagger precedes morphologizer: %s" % pipe, file=sys.stderr)
     sys.exit(1)
@@ -166,7 +174,8 @@ GUARD
 }
 
 # add_idiom <in> <out> -- deterministic Idiom=Yes / InIdiom=Yes, last in the pipeline
-add_idiom() { $PY scripts/add_sud_idiom.py "$1" "$2" >/dev/null 2>&1; }
+add_idiom() { $PY scripts/add_sud_idiom.py "$1" "$2" >/dev/null || {
+  echo "  add_sud_idiom FAILED"; return 1; }; }
 
 for lang in "$@"; do
   # Base arm: the trained SUD arm where it won, else the released lemma arm.
@@ -237,7 +246,7 @@ for lang in "$@"; do
     # actual use case) LAS 0.3873 -> 0.4163 / UAS 0.5685 -> 0.6199. It costs Vedic LAS 0.5470 ->
     # 0.5140, accepted by user decision because the target is classical, not Vedic. NB the UFAL
     # figure rests on 416 tokens; the Vedic one on 18 k, so the cost is better measured than the gain.
-    sa)           base=training_sa_multitask/model-best ;;
+    sa)           base="${SA_BASE:-training_sa_multitask/model-best}" ;;
     # ko ships the EOJEOL arm, trained on the ORIGINAL SUD_Korean-GSD with spaCy's rule tokeniser
     # instead of mecab morphemes. The point is tokenisation fidelity: against that treebank the
     # shipped tokeniser now scores TOK 99.77, where the morpheme arm scored 0.3070 (strict span
@@ -521,13 +530,18 @@ case $lang in
        # is assembled by add_sa_frontend.py, which also inserts sa_compound / clause_parser /
        # sa_deva in their required positions. CSL is an INTERNAL representation only — the wheel
        # takes raw IAST or Devanagari.
+  # ⚠ NOT MUTED. `>/dev/null 2>&1` here swallowed an E893 registration failure and shipped the
+  # PREVIOUS pipeline with a clean-looking log — the failure mode CLAUDE.md lists as standing
+  # hazard 2. Both steps now fail loudly and stop the build.
   sa)  $PY scripts/add_sa_frontend.py "$base" "$work.front" \
             --csliser models/sa_presegment_ortho \
-            --unsandhi training_sa_mwt_unsandhi/model-best >/dev/null 2>&1
-       $PY scripts/add_sud_reported_rule.py "$work.front" "$work.rep" --lang sa >/dev/null 2>&1
+            --unsandhi training_sa_mwt_unsandhi/model-best \
+         || { echo "  sa: add_sa_frontend FAILED"; return; }
+       $PY scripts/add_sud_reported_rule.py "$work.front" "$work.rep" --lang sa \
+         || { echo "  sa: add_sud_reported_rule FAILED"; return; }
        add_idiom "$work.rep" "$work"
        pkg sa  "$work" sud_vedic_ufal_dcs \
-            "$CODE_REP,scripts/sa_tokenizer.py,scripts/clause_parser.py,scripts/sa_presegment.py,scripts/sud_unsandhi.py,scripts/sud_affix_embed.py,scripts/sa_devanagari.py" ;;
+            "$CODE_REP,scripts/sa_tokenizer.py,scripts/clause_parser.py,scripts/sa_presegment.py,scripts/sud_unsandhi.py,scripts/sud_affix_embed.py,scripts/sa_devanagari.py,scripts/sud_analyser_embed.py" ;;
        # yue ships NO Shared layer: trained F 21.5 at P 27.7 on 74 test tokens, with the candidate
        # mask reaching 28.4 % of gold. The trained pipe is DROPPED rather than left in place, so
        # the wheel carries no weights it never uses -- and so `Shared` keeps coming out of the

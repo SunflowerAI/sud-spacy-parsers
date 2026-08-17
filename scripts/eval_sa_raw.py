@@ -32,12 +32,14 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import spacy                                        # noqa: E402
+# The AGGREGATOR, not a hand-picked list — this is the EIGHTH script to die with E893 on a
+# layer it did not know to import. seg_code.py exists precisely so the list lives in one place.
+import seg_code                                     # noqa: E402,F401
 import sa_tokenizer                                 # noqa: E402,F401
 import clause_parser                                # noqa: E402,F401
-import sud_affix_embed                              # noqa: E402,F401
 import sud_unsandhi                                 # noqa: E402,F401
 import sa_devanagari                                # noqa: E402,F401  — registers `sa_deva`
-from gold_tok_corpus import CompoundCorpus          # noqa: E402
+from gold_tok_corpus import CompoundCorpus, NormCorpus   # noqa: E402
 from sa_presegment import Presegmenter, apply_labels  # noqa: E402
 
 # The corpus MUST match the representation the model was trained on, or every number is nonsense
@@ -173,9 +175,15 @@ def main():
         print("  (CSLiser stage disabled: this script supplies CSL directly)")
     rows = {r["sent_id"]: r for r in
             (json.loads(line) for line in open(a.pairs, encoding="utf-8"))}
-    sids = [line.split("=", 1)[1].strip() for line in open(TEST_CONLLU, encoding="utf-8")
+    # --test-conllu / --test-spacy were parsed but IGNORED here, so the floor was always scored
+    # against the module defaults — i.e. the unrelabelled corpus. On a relabelled arm that reads as
+    # a catastrophic LAS drop which is purely a label mismatch.
+    sids = [line.split("=", 1)[1].strip() for line in open(a.test_conllu, encoding="utf-8")
             if line.startswith("# sent_id")]
-    gp = list(CompoundCorpus(TEST_SPACY, gold_preproc=True)(nlp))
+    # NormCorpus, not CompoundCorpus: for an arm whose NORM is the padapāṭha, the floor must carry
+    # it, or the analyser channel is silent in THIS condition only and the floor is understated.
+    # The reader falls back to Compound-only behaviour when NORM equals lower(ORTH) anyway.
+    gp = list(NormCorpus(a.test_spacy, gold_preproc=True)(nlp))
     assert len(gp) == len(sids), "corpus / conllu sentence counts differ"
     by_sid = dict(zip(sids, gp))
     order = [s for s in sids if s in rows]

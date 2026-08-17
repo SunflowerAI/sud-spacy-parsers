@@ -174,3 +174,9 @@ assets_unihan/
 assets_dila/
 assets_soothill/
 assets_wiktionary/
+
+# Derived from vidyut (~100M forms) and the Heritage/Inria lexicon, on the same footing as
+# scripts/{ar,fa}_vocalise_lut.json.gz: rebuildable with scripts/build_analyser_lexicon.py, and
+# kept out of git because its licence is unresolved. The SHIPPED arm is runtime-mode and never
+# reads it.
+scripts/sa_analyser_lut.json.gz

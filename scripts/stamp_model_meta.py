@@ -11,14 +11,14 @@ It was caught only by diffing a script-built wheel against a hand-assembled one.
 Licences differ per language and must not be blanket-applied: la is CC BY-**NC**-SA, forced by its
 three NonCommercial treebanks, while the rest are kept free of NonCommercial sources deliberately.
 
-A language can have more than one ARM with different licences, so the registry key is `--arm`, not
-`--lang`: `en` ships two wheels, EWT-only under CC BY-SA and EWT+GUM under CC BY-NC-SA, and keying
-the tables on the language code alone would flip both. `--arm` defaults to `--lang`, so every
+A language can have more than one ARM with different SOURCES, so the registry key is `--arm`, not
+`--lang`: `en` ships two wheels and only the EWT+GUM one owes GUM's attribution, and keying the
+tables on the language code alone would give it to both. `--arm` defaults to `--lang`, so every
 single-arm language is unaffected. `--license` overrides outright, for a one-off.
 
 Usage:
     stamp_model_meta.py MODEL_DIR --lang lzh [--description TEXT]
-    stamp_model_meta.py MODEL_DIR --lang en --arm en_gum      # the NonCommercial English wheel
+    stamp_model_meta.py MODEL_DIR --lang en --arm en_gum      # the EWT+GUM English wheel
 """
 import argparse
 import json
@@ -27,19 +27,25 @@ import pathlib
 AUTHOR = "Sunflower AI"
 URL = "https://github.com/SunflowerAI/sud-spacy-parsers"
 # Keyed by ARM, not language. la is NonCommercial (ITTB + PROIEL + Perseus are all CC BY-NC-SA).
-# en_gum is the second English arm, EWT + the non-NonCommercial GUM genres: the five NC genres
-# (essay/fiction/letter/podcast/whow) are filtered out, but GUM's LICENSE.md still opens "The
-# treebank is licensed under CC BY-NC-SA 4.0" -- which, read strictly, offers the ANNOTATIONS under
-# NC whatever the document, and annotations are what a trained model absorbs. So this wheel ships
-# NC regardless of the filter, and plain `en` (EWT-only) stays commercially usable.
-# ar joined this list on 2026-08-14, correcting a mis-declaration rather than changing anything
-# about the model: SUD_Arabic-PADT has always been CC BY-NC-SA 3.0 (its LICENSE.txt: "distributed
-# under the same license terms as PADT 1.0"), and the wheel had been falling through to the
-# CC BY-SA 4.0 default since v0.1.0. The en_gum reasoning above applies unchanged -- annotations
-# are what a trained model absorbs -- and a survey of every assets_*/ found ar to be the only arm
-# where the declaration and the training data disagreed. Declared at 4.0 like la, whose sources are
-# likewise BY-NC-SA 3.0: ShareAlike permits licensing an adaptation under the later version.
-LICENSE = {"la": "CC BY-NC-SA 4.0", "en_gum": "CC BY-NC-SA 4.0", "ar": "CC BY-NC-SA 4.0"}
+# ar is NonCommercial too: SUD_Arabic-PADT has always been CC BY-NC-SA 3.0 (its LICENSE.txt:
+# "distributed under the same license terms as PADT 1.0"), and the wheel had been falling through
+# to the CC BY-SA 4.0 default since v0.1.0 -- a survey of every assets_*/ found ar to be the only
+# arm where the declaration and the training data disagreed. Both are declared at 4.0 although
+# their sources are 3.0 (and 2.5): ShareAlike permits licensing an adaptation under a later version.
+#
+# ⚠ en_gum WAS in this table and is NOT any more (2026-08-17). It ships EWT + the ten non-NC GUM
+# genres, and the open question was whether GUM's ANNOTATIONS are NonCommercial whatever the
+# document -- GUM's LICENSE.txt opens "The treebank is licensed under CC BY-NC-SA 4.0", and
+# annotations are what a trained model absorbs, so this arm shipped NC regardless of the filter.
+# Amir Zeldes (GUM's maintainer) answered the question directly by email: the annotations are
+# produced at Georgetown under **CC BY**, and the NC comes only from the individual underlying
+# documents, whose own licences must be respected -- "if you only use documents without the NC
+# license, I don't see an issue in using the data for commercial purposes". The filter is therefore
+# load-bearing after all, and this arm is CC BY-SA 4.0 like every other: the SA is forced by EWT
+# (CC BY-SA 4.0) and by the ShareAlike text sources among the kept genres, not by GUM as a whole.
+# What survives is the ATTRIBUTION, which CC BY makes an obligation -- see SOURCES below, which
+# must keep naming the corpus, its website and its annotators.
+LICENSE = {"la": "CC BY-NC-SA 4.0", "ar": "CC BY-NC-SA 4.0"}
 DEFAULT_LICENSE = "CC BY-SA 4.0"
 
 # Runtime imports a wheel needs beyond spaCy, declared here so `pip install` yields a model that
@@ -53,6 +59,19 @@ DEFAULT_LICENSE = "CC BY-SA 4.0"
 # that from two missing pieces to one.
 REQUIREMENTS = {
     "ar": ["camel-tools>=1.5.2"],
+    # sa reads morphological CANDIDATE SETS off vidyut's kosha at RUNTIME
+    # (`sud.AnalyserFeatsEmbed.v1`, runtime = true). The wheel bundles nothing of vidyut's: the
+    # package is a dependency and the user fetches its ~77 MB data bundle once with
+    #     python -c "import vidyut; vidyut.download_data('vidyut-data')"
+    # pointing VIDYUT_DATA at it if it is not ./vidyut-data. That keeps the ~100 M-form table out
+    # of a CC BY-SA wheel, which is a licence position as much as a size one. The layer REFUSES to
+    # run without it rather than falling back to its silent bit, because a silent fallback loads
+    # cleanly and merely parses worse.
+    # indic-transliteration is NOT optional: `sa_tokenizer._normalise_body` imports it for the
+    # DEVANAGARI input path, which is one of the two documented input scripts. It was never
+    # declared, so the released wheel raises ModuleNotFoundError on Devanagari input unless
+    # the user happens to have it. Caught by feeding the installed wheel श्रियं दिशतु वः.
+    "sa": ["vidyut>=0.4.0", "indic-transliteration>=2.3.0"],
 }
 
 SOURCES = {
@@ -63,22 +82,26 @@ SOURCES = {
                  "the NonCommercial term. Its Vform column is also the source of the vocalisation "
                  "table bundled with the ar_vocalise component."},
     ],
-    # GUM's LICENSE asks that the sources of the texts be cited and the annotators credited, so for
-    # en_gum the attribution is an obligation, not a courtesy. Only the ten non-NonCommercial genres
-    # are in the training data; their underlying sources carry three different CC licences, and two
-    # of them (Wikipedia bios, Wikivoyage travel guides) are ShareAlike.
+    # GUM's annotations are CC BY, so citing the corpus, pointing to its website and crediting the
+    # annotators is an OBLIGATION, not a courtesy -- and it is the whole of what GUM asks of this
+    # wheel now that the NonCommercial reading is retired (see LICENSE above). GUM's LICENSE
+    # separately asks that the sources of the TEXTS be cited as their own sites require. Only the
+    # ten non-NonCommercial genres are in the training data; their underlying sources carry three
+    # different CC licences, and the Wikimedia ones are ShareAlike.
     "en_gum": [
         {"name": "SUD_English-EWT", "license": "CC BY-SA 4.0",
          "url": "https://github.com/surfacesyntacticud/SUD_English-EWT"},
         {"name": "SUD_English-GUM (academic, bio, conversation, court, interview, news, speech, "
                  "textbook, vlog, voyage; the NonCommercial genres essay/fiction/letter/podcast/"
                  "whow are excluded)",
-         "license": "CC BY-NC-SA 4.0 (annotations CC BY 4.0; texts CC BY 4.0 / CC BY-SA 3.0 / "
-                    "CC BY 2.5 per source)",
+         "license": "annotations CC BY 4.0; texts CC BY 4.0 / CC BY-SA 3.0 / CC BY 2.5 / public "
+                    "domain per source",
          "url": "https://github.com/amir-zeldes/gum",
          "note": "Georgetown University Multilayer Corpus, Amir Zeldes and 300+ student "
-                 "annotators; text sources include Wikinews, Wikipedia, Wikivoyage, OpenStax, "
-                 "the Santa Barbara Corpus and Creative-Commons YouTube."},
+                 "annotators, who are listed per document at https://gucorpling.org/gum/ -- "
+                 "please cite the corpus and that site. Text sources include Wikinews, "
+                 "Wikivoyage, OpenStax, the Santa Barbara Corpus (John Du Bois, UCSB), "
+                 "Creative-Commons YouTube and public-domain political speeches."},
     ],
     "lzh": [
         {"name": "SUD_Classical_Chinese-Kyoto", "license": "CC BY-SA 4.0",

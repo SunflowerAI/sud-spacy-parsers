@@ -328,9 +328,26 @@ class ClauseParser:
             # Compound feat is carried: that is all the tokeniser supplies, and it is all the
             # corpus reader stamps on the predicted doc at training time.
             sub = Doc(self.nlp.vocab, words=[doc[i].text for i in content],
-                      spaces=[bool(doc[i].whitespace_) for i in content],
-                      morphs=(None if cflags is None else
-                              ["Compound=Yes" if cflags[i] else "" for i in content]))
+                      spaces=[bool(doc[i].whitespace_) for i in content])
+            # ⚠ Compound is stamped token-by-token, NOT via `morphs=[... or "" ...]`. Passing an
+            # empty string sets the EMPTY morph (key 456) where an untouched token is UNSET
+            # (key 0); both render as '' so no string comparison can see the difference, and the
+            # encoder is handed a MORPH value it never met in training on ~94 % of tokens. This is
+            # the documented 6.8-LAS bug (CLAUDE.md, sa_tokenizer.__call__) — it was reproduced
+            # here, inside the re-parse, and cost 4.3 LAS on the Vedic test.
+            if cflags is not None:
+                for j, i in enumerate(content):
+                    if cflags[i]:
+                        sub[j].set_morph("Compound=Yes")
+            # NORM likewise, and for exactly the same reason as the Compound feat above. For
+            # Sanskrit `token.norm_` is the PADAPĀṬHA (`sa_tokenizer` stage 2), which is both an
+            # embed channel and the key `sud.AnalyserFeatsEmbed.v1` looks its candidate sets up on.
+            # Rebuilding without it silently reverts NORM to lower(ORTH) — the SANDHIED surface —
+            # so the re-parse runs out of distribution and the analyser channel goes to its silent
+            # bit. Measured on the Kathāsaritsāgara opening: it turned a correct root (`diśatu`)
+            # into a wrong one (`śriyaṃ`). `Doc()` takes no `norms` argument, hence the loop.
+            for j, i in enumerate(content):
+                sub[j].norm_ = doc[i].norm_
             for p in pipes:
                 sub = p(sub)
             # EVERY root the sub-parse produced is kept, not just the first. spaCy derives
@@ -387,6 +404,10 @@ class ClauseParser:
                   spaces=[bool(t.whitespace_) for t in doc],
                   heads=heads, deps=deps, tags=tags, pos=poss,
                   lemmas=lemmas, morphs=morphs)
+        # ...and on the way out too: a caller reading `token.norm_` off the returned doc must see
+        # the padapāṭha, not lower(ORTH).
+        for a, b in zip(out, doc):
+            a.norm_ = b.norm_
         # Rebuilding the doc drops its extension data, so carry the Sanskrit tokeniser's source
         # offsets (`sa_tokenizer`: doc._.src_text / src_spans, the raw-input character span of each
         # token) across the copy — the rebuild is token-for-token, so the spans stay aligned.

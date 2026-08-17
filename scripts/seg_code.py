@@ -52,6 +52,12 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            # predicted TAG for it to read; the lexicon is what supplies the channel at inference,
            # and it travels inside the model's own bytes.
            "sud_lex_embed.py",
+           # registers sud.AnalyserFeatsEmbed.v1 (morphological CANDIDATE SETS from vidyut n
+           # Heritage, multi-hot, looked up by token.norm_ — a constraint rather than a
+           # prediction, so it cannot be confidently wrong the way a morphologiser can)
+           "sud_analyser_embed.py",
+           # registers sud.LemmaVecEmbed.v1 (distributional lemma vectors as a block)
+           "sud_lemmavec_embed.py",
            # registers sud.WarmStartTagger.v1 (start a conditioned tagger AS the released one)
            "warm_start_tagger.py",
            # registers sud.CharSegTokenizer.v1 — the treebank-trained character segmenter used as
@@ -66,6 +72,10 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            # the plain+macron union corpus with one copy resampled into a new edition style each
            # epoch (macrons, breves, j/v, æ/œ, sentence-initial capitals).
            "la_augment.py",
+           # registers sud.sa_case_variants.v1 — teaches that a capital carries no
+           # syntax, which the tokeniser's case RESTORATION made necessary (14.62 %
+           # of tokens change analysis when a sentence opens with a capital)
+           "sa_augment.py",
            # sud_misc first: sud_tagger imports it. sud_shared_data holds the coordination
            # candidate mask, which sud_tagger looks up by name. (sud_idiom is packaging-time only
            # and needs no registration here, as with id_lemma_case_fix.)

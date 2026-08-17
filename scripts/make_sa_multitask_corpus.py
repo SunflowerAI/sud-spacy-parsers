@@ -32,7 +32,7 @@ from spacy.tokens import Doc, DocBin
 
 def strip_syntax(doc, vocab):
     """Rebuild a doc keeping every annotation EXCEPT head/dep."""
-    return Doc(
+    out = Doc(
         vocab,
         words=[t.text for t in doc],
         spaces=[bool(t.whitespace_) for t in doc],
@@ -40,7 +40,18 @@ def strip_syntax(doc, vocab):
         pos=[t.pos_ for t in doc],
         morphs=[str(t.morph) for t in doc],
         lemmas=[t.lemma_ for t in doc],
+        # NORM carries the padapāṭha that sud.AnalyserFeatsEmbed.v1 keys its lookup on. Omitting it
+        # here does not fail: the DCS half is 92 % of the joint arm's tokens, so the analyser channel
+        # would read "silent" on almost every training token while being populated at inference —
+        # the model would learn to ignore a feature that then appears from nowhere. Standing rule:
+        # anything that rebuilds a Doc owns carrying EVERY annotation.
     )
+    # NORM is NOT a Doc() keyword (TypeError: unexpected keyword argument 'norms') — it is a
+    # per-token attribute set afterwards. A rebuild that quietly leaves it at the lexeme default
+    # looks identical in every string comparison.
+    for src, dst in zip(doc, out):
+        dst.norm_ = src.norm_
+    return out
 
 
 def main():
@@ -51,6 +62,12 @@ def main():
                     help="the same PLUS DCS; its tail is the syntax-free half")
     ap.add_argument("--dev", default="corpus_sa_split/dev.spacy")
     ap.add_argument("--out", default="corpus_sa_multitask")
+    ap.add_argument("--dcs-from", type=int, default=None,
+                    help="index in --full where the syntax-free DCS tail begins. Defaults to "
+                         "len(syntax), which is only right when --full literally starts with the "
+                         "SAME syntax corpus. A relabelled syntax half has a different doc count "
+                         "(2171 vs 2165), so the default would silently slice 6 docs off the DCS "
+                         "tail and treat 6 syntax docs as DCS — pass it explicitly.")
     a = ap.parse_args()
 
     nlp = spacy.blank("xx")
@@ -59,8 +76,10 @@ def main():
 
     syn = list(DocBin().from_disk(a.syntax).get_docs(nlp.vocab))
     full = list(DocBin().from_disk(a.full).get_docs(nlp.vocab))
-    dcs = full[len(syn):]
-    assert len(dcs) == len(full) - len(syn)
+    off = a.dcs_from if a.dcs_from is not None else len(syn)
+    dcs = full[off:]
+    assert len(dcs) == len(full) - off
+    print(f"syntax {len(syn)} docs | DCS tail starts at {off} -> {len(dcs)} docs")
 
     db = DocBin(store_user_data=True)
     for d in syn:

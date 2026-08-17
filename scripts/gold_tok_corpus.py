@@ -100,6 +100,96 @@ class CompoundCorpus(Corpus):
                     pred_tok.set_morph("Compound=Yes")
         return eg
 
+
+@registry.readers("sud.OracleCorpus.v1")
+def create_oracle_reader(path, gold_preproc: bool = True, max_length: int = 0,
+                         limit: int = 0, augmenter=None):
+    return OracleCorpus(path, gold_preproc=gold_preproc, max_length=max_length,
+                        limit=limit, augmenter=augmenter)
+
+
+class OracleCorpus(Corpus):
+    """Like ``spacy.Corpus``, but the PREDICTED doc carries the reference's LEMMA and FEATS.
+
+    ⚠ THIS IS LEAKAGE, DELIBERATELY. Unlike ``CompoundCorpus`` — which copies ``Compound`` only
+    because the tokeniser supplies the identical value at inference — nothing supplies gold lemma
+    or gold morphology at inference. An arm trained through this reader is an ORACLE: it bounds
+    what a parser could gain from a lemma channel and per-feature morphology channels if they were
+    perfect, and it is not shippable. Its purpose is to answer, in ONE training run, whether the
+    pipeline surgery that a real (predicted) version needs is worth doing at all.
+
+    The exposure is controlled by the EMBED, not here: this reader copies the whole gold bundle and
+    ``sud.MultiHashEmbedFeats.v1``'s ``feats`` list decides which features the model can actually
+    see. Keep syntactic annotations (``Shared``) off that list — they are part of what is being
+    predicted.
+
+    LEMMA falls back to the FORM where the treebank has none, matching ``trainable_lemmatizer``'s
+    ``backoff = "orth"``, so the oracle's input regime is the one a real lemmatiser would produce
+    rather than a mix of strings and unset values. (On ``corpus_sa_csl_mwt`` the fallback never
+    fires: 0 of 163 802 tokens lack a lemma.)
+
+    MORPH is set only where the reference HAS features: ``set_morph("")`` stores the *empty* morph
+    (key 456) where an untouched token is *unset* (key 0), and the two are different inputs — the
+    distinction once cost sa 6.8 LAS. ``MultiHashEmbedFeats`` reads each feature individually and is
+    immune by construction, but the reader must not depend on that.
+    """
+
+    def _make_example(self, nlp, reference, gold_preproc) -> Example:
+        eg = super()._make_example(nlp, reference, gold_preproc)
+        # With gold_preproc the predicted doc is token-for-token the reference, so the copy is well
+        # defined; without it the base class re-tokenises and the two need not align, and there is
+        # no honest way to project gold annotation across a different tokenisation.
+        if len(eg.predicted) != len(reference):
+            raise ValueError(
+                f"OracleCorpus needs gold_preproc = true: predicted {len(eg.predicted)} tokens "
+                f"vs reference {len(reference)}")
+        for pred_tok, ref_tok in zip(eg.predicted, reference):
+            pred_tok.lemma_ = ref_tok.lemma_ or ref_tok.text
+            if ref_tok.morph:
+                pred_tok.set_morph(ref_tok.morph)
+        return eg
+
+
+@registry.readers("sud.NormCorpus.v1")
+def create_norm_reader(path, gold_preproc: bool = True, max_length: int = 0,
+                       limit: int = 0, augmenter=None, shuffle: bool = False):
+    # `shuffle` matters only under `max_epochs = -1`, which a corpus-level augmenter REQUIRES: with
+    # `0` spaCy lists the corpus once and reshuffles that same list, so one augmentation is sampled
+    # per document for the whole run and never varies (standing hazard 9). `-1` streams the corpus
+    # and stops the loop shuffling, so the reader has to shuffle itself.
+    return NormCorpus(path, gold_preproc=gold_preproc, max_length=max_length,
+                      limit=limit, augmenter=augmenter, shuffle=shuffle)
+
+
+class NormCorpus(CompoundCorpus):
+    """``CompoundCorpus`` plus the reference's NORM.
+
+    For a corpus written by ``scripts/make_norm_corpus.py``, whose NORM column holds the
+    sandhi-reversed (padapāṭha) form that ``sud_unsandhi`` predicts from the surface. The predicted
+    doc is built from gold words, so its NORM would otherwise fall back to the lexeme default
+    (lower-cased ORTH) and the channel the arm is being trained on would silently be absent —
+    the same gap ``CompoundCorpus`` exists to close, one column over.
+
+    This is NOT leakage in the way ``OracleCorpus`` is: the value copied here is the TRANSDUCER's
+    prediction, baked into the corpus, and the released frontend runs the identical transducer
+    inside the tokeniser (``sa_tokenizer.py`` stage 2) before any component sees the doc. The one
+    honest caveat is that the transducer was trained on this training split, so it scores 0.9855
+    there against 0.9685 on the held-out test — the parser trains on a NORM 1.7 points cleaner than
+    it will meet. Jackknifing the transducer would close that; it has not been done.
+
+    ⚠ An arm trained through this reader is only deployable once the TOKENISER writes the same value
+    into ``token.norm_`` (it currently publishes it on ``Token._.unsandhied`` only, which no embed
+    can read). Without that step the arm would be trained on padapāṭha NORM and run on surface NORM.
+    """
+
+    def _make_example(self, nlp, reference, gold_preproc) -> Example:
+        eg = super()._make_example(nlp, reference, gold_preproc)
+        if len(eg.predicted) == len(reference):
+            for pred_tok, ref_tok in zip(eg.predicted, reference):
+                pred_tok.norm_ = ref_tok.norm_
+        return eg
+
+
 # ---------------------------------------------------------------------------------------------
 # ja: the tokeniser-supplied Inflection channel
 # ---------------------------------------------------------------------------------------------
@@ -238,4 +328,35 @@ class InflTagEvalCorpus(Corpus):
     def _make_example(self, nlp, reference, gold_preproc) -> Example:
         eg = super()._make_example(nlp, reference, gold_preproc)
         _move_infl_tag(eg.predicted, reference)
+        return eg
+
+
+@registry.readers("sud.LemmaOracleCorpus.v1")
+def create_lemma_oracle_reader(path, gold_preproc: bool = True, max_length: int = 0,
+                               limit: int = 0, augmenter=None):
+    return LemmaOracleCorpus(path, gold_preproc=gold_preproc, max_length=max_length,
+                             limit=limit, augmenter=augmenter)
+
+
+class LemmaOracleCorpus(CompoundCorpus):
+    """Gold LEMMA on the predicted doc, and NOTHING else. ``CompoundCorpus``'s ``Compound`` still
+    comes across, because the tokeniser supplies it at inference and every arm in the grid has it.
+
+    WHY THIS EXISTS, WRITTEN DOWN BECAUSE IT COST A RUN. The lemma-vector arms were first built on
+    ``sud.OracleCorpus.v1``, which stamps gold LEMMA *and gold FEATS*. With ``MORPH`` among the
+    embed's attrs that silently handed them the gold-morphology block channel — worth +7.59 LAS on
+    its own — so an arm intended to isolate "lemma identity vs lemma similarity" was actually
+    measuring "lemma vectors PLUS gold morphology" against a lemma-hash arm that had neither. The
+    capacity control is what exposed it: a block of CONSTANT vectors scored 60.85 dev against the
+    base arm's 54.58, and a constant cannot be worth six points.
+
+    A reader that copies more than the experiment intends does not fail; it inflates, and it inflates
+    the arm you were hoping to see win.
+    """
+
+    def _make_example(self, nlp, reference, gold_preproc) -> Example:
+        eg = super()._make_example(nlp, reference, gold_preproc)
+        if len(eg.predicted) == len(reference):
+            for pred_tok, ref_tok in zip(eg.predicted, reference):
+                pred_tok.lemma_ = ref_tok.lemma_ or ref_tok.text
         return eg

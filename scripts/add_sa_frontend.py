@@ -28,10 +28,14 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import spacy                                     # noqa: E402
+# Import the AGGREGATOR rather than a hand-picked list. This script died with E893 on
+# `sud.AnalyserFeatsEmbed.v1` — the SEVENTH registration gap of this exact shape, and the most
+# dangerous, because `package_sud.sh` invokes this line with `>/dev/null 2>&1`: the failure would
+# have been swallowed and the OLD pipeline shipped, with the packaging log looking clean. A list
+# that must be remembered per script is a list that gets missed; seg_code.py exists for this.
+import seg_code                                  # noqa: E402,F401
 import sa_tokenizer                              # noqa: E402,F401
 import clause_parser                             # noqa: E402,F401
-import sud_affix_embed                           # noqa: E402,F401
-import sud_feats_embed                           # noqa: E402,F401  (sud.Tok2VecPlusFeats.v1)
 import sud_unsandhi                              # noqa: E402,F401
 import sa_devanagari                             # noqa: E402,F401
 from thinc.api import Config                     # noqa: E402

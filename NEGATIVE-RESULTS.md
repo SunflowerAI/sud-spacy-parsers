@@ -126,10 +126,21 @@ win on the *dedicated* encoders — see `docs/sanskrit.md`.)
 **More rows and longer windows are both worse** for the affix layer: suffix 5 at 8 000 rows beats
 the same window at 16 000, and beats suffix 6 at 24 000. The cheapest good configuration wins.
 
-**The affix layer hurts `sud_unsandhi`** (0.9748 vs 0.9788, −0.40) even though it helps the real
-lemmatiser by +1.43. Sandhi reversal is a *final-character* alternation (-ṃ/-m, -ḥ/-s, -o/-aḥ)
-already covered by the default 3-character suffix, whereas lemmatisation edits the stem and wants
-more lexical identity. Ship `sud_unsandhi` without it.
+**The affix layer hurts `sud_unsandhi`** even though it helps the real lemmatiser by +1.43. Sandhi
+reversal is a *final-character* alternation (-ṃ/-m, -ḥ/-s, -o/-aḥ) already covered by the default
+3-character suffix, whereas lemmatisation edits the stem and wants more lexical identity. Ship
+`sud_unsandhi` without it — `package_sud.sh` does, from `training_sa_mwt_unsandhi`.
+
+⚠ **The size of that loss was understated 30-fold, because the test set was the wrong one**
+(corrected 2026-08-16). The recorded figure, 0.9748 against 0.9788 (−0.40), came from the
+DCS-dominated test, where most tokens sit INSIDE an MWT and are already written unsandhied — an
+identity mapping, and the majority class. On the Vedic test, where the work actually is, `spacy
+evaluate --gold-preproc` gives the plain arm **LEMMA 96.41** and the sfx5 arm **83.30**: −13.1, not
+−0.4. `metrics_sa_mwt_unsandhi_sfx5_Vedic.json` was never taken, so the split that would have shown
+this was the one split never measured — the entry above has `_DCS` and `_Vedic` files for the plain
+arm and only the mixed file for sfx5. The decision was right; the number behind it was not. **A
+mixed-domain average over a corpus that is 90 % one domain is not a measurement of the other 10 %**
+— the same shape as reading a headline `morph_acc` for a rare label (standing hazard 6).
 
 **A curated inventory of real Sanskrit endings loses to raw window length.** Simulated as a
 longest-match lookup, 92–243 entries score 47–55 % exact-bundle against plain `form[-3:]`'s 60.0 %;
