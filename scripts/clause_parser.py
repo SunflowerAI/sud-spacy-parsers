@@ -198,9 +198,24 @@ class ClauseParser:
         self._pipes = None
 
     def _subpipes(self):
+        """The components the re-parse must re-run, in pipeline order.
+
+        ⚠ THE MORPHOLOGISER BELONGS HERE WHEN IT PRECEDES THE PARSER. This list used to be the
+        hardcoded triple (tok2vec, tagger, parser), which is right only while the parser reads no
+        predicted morphology. In the morph-first sa arm the parser has its OWN encoder that reads
+        the FEATS the morphologiser wrote, so re-parsing a sub-doc without re-running it hands the
+        parser a MORPH column holding nothing but the tokeniser's `Compound` — the same
+        out-of-distribution re-parse that the dropped NORM and the empty-morph bundle each caused,
+        and equally silent. Derived from `nlp.pipe_names` so it follows the arm instead of being
+        remembered: lzh and the old joint sa arm run the morphologiser AFTER the parser, so it is
+        excluded there exactly as before.
+        """
         if self._pipes is None:
-            self._pipes = [self.nlp.get_pipe(n) for n in ("tok2vec", "tagger", "parser")
-                           if self.nlp.has_pipe(n)]
+            names = list(self.nlp.pipe_names)
+            wanted = ["tok2vec", "tagger", "morphologizer", "parser"]
+            pi = names.index("parser") if "parser" in names else len(names)
+            self._pipes = [self.nlp.get_pipe(n) for n in names
+                           if n in wanted and (n == "parser" or names.index(n) < pi)]
         return self._pipes
 
     def _is_punct(self, tok):

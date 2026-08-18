@@ -360,3 +360,39 @@ class LemmaOracleCorpus(CompoundCorpus):
             for pred_tok, ref_tok in zip(eg.predicted, reference):
                 pred_tok.lemma_ = ref_tok.lemma_ or ref_tok.text
         return eg
+
+
+@registry.readers("sud.GoldTokNormCorpus.v1")
+def create_gold_tok_norm_reader(path, max_length: int = 0, limit: int = 0, augmenter=None,
+                                shuffle: bool = False):
+    return GoldTokNormCorpus(path, max_length=max_length, limit=limit,
+                             augmenter=augmenter, shuffle=shuffle)
+
+
+class GoldTokNormCorpus(GoldTokCorpus):
+    """``GoldTokCorpus`` (whole multi-sentence docs, gold tokenisation) plus NORM and ``Compound``.
+
+    Needed the moment an arm reads either. ``GoldTokCorpus`` builds its predicted doc from gold
+    WORDS alone, so NORM falls back to the lexeme default — lower(ORTH), the SANDHIED surface — and
+    ``sud.AnalyserFeatsEmbed.v1``, whose candidate-set lookup is keyed on ``token.norm_``, goes to
+    its silent bit on every token. That is the same shape as the three ``clause_parser`` bugs: a
+    rebuilt ``Doc`` silently missing an annotation something downstream depends on, with nothing
+    raising and only the score to show for it.
+
+    ``Compound`` is copied for the reason ``CompoundCorpus`` exists: the tokeniser supplies it at
+    inference at P/R 0.9998, so training without it teaches the model to ignore a feature that then
+    appears from nowhere.
+
+    Use this rather than ``gold_preproc`` wherever the point is that the parser sees MULTI-CLAUSE
+    input and learns to segment — ``gold_preproc`` splits every doc back into single sentences and
+    would discard a clause merge entirely.
+    """
+
+    def _make_example(self, nlp, reference, gold_preproc) -> Example:
+        eg = super()._make_example(nlp, reference, gold_preproc)
+        if len(eg.predicted) == len(reference):
+            for pred_tok, ref_tok in zip(eg.predicted, reference):
+                pred_tok.norm_ = ref_tok.norm_
+                if ref_tok.morph.get("Compound"):
+                    pred_tok.set_morph("Compound=Yes")
+        return eg
