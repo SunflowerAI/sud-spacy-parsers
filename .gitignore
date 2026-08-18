@@ -180,3 +180,5 @@ assets_wiktionary/
 # kept out of git because its licence is unresolved. The SHIPPED arm is runtime-mode and never
 # reads it.
 scripts/sa_analyser_lut.json.gz
+corpus_sa_pmerged_raw/
+corpus_sa_pmerged_norm/

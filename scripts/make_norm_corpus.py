@@ -101,7 +101,11 @@ def main():
         changed = same = 0
         for r, got in zip(refs, preds):
             for t, g in zip(r, got):
-                if g and g != t.text:
+                # A punctuation token has no sandhi to undo, and the transducer has never met one:
+                # on the clause-merged corpora it appended a visarga to 93 daṇḍas. Leave it alone.
+                # `t.is_punct` is not the test — Unicode files the single daṇḍa `|` under Sm, so it
+                # comes back False; ask instead whether the token contains a letter at all.
+                if g and g != t.text and any(c.isalpha() for c in t.text):
                     t.norm_ = g
                     changed += 1
                 else:

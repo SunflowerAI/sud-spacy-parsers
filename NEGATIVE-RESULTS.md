@@ -997,3 +997,49 @@ error attribution, `--lang` so it runs on any arm), `scripts/analyse_la_agreemen
 `scripts/check_la_agreement_signal.py` (the go/no-go that costs two minutes rather than a night),
 `scripts/check_la_agree_channel.py`, and `scripts/train_la_agree_beam.sh` with its `why` phase --
 which is what caught the beam refuting its own premise while the LAS column only said "worse".
+
+## Decode-time constraints on cross-clause arcs (Sanskrit, merged corpus) — both variants lose
+
+The clause-merged arm (`docs/sanskrit.md`) joins the treebank's clause units into one tree, so some
+arcs now span a unit boundary. Two ways of forbidding the wrong ones at decode time were built and
+measured on the merged test; **both lose about 1.3 LAS, and — the part that settles it — both make
+the crossing arcs they target WORSE.**
+
+    pmerged arm                     LAS     crossing-arc LAS (1 837 arcs)
+      unconstrained                 54.82   22.26
+      label mask, {conj:coord, parataxis}
+                                    53.51   14.64
+      label mask, the 6 relations the merge actually introduced
+                                    53.79   17.86
+      unit-root mask (two-pass)     53.51   18.56
+    pmerged + order augmentation
+      unconstrained                 55.41   28.03
+      unit-root mask (two-pass)     54.05   23.57
+
+**Variant 1, by LABEL** (`parse_with_clause_bounds`): allow a crossing arc only if its relation is
+one the merge introduces. The premise does not survive counting. The merge introduced SIX relations,
+not two (`conj:coord` 1065, `parataxis` 852, `comp:obj` 221, `subj` 110, `mod` 103, `comp:obl` 87),
+and more importantly *crossing a mark is not crossing a clause boundary*: a single daṇḍa is a
+half-verse break sitting INSIDE one of the treebank's own units (`Punctuation=comma` is unit-medial
+8 129 times). Restricting to the double daṇḍa still leaves 41 % of crossing gold arcs outside a
+{coord, parataxis} set. Headroom said it would be close — 138 currently-correct arcs destroyed
+(−0.61) against at most 353 wrong ones fixed (+1.56) — and it came out the wrong side.
+
+**Variant 2, by STRUCTURE** (`parse_with_unit_roots`): allow a crossing arc only where the
+dependent's subtree spans its whole unit, since a merge-introduced edge always REPLACES a root edge.
+Much better founded: **81.5 % of gold unit-crossing content arcs satisfy it** (train 78.8), against
+59 % for the label version. It still loses.
+
+**Why, and the general lesson.** The rule is not decidable incrementally in ArcEager — a LEFT arc
+pops its child so the subtree is final, but a RIGHT arc pushes it, and cross-unit arcs are
+overwhelmingly RIGHT arcs (unit *n*'s root attaching back into unit *n−1*). Hence two passes: pass 1
+bans every crossing arc to name each unit's root, pass 2 allows crossings only from those. Pass 1
+finds a true unit root **83.4 %** of the time, and 8.6 % of units have more than one outward-pointing
+token in gold anyway, so the admissible space is right about 0.815 × 0.834 ≈ **68 %** of the time.
+
+A hard mask pays only when the banned action is nearly always wrong. The agreement constraint works
+because a disagreeing adjectival `mod` is close to always wrong; these fail because the banned action
+is correct roughly a third of the time, and the unconstrained decoder was already concentrating its
+probability on those same correct arcs. **Consistency with gold at 80 % is not a licence to
+constrain** — the bar is the error rate of what you are overriding, not the accuracy of your rule.
+Same shape as the decode-time lexicon result above.

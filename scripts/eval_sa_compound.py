@@ -30,8 +30,8 @@ import spacy  # noqa: E402
 # this script kept its own shorter list. A list that has to be remembered per script is a list that
 # gets missed; that is the reason seg_code.py exists at all.
 import seg_code  # noqa: E402,F401
-from gold_tok_corpus import (CompoundCorpus, LemmaOracleCorpus, NormCorpus,  # noqa: E402
-                             OracleCorpus)
+from gold_tok_corpus import (CompoundCorpus, GoldTokNormCorpus, LemmaOracleCorpus,  # noqa: E402
+                             NormCorpus, OracleCorpus)
 from spacy.training.corpus import Corpus  # noqa: E402
 
 model, test = sys.argv[1], sys.argv[2]
@@ -40,7 +40,10 @@ out = None
 if "--out" in sys.argv:
     out = sys.argv[sys.argv.index("--out") + 1]
 READERS = {"compound": CompoundCorpus, "norm": NormCorpus, "oracle": OracleCorpus,
-           "lemma_oracle": LemmaOracleCorpus}
+           "lemma_oracle": LemmaOracleCorpus, "gold_tok_norm": GoldTokNormCorpus}
+# `gold_tok_norm` takes no gold_preproc: it always yields whole multi-sentence docs, which is the
+# point of it — pass it to score an arm trained through the same reader, or SENTS_F is a free 100.
+NO_GOLD_PREPROC = {"gold_tok_norm"}
 which = "plain" if plain else "compound"
 if "--reader" in sys.argv:
     which = sys.argv[sys.argv.index("--reader") + 1]
@@ -48,11 +51,12 @@ if "--reader" in sys.argv:
         sys.exit(f"--reader must be one of {sorted(READERS)}, not {which!r}")
 
 nlp = spacy.load(model)
-reader = (Corpus if plain else READERS[which])(test, gold_preproc=True)
+kw = {} if which in NO_GOLD_PREPROC and not plain else {"gold_preproc": True}
+reader = (Corpus if plain else READERS[which])(test, **kw)
 examples = list(reader(nlp))
 scores = nlp.evaluate(examples)
 
-keys = ["tag_acc", "pos_acc", "morph_acc", "lemma_acc", "dep_uas", "dep_las"]
+keys = ["tag_acc", "pos_acc", "morph_acc", "lemma_acc", "dep_uas", "dep_las", "sents_f"]
 print(f"{model}  (reader: {'stock, no Compound' if plain else which})")
 for k in keys:
     v = scores.get(k)
