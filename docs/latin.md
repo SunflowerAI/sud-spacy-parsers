@@ -254,3 +254,68 @@ necessary now the pipe is in the DEFAULT pipeline, since a raising component wou
 ordinary `nlp(text)`. The warning's fetch line is built from `__name__` so it reads correctly from
 inside the wheel. RFTagger (non-commercial) is used only to label the treebank offline.
 
+
+## Where the Latin parser actually loses: discontinuity, not agreement (2026-08-19)
+
+Two diagnostics were built to ask where the errors are, and the answer redirected the work. Both
+tools take `--model NAME=PATH` repeatedly and report every arm side by side.
+
+**`scripts/analyse_la_nonproj_errors.py` — non-projectivity dominates.** On the released `aug` arm,
+**63.0 % of all attachment errors fall in a sentence containing a crossing arc**, from 52.4 % of the
+tokens. The three buckets are worth separating:
+
+    bucket                       tokens   errors      UAS      LAS   of all errors
+    the non-projective arc        2 726    1 943    28.72    25.24         15.96 %
+    the rest of its sentence     26 045    5 725    78.02    71.51         47.01 %
+    a wholly projective sentence 26 126    4 509    82.74    76.75         37.03 %
+
+The crossing arcs are catastrophic — 5.0 % of tokens producing 16.0 % of errors — and discontinuity
+is **contagious**: ordinary projective arcs in the same sentence lose 4.7 UAS against identical arcs
+in a clean one. ⚠ This is **not sentence length in disguise**; controlling for length the penalty is
+8–11.5 UAS in every bucket including 2–9-token sentences, while projective UAS is nearly flat across
+length (83.56 → 82.66 → 81.55 → 82.61).
+
+The mechanism is that pseudo-projectivisation barely works here: the parser emits **1 082 crossing
+arcs against 2 726 in the gold** and recovers only 28.4 % of them as crossing at all. Closing the
+whole non-projective-sentence gap would be worth **4.92 UAS**.
+
+**`scripts/analyse_la_agreement_errors.py` — agreement is a small slice.** An error counts as
+agreement-detectable when the gold head agrees with the dependent and the predicted head does not,
+so agreement alone rules the error out. On the same arm that is **454 errors, 3.73 % of the total,
+worth 0.83 UAS**. Nominal agreement discriminates well (63 % of applicable errors detectable);
+subject agreement barely does (73 % ambiguous, because the wrongly-chosen verb almost always agrees
+in Number too). GOLD morphology is used deliberately — the question is what the INFORMATION is
+worth, not what one morphologiser recovers of it.
+
+Both counts fall monotonically `aug` → `lemvec` → `order_lemvec` (454 → 383 → 359), and `lemvec`
+cut agreement-detectable errors three times as fast as it cut errors overall, which is independent
+evidence that the per-feature morphology channel does what it was built to do.
+
+**The follow-up work is in `NEGATIVE-RESULTS.md`.** Handing agreement to the parser as an explicit
+relational input, and training the parser with a beam, were both tried on `lemvec` and both failed —
+the beam refuting its own premise by emitting FEWER crossing arcs than the greedy decoder. The
+standing conclusion is that discontinuity here is a **representation** problem, not a search
+problem, and that the pseudo-projective scheme is what to change.
+
+⚠ These figures parse whole multi-sentence documents, so the model finds its own sentence
+boundaries. That runs ≈0.9 UAS below the `--gold-preproc` figures quoted elsewhere in this file,
+which hand the parser gold sentences. The setting is harder and more realistic, and it applies
+equally to every arm compared.
+
+### Seed spread: what a Latin LAS delta has to clear (2026-08-19, partial)
+
+Two runs of the SAME config differing only in `--system.seed` and `--corpora.train.augmenter.seed`
+(`config_la_agree.cfg`, seeds 0 and 1), compared at matched steps from 3 000 onward:
+
+    43 matched evaluations    mean +0.077    mean ABSOLUTE gap 0.272    max 0.82 LAS
+
+**So a single-seed Latin delta below roughly 0.3 LAS says nothing, and one below 0.8 can happen by
+chance.** This is the first direct measurement of the quantity, and it retrospectively settles the
+`agree` arm: its +0.40 test delta over `lemvec` sits inside the band, which is what the dev
+(-0.17) and whole-doc UAS (-0.05) figures were already saying by disagreeing with it.
+
+⚠ PARTIAL, and both numbers are dev-side. Seed 1 was stopped at step 11 800 of 20 000 to free the
+machine for Sanskrit, so the spread is measured over the first 59 % of training and on DEV only —
+test-side spread is unmeasured and could be wider. `training_la_agree_s1/` and
+`train_la_agree_s1.log` are on disk; seeds `agree` s2 and `lemvec` s1/s2 were queued and never ran.
+Resume with the `run()` helper pattern in the driver, or re-queue all four for a clean comparison.

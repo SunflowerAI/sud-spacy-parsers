@@ -32,6 +32,15 @@ from thinc.api import Config
 #: components whose labels must be supplied explicitly under a streamed corpus
 LABEL_FACTORIES = {"tagger", "parser", "morphologizer", "trainable_lemmatizer", "senter", "ner"}
 
+#: Word-order rates, added on top of the orthographic ones by `--order`. `p_hyperbaton` is set by
+#: scripts/calibrate_la_order.py against the corpus's own 37.75 % crossing rate; `p_sentence` is
+#: deliberately below 1 so half the epoch still shows the treebank's own linearisation.
+ORDER_RATES = {
+    "p_sentence": 0.5,
+    "p_hyperbaton": 0.08,
+    "p_rise": 0.4,
+}
+
 DEFAULT_RATES = {
     "p_v": 0.5,
     "p_j": 0.5,
@@ -55,7 +64,10 @@ def main():
                          "practice, since streaming initialises from 100 examples "
                          "(see scripts/init_aug_labels.py)")
     ap.add_argument("--seed", type=int, default=0)
-    for name, value in DEFAULT_RATES.items():
+    ap.add_argument("--order", action="store_true",
+                    help="also re-linearise the word order (sud.la_variants.v1 instead of "
+                         "sud.la_orth_variants.v1); see scripts/la_order.py")
+    for name, value in {**DEFAULT_RATES, **ORDER_RATES}.items():
         ap.add_argument(f"--{name.replace('_', '-')}", type=float, default=value)
     args = ap.parse_args()
 
@@ -66,8 +78,10 @@ def main():
         raise SystemExit(f"expected the gold-token reader, found {train.get('@readers')!r} -- the "
                          "augmenter assumes one document per example (see make_la_aug_config.py)")
     train["shuffle"] = True
-    train["augmenter"] = {"@augmenters": "sud.la_orth_variants.v1", "seed": args.seed,
-                          **{k: getattr(args, k) for k in DEFAULT_RATES}}
+    rates = {**DEFAULT_RATES, **ORDER_RATES} if args.order else DEFAULT_RATES
+    train["augmenter"] = {
+        "@augmenters": "sud.la_variants.v1" if args.order else "sud.la_orth_variants.v1",
+        "seed": args.seed, **{k: getattr(args, k) for k in rates}}
     cfg["training"]["max_epochs"] = -1
 
     if args.retarget:

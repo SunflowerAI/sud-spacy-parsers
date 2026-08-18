@@ -181,3 +181,159 @@ def LemmaVecFeatsEmbed(
     max_out: Model[Ragged, Ragged] = with_array(
         Maxout(width, concat_size, nP=3, dropout=0.0, normalize=True))
     return chain(concatenate(*pieces), max_out, ragged2list())
+
+
+# --------------------------------------------------------------------------------------------
+# AGREEMENT AS AN INPUT, the Latin counterpart of `configs/config_sa_multitask_agree.cfg`.
+#
+# WHY A BLOCK AND NOT JUST THE PER-FEATURE TABLES. `sud.LemmaVecFeatsEmbed.v1` already gives the
+# parser a dimension per morphological category, which lets it know that this token is accusative.
+# Agreement is not a property of a token: it is a RELATION between two, and a per-token embedding
+# cannot express one. The parser would have to reconstruct "do these two share a case?" from two
+# independently-hashed vectors read at different state positions, through a Maxout that only ever
+# sees them summed. So the comparison is done here, where both tokens are in hand, and handed over
+# already computed.
+#
+# WHAT MAKES IT WORTH DOING FOR LATIN and not merely worth copying. Measured by
+# `scripts/check_la_agreement_signal.py` on the test set: gold ADJ/DET/NUM --mod|det--> nominal arcs
+# are 93.5 % case/number/gender-compatible, against 13.6 % for a random nominal within three tokens
+# that is NOT the head -- a gap of 79.9 points, where the Sanskrit block was built on 24.1. Under
+# the PREDICTED morphology a shippable arm actually reads, the positives fall to 73.4 % but the
+# negatives barely move (12.7 %), so the morphologiser's errors cost recall and not precision, and
+# 60.8 points of the gap survive. That is the number this block is betting on.
+#
+# THE DIMENSIONS. Twelve, and the last four are the Latin-specific ones:
+#   0-7   compatible with the token at offset -4..-1, +1..+4      (local agreement)
+#   8,9   compatible with ANY token within `near` to the left / right
+#   10    how many tokens in that window are compatible, scaled   (how ambiguous the signal is)
+#   11    this token declares no Case/Number/Gender at all        (see below)
+# 8-10 exist because of hyperbaton: `magnam ... urbem` is the construction Latin discontinuity is
+# MADE of, and a +-4 window cannot see across one. 10 matters because a lone compatible nominal and
+# nine of them are opposite evidence, and dims 8-9 report both as 1.0.
+#
+# DIM 11 IS NOT OPTIONAL. The frozen morphologiser sets FEATS on ~68 % of tokens, so a third of them
+# have no agreement features at all -- and with dims 0-10 left at zero, "nothing agrees with me" and
+# "nothing is known about me" would be the identical input. That is the same distinction CLAUDE.md
+# records costing Sanskrit 6.8 LAS between an unset MORPH and an empty one, arriving by a different
+# route. Sanskrit hit it too, and its comment gives the same reason: an unknown form must not be
+# encoded as incompatible with everything.
+#
+# `agree_constant = true` is the capacity control: identical Linear, identical parameter count,
+# every token handed twelve zeros.
+AGREE_KEYS = ("Case", "Number", "Gender")
+AGREE_DIMS = 12
+_BITS: dict = {}
+
+
+def _mask(tok, keys) -> tuple:
+    """One integer bitmask per key, so compatibility is three ANDs rather than three set builds.
+
+    A multi-valued feature (`Case=Nom,Acc`) sets several bits, which makes intersection the right
+    operation for free: an underspecified form is compatible with either reading, and that is what
+    the annotation means. A key the token does not declare gets 0, and any 0 makes the token
+    UNKNOWN rather than incompatible.
+    """
+    out = []
+    for k in keys:
+        vals = tok.morph.get(k)
+        if not vals:
+            return ()
+        m = 0
+        for v in vals:
+            b = _BITS.get((k, v))
+            if b is None:
+                b = _BITS[(k, v)] = 1 << len(_BITS)
+            m |= b
+        out.append(m)
+    return tuple(out)
+
+
+def AgreeExtractor(near: int, constant: bool):
+    return Model("extract_agreement", _agree_forward,
+                 attrs={"ag_near": int(near), "ag_constant": bool(constant)})
+
+
+def _agree_forward(model: Model, docs, is_train: bool) -> Tuple[List[Floats2d], Callable]:
+    near = model.attrs["ag_near"]
+    constant = model.attrs["ag_constant"]
+    out: List[Floats2d] = []
+    for doc in docs:
+        n = len(doc)
+        arr = np.zeros((n, AGREE_DIMS), dtype="f")
+        if not constant:
+            masks = [_mask(t, AGREE_KEYS) for t in doc]
+            for i, mi in enumerate(masks):
+                if not mi:
+                    arr[i, 11] = 1.0                 # unknown, NOT incompatible
+                    continue
+                lo, hi = max(0, i - near), min(n, i + near + 1)
+                cnt = 0
+                for j in range(lo, hi):
+                    if j == i:
+                        continue
+                    mj = masks[j]
+                    if not mj or not (mi[0] & mj[0] and mi[1] & mj[1] and mi[2] & mj[2]):
+                        continue
+                    cnt += 1
+                    d = j - i
+                    if -4 <= d <= 4:
+                        arr[i, d + 4 if d < 0 else d + 3] = 1.0
+                    arr[i, 8 if d < 0 else 9] = 1.0
+                arr[i, 10] = min(cnt, 8) / 8.0
+        out.append(model.ops.asarray2f(arr))
+    backprop: Callable[[List[Floats2d]], List] = lambda d: []
+    return out, backprop
+
+
+@registry.architectures("sud.LemmaVecFeatsAgreeEmbed.v1")
+def LemmaVecFeatsAgreeEmbed(
+    width: int,
+    attrs: Union[List[str], List[int], List[Union[str, int]]],
+    rows: List[int],
+    include_static_vectors: bool,
+    vectors=None,
+    constant: bool = False,
+    feats: List[str] = [],
+    feat_rows: List[int] = [],
+    agree_near: int = 20,
+    agree_constant: bool = False,
+) -> Model[List[Doc], List[Floats2d]]:
+    """`sud.LemmaVecFeatsEmbed.v1` plus the agreement-compatibility block documented above.
+
+    Everything else is bit-for-bit the same layer, including the seeding order of the hash tables,
+    so an arm built on this and an arm built on `sud.LemmaVecFeatsEmbed.v1` differ in the twelve
+    dimensions and in nothing else.
+    """
+    if len(rows) != len(attrs):
+        raise ValueError(f"Mismatched lengths: {len(rows)} vs {len(attrs)}")
+    if len(feat_rows) != len(feats):
+        raise ValueError(f"Mismatched feature lengths: {len(feat_rows)} vs {len(feats)}")
+    if len(set(feats)) != len(feats):
+        raise ValueError(f"duplicate feature in {feats}")
+    if vectors is None:
+        raise ValueError("sud.LemmaVecFeatsAgreeEmbed.v1 needs `vectors`")
+    _, V = load_vectors(vectors)
+    dim = V.shape[1]
+
+    all_rows = list(rows) + list(feat_rows)
+    seed = 7
+
+    def make_hash_embed(index):
+        nonlocal seed
+        seed += 1
+        return HashEmbed(width, all_rows[index], column=index, seed=seed, dropout=0.0)
+
+    embeddings = [make_hash_embed(i) for i in range(len(all_rows))]
+    pieces = [chain(FeatsFeatureExtractor(attrs, feats), list2ragged(),
+                    with_array(concatenate(*embeddings)))]
+    if include_static_vectors:
+        pieces.append(StaticVectors(width, dropout=0.0))
+    pieces.append(chain(LemmaVecExtractor(vectors, constant), list2ragged(),
+                        with_array(Linear(width, dim + 1))))
+    pieces.append(chain(AgreeExtractor(agree_near, agree_constant), list2ragged(),
+                        with_array(Linear(width, AGREE_DIMS))))
+    # one `width` per hash TABLE, plus static vectors, plus the lemma block, plus this one
+    concat_size = width * (len(embeddings) + include_static_vectors + 2)
+    max_out: Model[Ragged, Ragged] = with_array(
+        Maxout(width, concat_size, nP=3, dropout=0.0, normalize=True))
+    return chain(concatenate(*pieces), max_out, ragged2list())

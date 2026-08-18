@@ -887,3 +887,113 @@ Kept: `eval_misc_raw_delta.py` (raw-side MISC comparison -- all three
 change at all), and `--model` on `eval_sud_subject.py`. ⚠ `eval_sud_shared.py` already had
 `EVAL_SHARED_ARM`/`EVAL_LEMMA_ARM` env overrides -- a `--model` flag added there by regex silently
 did not wire up, and an accepted-but-ignored flag is worse than none.
+
+## Agreement as a parser input, and beam training, for Latin (2026-08-19)
+
+Two changes tried on the Latin `lemvec` arm (`config_la_lemvec.cfg`: lemma vectors plus one hash
+table per morphological category, test LAS 73.23), each mirroring something Sanskrit was trying.
+Both failed, and **the pair indicts something neither indicts alone**.
+
+Unusually, both premises were measured on Latin first, and both came out STRONGER than the Sanskrit
+numbers the same ideas were built on:
+
+    premise                                    Sanskrit          Latin
+    agreement gap, gold arc vs nearby non-arc  89.5 / 65.4       93.5 / 13.6  (+79.9)
+      ... under PREDICTED morphology              --             73.4 / 12.7  (+60.8)
+    non-projective sentences                   23.97 %           37.37 %
+
+So neither result is "the signal was not there". Both are "the signal was there and the intervention
+could not convert it", which is a different and more useful finding.
+
+### Agreement as an explicit relational input: null
+
+`sud.LemmaVecFeatsAgreeEmbed.v1` hands the parser twelve dimensions computed where both tokens are
+in hand -- compatible at each offset -4..+4, any-compatible left/right within 20 tokens, how many
+are compatible, and a flag for a token that declares no Case/Number/Gender at all. The rationale is
+sound and still is: agreement is a RELATION, a per-token embedding cannot hold one, and the parser
+would otherwise have to reconstruct "do these two share a case?" from two independently-hashed
+vectors read at different state positions.
+
+    measurement                        lemvec    agree     delta
+    dev LAS at the saved checkpoint     75.71    75.54     -0.17
+    test LAS, all (gold-preproc)        73.23    73.63     +0.40
+    test LAS, ITTB+PROIEL               77.67    77.98     +0.31
+    test LAS, Perseus                   53.91    54.70     +0.79
+    whole-doc UAS (own segmentation)    78.98    78.93     -0.05
+
+**An effect that is 0.17 behind on dev, 0.40 ahead on test and 0.05 behind under the model's own
+sentence segmentation is smaller than the disagreement between the ways of measuring it.** Seeds
+(agree and lemvec, 1 and 2, both `--system.seed` and `--corpora.train.augmenter.seed`) were queued
+to settle the Perseus slice specifically, and were STOPPED after one to free the machine for
+Sanskrit. What that one seed did establish is the spread itself: two runs of the same config differ
+by a mean absolute **0.272 LAS** at matched steps, max 0.82 (`docs/latin.md`). **The +0.40 sits
+inside the noise band**, which is what the dev and whole-doc figures were already saying by
+disagreeing with it.
+
+The mechanism check is the only clean signal and it is tiny. Agreement-detectable errors --
+`scripts/analyse_la_agreement_errors.py`, defined as the gold head agreeing where the predicted head
+does not, so agreement alone rules the error out -- fell **383 -> 365**, concentrated on the subject
+relation (88 -> 76). That is the block doing exactly its job, worth **0.03 UAS**. Total attachment
+errors rose slightly (11 541 -> 11 569), so whatever the block fixed it paid back elsewhere.
+
+**The explanation is that the per-feature tables had already extracted the signal.** Those tables
+are what took agreement-detectable errors from 454 (released `aug` arm) to 383, and the residue is
+worth only 0.70 UAS in total. Read against `config_la_morphfirst.cfg`, the pair is a clean
+progression: the whole-bundle MORPH hash was worth nothing (0.7256 against a capacity control's
+0.7255), DECOMPOSING it per category was worth +1.51 LAS, and making the RELATION explicit on top of
+that was worth nothing again. The middle step is where all the value is.
+
+⚠ Not ruled out: the block is silent on more than half of all tokens (`unknown` averages 0.554,
+because it requires all three of Case, Number and Gender, which no verb has). A Number-only channel
+for verbs, or a narrower reach, are different experiments. The measured 0.70 UAS ceiling does not
+justify them.
+
+### Beam training: refuted on its own mechanism, which is the interesting part
+
+`beam_parser`, width 8, `beam_update_prob = 0.5` -- the settings from `config_sa_mp2_beam.cfg`,
+untuned. The rationale was specific and quantified: Latin loses on discontinuity (37.4 % of test
+sentences carry a crossing arc; those arcs are 5.0 % of tokens but 16.0 % of all attachment errors,
+UAS 28.72 on them against 82.74 in a wholly projective sentence, and the gap survives a length
+control at 8-11.5 points in EVERY length bucket including 2-9 tokens). Pseudo-projective encoding
+makes such an arc a locally costly, globally correct decision -- `mod||subj` scores worse at that
+step and only pays after de-projectivisation -- so a greedy decoder cannot take the bet and a beam
+should be able to.
+
+It hit patience at step 11 800 and lost by **2.76 test LAS** (70.47), below even the released `aug`
+arm. But the headline is not the finding:
+
+                                            lemvec (greedy)    beam
+    crossing arcs EMITTED                        1 206        1 157
+    gold crossing arcs recovered as crossing      31.1 %       27.8 %
+    UAS on the crossing arcs                      30.45        28.58
+    UAS on wholly projective sentences            83.87        82.03
+
+**A beam that searches eight sequences instead of one and emits FEWER `||` actions is not
+search-limited.** The model scores those actions low, and widening the search cannot help when the
+scores are the problem. Beam is also uniformly worse, including on ordinary projective arcs, so
+nothing was traded for anything.
+
+### What the two results jointly indict
+
+Three interventions have now been aimed at the same 2.68 UAS of non-projective headroom, from three
+directions, and all three left it on the table:
+
+    let the parser EXPRESS more   sa, min_action_freq 30 -> 5     45 -> 132 moves, -0.06 LAS
+    push it to REACH more         sa, 3x upsampling               recall 0.119 -> 0.237, +0.43 net
+    let it SEARCH more            la, beam_parser width 8         FEWER arcs emitted, -2.76 LAS
+
+What that jointly indicts is **the pseudo-projective representation, not any decoder over it**. A
+scheme that turns discontinuity into a rare composite LABEL makes it a data-sparsity problem, and
+none of expressing, reaching or searching addresses data sparsity. Anything further here should
+change the representation -- a genuinely non-projective transition system, or an arc-factored
+decoder -- rather than tune a search over this one.
+
+⚠ Beam stopped on patience at 11 800 of 20 000 while still climbing slowly, so "given more steps" is
+not formally excluded. It was 2-3.7 LAS behind in every 2 000-step window from step 1, and its
+emitted-arc count moved the WRONG way, which extra training does not explain.
+
+Kept and reusable: `scripts/analyse_la_nonproj_errors.py` (per-arc / per-sentence non-projectivity
+error attribution, `--lang` so it runs on any arm), `scripts/analyse_la_agreement_errors.py`,
+`scripts/check_la_agreement_signal.py` (the go/no-go that costs two minutes rather than a night),
+`scripts/check_la_agree_channel.py`, and `scripts/train_la_agree_beam.sh` with its `why` phase --
+which is what caught the beam refuting its own premise while the LAS column only said "worse".

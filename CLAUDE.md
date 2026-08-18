@@ -5,7 +5,8 @@ repository. It is the **map**; two companions hold the territory.
 
 - **`NEGATIVE-RESULTS.md` — check it before retrying anything that looks obviously right.** It
   records ~20 measured dead ends (affix widening, decode-time lexicons, LLM multi-way relabelling,
-  data upsampling, tree-aware encoders) and the meta-lessons behind them.
+  data upsampling, tree-aware encoders, beam training, agreement as an explicit parser input) and
+  the meta-lessons behind them.
 - **`docs/` — read the relevant file BEFORE touching the area it covers** (indexed below). Every
   one of them records at least one defect that the ordinary metrics reported as healthy.
 
@@ -13,7 +14,7 @@ repository. It is the **map**; two companions hold the territory.
 
 Two coupled pieces of work over **Surface-Syntactic Universal Dependencies (SUD)** treebanks, now
 eleven languages: en, zh, yue, lzh, ja, ko, id, fa, ar, la, sa — in **twelve** wheels, since
-English ships twice (`en_sud_ewt` CC BY-SA, `en_sud_ewt_gum` CC BY-NC-SA).
+English ships twice (`en_sud_ewt` EWT-only, `en_sud_ewt_gum` + GUM; both CC BY-SA).
 
 1. **Small CPU spaCy pipelines** trained from SUD CoNLL-U and released as wheels. Component order
    is `[tokenizer, tok2vec, parser, morphologizer, lemmatizer, tagger, …language extras…, sud_*]`
@@ -94,7 +95,7 @@ evidence**. Which release figures are stale, and on which single field:
 | `docs/vocalisation.md` | `ar_vocalise` / `fa_vocalise`, the augmentation recipe, normalise-vs-augment, ar's trained Idiom | augmentation costs are **not uniform across labels** — rare ones pay first |
 | `docs/sud-misc-layer.md` | `Idiom` / `InIdiom` / `Subject` / `Reported` / `Shared`: which arm ships per language, and why | the layer is **coupled to the base underneath it**; `annotating_components` must list `tok2vec` |
 | `docs/packaging-and-release.md` | `package_sud.sh`, wheel contents, the release audits, serverless sizing | **a directory is not a release** |
-| `docs/latin.md` | three treebanks, macrons in and out, orthographic augmentation, `la_macronise` | the macron table's lookup key must be orthography-tolerant, least-normalised first |
+| `docs/latin.md` | three treebanks, macrons in and out, orthographic augmentation, `la_macronise`, where the parser's errors actually are | the macron table's lookup key must be orthography-tolerant, least-normalised first; 63 % of attachment errors sit in a non-projective sentence, and no headline metric says so |
 | `docs/sanskrit.md` | the raw-sandhied-text front end, the CSLiser, the sandhi machinery, the joint multi-task arm | an **unset** MORPH and an **empty** one are different inputs (cost 6.8 LAS) |
 | `docs/chinese-family.md` | zh traditional-only + `zh_script`, lzh's restored punctuation and `clause_parser`, yue | `_looks_simplified` cannot be "would `s2t` change it?"; `keep_marks` is coupled to the arm underneath |
 | `docs/lzh-tokenisation.md` | lzh's multi-character tokens, the trained char segmenter, the Heart Sūtra gold set, and every lexicon/gazetteer route measured | the released lzh tokeniser splits 孔子, and **no standard metric can see it** — `gold_preproc` bypasses the tokeniser |
@@ -106,8 +107,8 @@ All at v0.2.0 (re-clobbered as layers landed), published on the GitHub Release, 
 
 | lang | wheel | licence | tokeniser | note |
 |---|---|---|---|---|
-| en | `en_sud_ewt` | CC BY-SA 4.0 | rule | EWT only — the commercially usable wheel |
-| en | `en_sud_ewt_gum` | CC BY-NC-SA 4.0 | rule | + the ten non-NC GUM genres, +66 % train tokens |
+| en | `en_sud_ewt` | CC BY-SA 4.0 | rule | EWT only — the narrower attribution surface |
+| en | `en_sud_ewt_gum` | CC BY-SA 4.0 | rule | + the ten non-NC GUM genres, +66 % train tokens; owes GUM's CC BY attribution |
 | ar | `ar_sud_padt` | CC BY-NC-SA 4.0 | rule + `ar_tokenizer` | vocalisation-augmented; ships the `Vform` table and a trained Idiom pipe |
 | fa | `fa_sud_perdt` | CC BY-SA 4.0 | rule + `sud.FaNormTokenizer.v1` | normalises Arabic letterforms **in**; ships ezāfe rules without the GPL lexicon |
 | la | `la_sud_ittb_proiel_perseus` | CC BY-NC-SA 4.0 | rule + `-que` split | orthography-augmented; `la_macronise` ships without its data |
