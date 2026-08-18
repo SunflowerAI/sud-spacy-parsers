@@ -14,18 +14,24 @@ to +1.2 points and NON-MONOTONICALLY in dimensionality (96-d 0.9141 > 300-d 0.90
 which is what fitting noise looks like. That tested LABELLING, not attachment, which is why this
 layer exists rather than the matter being closed.
 
-⚠ EXPERIMENT-ONLY, NOT SHIPPABLE AS WRITTEN. The table is held module-level and only its PATH goes
-into the model's attrs, so a saved model depends on a file that existed on the training machine —
-exactly the defect `seal_analyser_model.py` had to fix for the analyser table. That is acceptable
-here because every arm using this layer is an ORACLE (it reads gold LEMMA, which no inference path
-supplies). If it ever earns its way into a wheel, the table must travel in the bytes.
+SEALING (`scripts/seal_la_lemvec_model.py`). The table travels in the MODEL'S OWN BYTES: the
+payload sits in the extractor's `attrs`, which thinc serialises alongside the weights, and sealing
+rewrites the stored config to `vectors = null` + `vector_dim = N` so the built model no longer needs
+the .npz that was on the training machine. This was the defect that made the layer experiment-only,
+and it is the same job `seal_analyser_model.py` did for the analyser table.
+
+⚠ Build time and load time are DIFFERENT contracts and both must hold. `vectors` (a path) is for
+building; `vector_dim` (an integer) is for a sealed model, whose architecture spaCy reconstructs
+from the config BEFORE restoring the weights — so construction must not need the table, and only
+`_lemmavec_forward` may refuse when it is missing. `resolve_vectors` is the single place that knows
+this, and it refuses when BOTH are null rather than guessing a width.
 
 `constant = true` is the capacity control: same Linear, same parameter count, every token given the
 zero vector and the "no entry" flag.
 """
 import pathlib
 import sys
-from typing import Callable, List, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 from spacy.ml.models.tok2vec import FeatureExtractor
@@ -57,21 +63,91 @@ def load_vectors(path):
     return _TABLES[p]
 
 
-def LemmaVecExtractor(path, constant: bool):
+def _payload_from_path(path) -> dict:
+    """The table as plain msgpack-safe values, so it travels in the MODEL'S OWN BYTES.
+
+    thinc serialises `attrs` with the weights, which is what makes sealing possible at all — but it
+    SKIPS AN UNSERIALISABLE ATTR WITHOUT SAYING SO, so the array goes in as raw bytes plus a shape
+    and a dtype rather than as an ndarray. `_lemmavec_forward` refuses to run on an empty payload
+    for exactly that reason.
+    """
+    idx, V = load_vectors(path)
+    keys = [""] * len(idx)
+    for k, i in idx.items():
+        keys[i] = k
+    V = np.ascontiguousarray(V, dtype="float32")
+    return {"keys": keys, "shape": [int(V.shape[0]), int(V.shape[1])],
+            "dtype": "float32", "data": V.tobytes()}
+
+
+#: decoded payloads, keyed by id() with the payload itself held so the id cannot be recycled.
+#: Decoding 1.6 MB on every forward pass would dominate the layer's cost.
+_DECODED: dict = {}
+
+
+def _decode(payload: dict):
+    key = id(payload)
+    hit = _DECODED.get(key)
+    if hit is not None and hit[0] is payload:
+        return hit[1], hit[2]
+    n, d = payload["shape"]
+    V = np.frombuffer(payload["data"], dtype=payload.get("dtype", "float32")).reshape(n, d)
+    idx = {k: i for i, k in enumerate(payload["keys"])}
+    _DECODED[key] = (payload, idx, V)
+    return idx, V
+
+
+def resolve_vectors(vectors, vector_dim, who: str):
+    """(payload, dim) from EITHER a build-time path OR a sealed model's stored dimensionality.
+
+    Two call sites, and the difference is the whole point of sealing. At BUILD time `vectors` names
+    the .npz and the payload is read from it. After sealing, the stored config carries
+    `vectors = null` and `vector_dim = N`: the architecture must then construct with an EMPTY
+    payload, because spaCy rebuilds the architecture from the config BEFORE restoring the weights,
+    and the real payload arrives moments later with them. Constructing must therefore not raise —
+    only running on an empty payload may, which is what `_lemmavec_forward` does.
+    """
+    if vectors is not None:
+        payload = _payload_from_path(vectors)
+        return payload, payload["shape"][1]
+    if vector_dim is None:
+        raise ValueError(
+            f"{who} needs either `vectors` (a path, at build time) or `vector_dim` (an integer, "
+            f"in a sealed model). Both are null, so the block's width is unknown — refusing to "
+            f"guess, because a wrong width fails far from here.")
+    return {}, int(vector_dim)
+
+
+def LemmaVecExtractor(payload: dict, constant: bool, dim: int):
+    # `lv_dim` is carried explicitly rather than read off the array, because the capacity control
+    # has no array at all and must still emit a block of the same width.
     return Model("extract_lemma_vectors", _lemmavec_forward,
-                 attrs={"lv_path": str(path), "lv_constant": bool(constant)})
+                 attrs={"lv_payload": payload, "lv_constant": bool(constant), "lv_dim": int(dim)})
 
 
 def _lemmavec_forward(model: Model, docs, is_train: bool) -> Tuple[List[Floats2d], Callable]:
-    idx, V = load_vectors(model.attrs["lv_path"])
+    payload = model.attrs["lv_payload"]
     constant = model.attrs["lv_constant"]
-    dim = V.shape[1]
+    dim = int(model.attrs["lv_dim"])
+    if constant:
+        idx, V = {}, None
+    else:
+        if not payload:
+            raise ValueError(
+                "sud.LemmaVec*: the lemma-vector table is empty. Either it never reached the "
+                "model, or it was dropped on serialisation (thinc skips an unserialisable attr "
+                "without saying so). Refusing to run: every token would read as out-of-vocabulary, "
+                "which loads cleanly and scores exactly like this layer's own capacity control.")
+        idx, V = _decode(payload)
+        if V.shape[1] != dim:
+            raise ValueError(f"sud.LemmaVec*: stored vector_dim {dim} but the table is "
+                             f"{V.shape[1]}-dimensional")
     out: List[Floats2d] = []
     for doc in docs:
         toks = list(doc)
         arr = np.zeros((len(toks), dim + 1), dtype="f")
         for i, tok in enumerate(toks):
-            row = None if constant else idx.get(tok.lemma_)
+            row = None if (constant or V is None) else idx.get(tok.lemma_)
             if row is None:
                 arr[i, dim] = 1.0          # the one "no entry" flag; OOV and control share it
             else:
@@ -88,14 +164,12 @@ def LemmaVecEmbed(
     rows: List[int],
     include_static_vectors: bool,
     vectors=None,
+    vector_dim: Optional[int] = None,
     constant: bool = False,
 ) -> Model[List[Doc], List[Floats2d]]:
     if len(rows) != len(attrs):
         raise ValueError(f"Mismatched lengths: {len(rows)} vs {len(attrs)}")
-    if vectors is None:
-        raise ValueError("sud.LemmaVecEmbed.v1 needs `vectors`")
-    _, V = load_vectors(vectors)
-    dim = V.shape[1]
+    payload, dim = resolve_vectors(vectors, vector_dim, "sud.LemmaVecEmbed.v1")
     seed = 7
 
     def make_hash_embed(index):
@@ -108,7 +182,7 @@ def LemmaVecEmbed(
         Maxout(width, width * (len(embeddings) + 1), nP=3, dropout=0.0, normalize=True))
     hashed = chain(FeatureExtractor(list(attrs)), list2ragged(),
                    with_array(concatenate(*embeddings)))
-    block = chain(LemmaVecExtractor(vectors, constant), list2ragged(),
+    block = chain(LemmaVecExtractor(payload, constant, dim), list2ragged(),
                   with_array(Linear(width, dim + 1)))
     return chain(concatenate(hashed, block), max_out, ragged2list())
 
@@ -120,6 +194,7 @@ def LemmaVecFeatsEmbed(
     rows: List[int],
     include_static_vectors: bool,
     vectors=None,
+    vector_dim: Optional[int] = None,
     constant: bool = False,
     feats: List[str] = [],
     feat_rows: List[int] = [],
@@ -143,10 +218,11 @@ def LemmaVecFeatsEmbed(
     count, every token handed the zero vector and the "no entry" flag. Set ``feats = []`` as well
     and this is `spacy.MultiHashEmbed.v2` plus a dead block — the honest control for the pair.
 
-    ⚠ THE TABLE DOES NOT TRAVEL IN THE MODEL BYTES, inherited from `sud.LemmaVecEmbed.v1` above: the
-    path goes into the attrs and the array is held module-level. That is fine for an experiment and
-    is NOT fine for a wheel; sealing it is the same job `seal_analyser_model.py` did for the
-    analyser table, and it has to be done before this ships.
+    The table TRAVELS IN THE MODEL BYTES once `scripts/seal_la_lemvec_model.py` has run over the
+    arm — see the module docstring. An UNSEALED arm still carries `vectors = <path>` in its config
+    and will raise on any machine without that file, which is the correct behaviour and not a
+    regression: the alternative is a model that loads cleanly with an all-zero table and scores
+    exactly like its own capacity control.
     """
     if len(rows) != len(attrs):
         raise ValueError(f"Mismatched lengths: {len(rows)} vs {len(attrs)}")
@@ -154,10 +230,7 @@ def LemmaVecFeatsEmbed(
         raise ValueError(f"Mismatched feature lengths: {len(feat_rows)} vs {len(feats)}")
     if len(set(feats)) != len(feats):
         raise ValueError(f"duplicate feature in {feats}")
-    if vectors is None:
-        raise ValueError("sud.LemmaVecFeatsEmbed.v1 needs `vectors`")
-    _, V = load_vectors(vectors)
-    dim = V.shape[1]
+    payload, dim = resolve_vectors(vectors, vector_dim, "sud.LemmaVecFeatsEmbed.v1")
 
     all_rows = list(rows) + list(feat_rows)
     seed = 7                       # same seeding order as MultiHashEmbed, so the columns line up
@@ -172,7 +245,7 @@ def LemmaVecFeatsEmbed(
                     with_array(concatenate(*embeddings)))]
     if include_static_vectors:
         pieces.append(StaticVectors(width, dropout=0.0))
-    pieces.append(chain(LemmaVecExtractor(vectors, constant), list2ragged(),
+    pieces.append(chain(LemmaVecExtractor(payload, constant, dim), list2ragged(),
                         with_array(Linear(width, dim + 1))))
     # The hashed piece is itself a concatenation of one `width`-wide table per column, so the
     # Maxout's input is one `width` per TABLE plus one for the static vectors and one for the
@@ -292,6 +365,7 @@ def LemmaVecFeatsAgreeEmbed(
     rows: List[int],
     include_static_vectors: bool,
     vectors=None,
+    vector_dim: Optional[int] = None,
     constant: bool = False,
     feats: List[str] = [],
     feat_rows: List[int] = [],
@@ -310,10 +384,7 @@ def LemmaVecFeatsAgreeEmbed(
         raise ValueError(f"Mismatched feature lengths: {len(feat_rows)} vs {len(feats)}")
     if len(set(feats)) != len(feats):
         raise ValueError(f"duplicate feature in {feats}")
-    if vectors is None:
-        raise ValueError("sud.LemmaVecFeatsAgreeEmbed.v1 needs `vectors`")
-    _, V = load_vectors(vectors)
-    dim = V.shape[1]
+    payload, dim = resolve_vectors(vectors, vector_dim, "sud.LemmaVecFeatsAgreeEmbed.v1")
 
     all_rows = list(rows) + list(feat_rows)
     seed = 7
@@ -328,7 +399,7 @@ def LemmaVecFeatsAgreeEmbed(
                     with_array(concatenate(*embeddings)))]
     if include_static_vectors:
         pieces.append(StaticVectors(width, dropout=0.0))
-    pieces.append(chain(LemmaVecExtractor(vectors, constant), list2ragged(),
+    pieces.append(chain(LemmaVecExtractor(payload, constant, dim), list2ragged(),
                         with_array(Linear(width, dim + 1))))
     pieces.append(chain(AgreeExtractor(agree_near, agree_constant), list2ragged(),
                         with_array(Linear(width, AGREE_DIMS))))

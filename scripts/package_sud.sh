@@ -108,8 +108,10 @@ pkg() {  # $1=arm  $2=src model dir  $3=--name value  $4=comma-separated --code 
   # NOT, although an earlier version of this comment exempted it and la on the grounds that a
   # `_sud_xpos` directory had been kept for them; that claim was false for both. en_gum's default
   # now names `training_en_gum_sud_xw`, rebuilt and verified byte-identical to the released asset.
-  # ⚠ `training_la_aug_sud_xpos` IS STILL PRE-GRAFT -- la cannot be repackaged until the graft is
-  # re-run against `training_la_xposwarm`.
+  # la is RESOLVED as of 2026-08-19: `training_la_aug_sud_xpos` is still pre-graft and is no longer
+  # the default. `training_la_lemvec_misc` replaces it -- the lemma-vector arm, sealed, with the
+  # `training_la_xposwarm` tagger grafted in by `graft_standalone_tagger.py` (parse unchanged
+  # 5 527/5 527, donor tags reproduced 5 527/5 527) and the MISC pipes transplanted on top.
   #
   # The pipeline ORDER is the cheap invariant that encodes all of this, so assert it here rather
   # than hope the next person diffs: a wheel whose tagger precedes its morphologiser is pre-graft,
@@ -239,7 +241,17 @@ for lang in "$@"; do
     # of two-and-a-hole. ITTB's own rows are untouched, and on the ITTB test slice -- the one span
     # whose gold never moved -- TAG goes 90.68 -> 92.92, combined 77.61 -> 86.16 with LAS/UAS/POS/
     # LEMMA identical to the decimal. LA_BASE gets back the pre-normalisation arm.
-    la)           base="${LA_BASE:-training_la_aug_sud_xpos/model-best}" ;;
+    # ⚠ THE ARM CHANGED ON 2026-08-19 and the old default is a generation BEHIND in two ways at
+    # once: pre-graft tagger AND pre-lemma-vector parser. `training_la_lemvec_misc` is the whole
+    # chain -- morphologiser and lemmatiser in FRONT of the parser and annotating, so the parser
+    # reads their predictions through `sud.LemmaVecFeatsEmbed.v1` (one hash table per morphological
+    # category, plus PPMI+SVD lemma vectors). +1.51 LAS / +1.28 UAS on the combined test against a
+    # CAPACITY CONTROL that is -2.56 below it, so the gain is the information and not the rows.
+    # The table is SEALED into the model bytes (seal_la_lemvec_model.py); an unsealed arm would
+    # load on this machine and nowhere else. The wheel must therefore also ship
+    # scripts/sud_lemmavec_embed.py -- it is in all three `la` --code lists below, and without it
+    # the installed model raises E893 at load.
+    la)           base="${LA_BASE:-training_la_lemvec_misc}" ;;
     # sa ships the JOINT MULTI-TASK arm: ONE shared encoder for tagger + parser + morphologizer +
     # lemmatizer, instead of the three-encoder freeze recipe every other arm uses. 25.85 -> 19.16 MB
     # (-25.9 %), tag/pos/morph/lemma each +0.3 to +0.7, and on HELD-OUT UFAL (classical prose, the
@@ -421,13 +433,13 @@ case $lang in
        # 17.65, trained 8.00, on 24 test instances.
   la)  $PY scripts/add_sud_idiom.py "$base" "$work.idiom" --drop sud_reported >/dev/null 2>&1
        $PY scripts/add_la_macronise.py "$work.idiom" "$work.mac" --no-lut \
-            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,sud_feats_embed.py \
+            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,sud_feats_embed.py,sud_lemmavec_embed.py \
             >/dev/null 2>&1
        $PY scripts/add_la_enclitic_tokenizer.py "$work.mac" "$work" --verify \
-            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,la_macronise.py,sud_feats_embed.py \
+            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,la_macronise.py,sud_feats_embed.py,sud_lemmavec_embed.py \
             || { echo "  la: enclitic tokeniser swap FAILED — skip"; continue; }
        pkg la  "$work" sud_ittb_proiel_perseus \
-            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py" ;;
+            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py,scripts/sud_lemmavec_embed.py" ;;
        # ar now takes the TRAINED arm as its base (for sud_shared); add_sud_reported_rule drops
        # the trained sud_reported it also carries, since ar ships the Reported RULE (73.5 v 46.0).
        # ar ships `ar_vocalise` WITH its table, which is what separates it from la_macronise.
