@@ -79,6 +79,11 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            # the plain+macron union corpus with one copy resampled into a new edition style each
            # epoch (macrons, breves, j/v, æ/œ, sentence-initial capitals).
            "la_augment.py",
+           # registers sud.dravidian_order_variants.v1 -- the ta/te word-order augmenter. Dravidian
+           # is rigidly head-final (the side of the head is read off the data, never assigned); what
+           # it re-linearises is the order of siblings in the preverbal field, which the treebanks
+           # show is genuinely free (26 % OSV in ta, 23 % in te).
+           "dravidian_augment.py",
            # registers sud.sa_case_variants.v1 — teaches that a capital carries no
            # syntax, which the tokeniser's case RESTORATION made necessary (14.62 %
            # of tokens change analysis when a sentence opens with a capital)

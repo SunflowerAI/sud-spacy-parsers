@@ -53,6 +53,10 @@ TRAIN = {
     "id":  "assets_id/SUD_Indonesian-GSD/id_gsd-sud-{split}.relabeled_ext.conllu",
     "ko":  "assets_ko/SUD_Korean-GSD/ko_gsd-sud-{split}.relabeled_ext.conllu",
     "sa":  "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{split}.csl_rev.conllu",
+    # ta: TTB + the MWTT 80/10/10 split. te: the MWT-SPLIT MTG, not MTG as shipped -- the arm
+    # under this layer trains on the split words (scripts/split_te_mwt.py).
+    "ta":  "assets_ta/ta_ttb_mwtt-sud-{split}.conllu",
+    "te":  "assets_te/te_mtg-sud-{split}.conllu",
 }
 # sa's arm trains on Vedic-train + UFAL combined, which lives outside the treebank directory.
 TRAIN_OVERRIDE = {("sa", "train"): "corpus_sa_csl_rev/train.csl_rev.conllu"}
