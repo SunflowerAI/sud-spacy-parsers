@@ -17,6 +17,7 @@ the underlying treebanks. You must give attribution and share derivatives alike.
 | Component | Source treebank | Licence |
 |-----------|-----------------|---------|
 | `en_sud_ewt` model, `assets/en_ewt-sud-*.conllu` | SUD_English-EWT | CC BY-SA 4.0 |
+| `en_sud_ewt_gum` model, `assets/en_ewtgum-sud-*.conllu` | SUD_English-EWT + SUD_English-GUM (ten non-NonCommercial genres) | CC BY-SA 4.0 (see GUM below) |
 | `zh_sud_gsd_simp_trad` model, `assets_zh/.../*.relabeled*.conllu` | SUD_Chinese-GSD + SUD_Chinese-GSDSimp | CC BY-SA 4.0 |
 | `ko_sud_gsd` model, `assets_ko/.../*.relabeled*.conllu` | SUD_Korean-GSD | CC BY-SA 4.0 |
 | `id_sud_gsd` model, `assets_id/.../*.relabeled*.conllu` | SUD_Indonesian-GSD | CC BY-SA 4.0 |
@@ -135,18 +136,44 @@ uses this project's morphologiser at inference, so RFTagger is not a runtime dep
 above does not touch it at all — `macrons.txt` is Morpheus's own output, tagged by Morpheus, so
 fetching skips RFTagger, Docker and the Morpheus compile together.
 
-## NonCommercial exclusion — SUD_English-GUM
+## Georgetown University Multilayer Corpus (GUM) — `en_sud_ewt_gum`
 
-The English EWT+GUM development setup used **SUD_English-GUM**, which is **CC BY-NC-SA 4.0
-(NonCommercial)**. To keep the published English model and data free of the NonCommercial
-restriction, **GUM is excluded entirely**: the shipped `en_sud_ewt` model is retrained on
-EWT only, and no GUM-derived sentences, gold, or metrics are committed. The development-time
-EWT+GUM figures quoted in the docs are reported for method context only.
+English ships **two** wheels. `en_sud_ewt` is EWT-only and contains no GUM-derived data at all.
+`en_sud_ewt_gum` adds **ten of GUM's fifteen genres** — academic, bio, conversation, court,
+interview, news, speech, textbook, vlog, voyage — and is **CC BY-SA 4.0**, like every other model
+here except Latin and Arabic.
+
+**Why that is not NonCommercial, although GUM's `LICENSE.txt` opens "The treebank is licensed under
+CC BY-NC-SA 4.0".** Read strictly, that line offers the *annotations* under NC whatever the
+document, and annotations are what a trained model absorbs — so this wheel shipped NC at v0.2.0
+while the question was open. Amir Zeldes, GUM's maintainer, resolved it directly (email,
+2026-08-17): the annotations are produced at Georgetown under a **CC BY** licence, and the NC comes
+**only from the individual underlying documents**, whose own licences must be respected. Using only
+documents without an NC licence is therefore fine commercially. The five NonCommercial genres —
+**essay, fiction, letter, podcast, whow** (wikiHow and fiction texts, and personal-blog material) —
+are excluded from this wheel's training data by `scripts/build_en_ewt_gum.sh`, which is what earns
+the licence. `NC_GENRES` in that script is a licence boundary, not a conservative default.
+
+The **ShareAlike** term comes from SUD_English-EWT (CC BY-SA 4.0) and from the Wikimedia sources
+among the kept genres (Wikivoyage and the Wikimedia bios, CC BY-SA 3.0) — not from GUM as a whole.
+
+**Attribution is an obligation here, not a courtesy**, because CC BY makes it one:
+
+- Cite the corpus and link the project website — **https://gucorpling.org/gum/** — which lists the
+  annotators and links the original data for each document.
+- Credit the **GUM annotators**: Amir Zeldes and 300+ Georgetown student annotators.
+- Cite the **text sources** as their own sites require: Wikinews and Wikivoyage (Wikimedia),
+  OpenStax open-access textbooks, the Santa Barbara Corpus of Spoken American English (John Du
+  Bois, UCSB), Creative-Commons YouTube vlogs, and public-domain political speeches.
+
+The same attribution travels inside the wheel, in `meta.json`'s `sources` (see
+`scripts/stamp_model_meta.py`).
 
 ## Attribution
 
 - Surface-Syntactic Universal Dependencies — https://surfacesyntacticud.github.io/
 - Universal Dependencies — https://universaldependencies.org/
+- Georgetown University Multilayer Corpus (GUM), Amir Zeldes et al. — https://gucorpling.org/gum/
 - Morpheus (Perseus Project, CC BY-SA 3.0 US) — https://github.com/PerseusDL/morpheus
 - latin-macronizer, Johan Winge (GPL-3.0) — https://github.com/Alatius/latin-macronizer
 - RFTagger, Helmut Schmid & Florian Laws (non-commercial) —

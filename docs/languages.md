@@ -3,19 +3,27 @@
 Extracted from `CLAUDE.md` so the main guide stays short — the same reason
 `NEGATIVE-RESULTS.md` exists. Read this before touching the area it covers.
 
-## English — TWO arms, two licences (`en_sud_ewt`, `en_sud_ewt_gum`)
+## English — TWO arms, one licence (`en_sud_ewt`, `en_sud_ewt_gum`)
 
-`en_sud_ewt` (CC BY-SA 4.0, EWT only) is unchanged and stays the commercially usable wheel.
-`en_sud_ewt_gum` (**CC BY-NC-SA 4.0**) adds the ten non-NonCommercial GUM genres — 340,324 train
-tokens, +66 % on EWT. Built by `scripts/build_en_ewt_gum.sh` (steps `merge relabel fix verify filter
-corpus base`), then the ordinary `train_morph → train_lemma → train_sud → package_sud` chain, which
-all take `en_gum` as an arm name.
+`en_sud_ewt` (CC BY-SA 4.0, EWT only) is unchanged. `en_sud_ewt_gum` (**also CC BY-SA 4.0**, since
+2026-08-17 — see below) adds the ten non-NonCommercial GUM genres — 340,324 train tokens, +66 % on
+EWT. Built by `scripts/build_en_ewt_gum.sh` (steps `merge relabel fix verify filter corpus base`),
+then the ordinary `train_morph → train_lemma → train_sud → package_sud` chain, which all take
+`en_gum` as an arm name.
 
-**Why two wheels rather than a filter.** GUM's LICENSE says the treebank is CC BY-NC-SA *and* that
-the NC comes from the individual sources; the second reading supports filtering, the first offers
-the ANNOTATIONS under NC whatever the document — and annotations are what a model absorbs. So the
-merged wheel ships NC regardless of the filter, and users choose. **GUM's NC genres are FIVE**
-(essay, fiction, letter, podcast, whow), not two.
+**Why two wheels — and why the licence stopped being the reason.** GUM's LICENSE says the treebank
+is CC BY-NC-SA *and* that the NC comes from the individual sources; the second reading supports
+filtering, the first offers the ANNOTATIONS under NC whatever the document — and annotations are
+what a model absorbs. On the strict reading the merged wheel would be NC regardless of the filter,
+so v0.2.0 shipped it that way and users chose. **Amir Zeldes settled it by email (2026-08-17): the
+annotations are Georgetown's, under CC BY; the NC belongs only to the individual documents.** So
+the filter is load-bearing, and the merged wheel is CC BY-SA 4.0 — SA from EWT and from the two
+ShareAlike kept genres, not from GUM. What remains is CC BY **attribution**: cite GUM, link
+<https://gucorpling.org/gum/>, credit the annotators, cite the text sources (`NOTICE.md`, and
+`meta.json`'s `sources` inside the wheel). The two wheels now differ only in training data and
+attribution surface, and en_gum is the stronger parser. ⚠ `NC_GENRES` in `build_en_ewt_gum.sh` is
+now a LICENCE BOUNDARY, not a conservative default. **GUM's NC genres are FIVE** (essay, fiction,
+letter, podcast, whow), not two.
 
 **The relabel is free if the ORDER is right.** The original development corpus was EWT+GUM
 concatenated, so `relabel_cache*.jsonl` already holds every GUM decision — but the keys are
