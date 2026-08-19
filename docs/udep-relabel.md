@@ -159,3 +159,47 @@ Other non-official UD carry-overs (`mod@poss`,
 and the other language-specific semantic subtypes are legitimate SUD conventions the pipeline relies
 on.
 
+## The annotators' `@subtype` was being erased on write
+
+`relabel_ext.py` decided comp-vs-mod correctly for a subtyped `udep` and then wrote the answer flat:
+
+    cols[7] = "comp:obl" if lab == "complement" else "mod"
+
+so a resolved `udep@tmod` became plain `mod`, never `mod@tmod`. The effect was not a lost nuance but
+a **misleading record**: every arm showed `mod@tmod` and `comp:obl@lmod` at ZERO while the residue
+still carried `udep@tmod`, so it read as though the subtyped ones had never been relabelled at all.
+They had been; the evidence was being destroyed at the write site. `--keep-subtype` carries it.
+
+It is OFF BY DEFAULT, which is the opposite of this project's usual "the default is the fix" rule,
+and deliberately so: the arms ON DISK were built without it — lzh 4 167 tokens, sa 8 249, yue 108
+(zh, id and en have none in scope) — so flipping the default would make the script stop reproducing
+their data while saying nothing. lzh has adopted it. **sa and yue have not, and should when next
+rebuilt.**
+
+`lzh` also lost its `UPOS == ADP` restriction, which had confined the rule to coverbs and left 2 188
+`udep@tmod` untouched on train — 1 753 of them a bare temporal NOUN under a VERB (今日, 昔) and 173 a
+NOUN under an AUX, not coverbs at all but the same WHEN adjunct. The yue branch has never had a UPOS
+restriction, for exactly this reason. Residue fell 5 772 → 2 071.
+
+⚠ **1 269 tokens changed hands between two rules.** Those had been committed as `comp:obj` by
+`apply_udep_rules.py`'s derived rules (a ≥90 % type-level frequency over (upos, head-upos, form));
+with the wider scope the coverb rule reaches them first and calls them `mod@tmod`. The precedence is
+right — an annotator's per-instance subtype should beat a type-level frequency — but it is a
+substantive relabelling, not a renaming, and it is why the derived-rule commit count on lzh drops
+from 1 834 to 202.
+
+**Transferring the change onto shipped data (`transfer_deprel_lzh.py`).** The chain ends in two
+steps that do far more than relabel — `align_kanripo_punct.py` inserts 100 193 marks, and
+`cross_unit_rules.py` merges 句讀 units and re-heads the merged root — so the delta is carried onto
+the final file rather than the chain re-run. Two traps, both caught by refusals rather than by
+inspection:
+
+- the alignment check came back off by exactly **5**, the number of PUNCT tokens Kyoto is documented
+  as not having but does (5 in 374 560). PUNCT has to be excluded from BOTH sides;
+- a naive delta would have **reverted 15 394 cross-unit relations** — the merge re-heads unit roots
+  (`root` → `comp:obj` 8 759, `mod` 2 957, `parataxis` 2 415, `conj:coord` 1 263), and those still
+  read `root` upstream. The transfer never writes `root` back.
+
+The `--old-is-target` path exists because assets are gitignored and the on-disk `.relabeled_ext`
+accumulates later in-place passes, so re-running the previous code reproduces `relabel_ext` but not
+that accumulated state. It was validated against a true-delta transfer on train: byte-identical.

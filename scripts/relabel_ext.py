@@ -164,9 +164,15 @@ def targets(lang, toks, by):
         head = by.get(t["head"])
         if not head:
             continue
-        # lzh: subtyped locative/temporal coverbs (udep@lmod / udep@tmod) carry the semantic
+        # lzh: subtyped locative/temporal dependents (udep@lmod / udep@tmod) carry the semantic
         # role the annotators assigned; the plain-`udep` scope never sees them.
-        if lang == "lzh" and t["upos"] == "ADP" and head["upos"] == "VERB" \
+        # ⚠ THE `UPOS == ADP` RESTRICTION IS GONE. It limited the rule to coverbs and so left 2 188
+        # `udep@tmod` untouched on train, of which 1 753 were a bare temporal NOUN under a VERB
+        # (今日, 昔) and 173 a NOUN under an AUX — not coverbs at all, but the same WHEN adjunct, and
+        # the yue branch below has never had a UPOS restriction for exactly that reason. The head
+        # test widens to AUX with it; `lzh_coverb_label` gates @lmod on the head's verb class, which
+        # an AUX simply fails, so those fall to the circumstantial `mod` branch as before.
+        if lang == "lzh" and head["upos"] in ("VERB", "AUX") \
                 and t["deprel"] in ("udep@lmod", "udep@tmod"):
             yield t, head, "lzh_coverb"
             continue
@@ -278,6 +284,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lang", required=True, choices=FILES)
     ap.add_argument("--rules-only", action="store_true", help="no model calls; report only")
+    ap.add_argument("--keep-subtype", action="store_true",
+                    help="carry the annotators' `@subtype` onto the resolved label "
+                         "(udep@tmod -> mod@tmod rather than mod)")
     ap.add_argument("--model-sample", type=int, default=0,
                     help="if >0, only call the model for the first N uncached targets (probe)")
     args = ap.parse_args()
@@ -320,7 +329,20 @@ def main():
                 if not args.rules_only:
                     li = lineidx[t["id"]]
                     cols = lines[li].split("\t")
-                    cols[7] = "comp:obl" if lab == "complement" else "mod"
+                    base = "comp:obl" if lab == "complement" else "mod"
+                    # ⚠ The subtype the ANNOTATORS assigned was being thrown away here. A resolved
+                    # `udep@tmod` became plain `mod`, never `mod@tmod`, which is why every arm shows
+                    # `mod@tmod`/`comp:obl@lmod` at zero while the residue still carries `udep@tmod`
+                    # — it looked as though the subtyped ones had not been relabelled at all. They
+                    # had; the evidence was being erased on write. Off by default because the arms
+                    # ON DISK were built without it (lzh 4 167 tokens, sa 8 249, yue 108 — zh, id and
+                    # en have none in scope), so flipping it silently would make this script stop
+                    # reproducing their data. lzh has adopted it; sa and yue should when next rebuilt.
+                    if args.keep_subtype:
+                        sub = t["deprel"].rpartition("@")[2] if "@" in t["deprel"] else ""
+                        if sub:
+                            base = f"{base}@{sub}"
+                    cols[7] = base
                     lines[li] = "\t".join(cols)
             out.append("\n".join(lines))
         if not args.rules_only:

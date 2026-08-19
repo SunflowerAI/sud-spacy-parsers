@@ -94,7 +94,8 @@ src_conllu() {
     en)  echo "assets/en_ewt-sud-$2.relabeled_ext.conllu" ;;
     # en_gum is the SECOND English arm: EWT + the non-NonCommercial GUM genres, built by
     # scripts/build_en_ewt_gum.sh. Deliberately NOT in ALL_LANGS -- it is an additional wheel
-    # (en_sud_ewt_gum, CC BY-NC-SA 4.0), not a replacement for en, so it is opt-in per run.
+    # (en_sud_ewt_gum, CC BY-SA 4.0 since 2026-08-17), not a replacement for en, so it is opt-in
+    # per run.
     # arm_suffix/src_model/base_config all fall through correctly on the name alone.
     en_gum) echo "assets/en_ewtgum-sud-$2.relabeled_ext.conllu" ;;
     zh)  echo "assets_zh/SUD_Chinese-GSDBoth/zh_gsdboth-sud-$2.relabeled_ext.conllu" ;;
@@ -102,12 +103,13 @@ src_conllu() {
     # lzh trains on the PUNCTUATION-RESTORED, rule-merged chain -- the generation its released arm
     # (training_lzh_rm_morph) was trained on. The plain .relabeled_ext files have no PUNCT tokens,
     # so a corpus built from them would not even align with that arm under gold_preproc.
-    # LZH_SRC lets the SUD pipes be retrained on the TRADITIONAL-ONLY treebank while the parser
-    # underneath stays the both-scripts arm. Kyoto-Both is the same text plus its OpenCC conversion,
-    # and dropping the augmentation costs the PARSER 2.4 LAS (79.0 -> 76.57 measured), so the base is
-    # kept; but the layers above it want one script so 遠 pools with itself instead of
-    # competing with 远.
-    lzh) echo "${LZH_SRC:-assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-$2.relabeled_ext.udep_ruled.punct.rulemerged.conllu}" ;;
+    # ⚠ THIS DEFAULT NAMED Kyoto-BOTH while the released arm is TRADITIONAL-ONLY end to end, so
+    # `train_sud.sh lzh` rebuilt the SUD layer on the both-scripts corpus -- exactly double (77 478
+    # dev tokens against 38 739, 387 simplified-only characters against 1) -- and the traditional
+    # arm could only be reproduced by remembering to set LZH_SRC. Fourth place in this repo where an
+    # lzh default pointed a generation sideways; the default is the fix, not a note (hazard 2).
+    # LZH_SRC is kept as the escape hatch for the superseded both-scripts arm.
+    lzh) echo "${LZH_SRC:-assets_lzh/SUD_Classical_Chinese-Kyoto/lzh_kyoto-sud-$2.relabeled_ext.udep_ruled.punct.rulemerged.conllu}" ;;
     fa)  echo "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-$2.relabeled_ext.conllu" ;;
     ar)  echo "assets_ar/SUD_Arabic-PADT/ar_padt-sud-$2.relabeled_ext.conllu" ;;
     la)  echo "assets_la/la_ittbproiel-sud-$2.relabeled_ext.conllu" ;;
@@ -133,9 +135,14 @@ src_conllu() {
 # lzh's SUD arm sits on the rule-merged punctuation chain, and is NAMED for it so it cannot be
 # confused with the pre-punctuation training_lzh_sud -- which is a different model, with a
 # different parse and therefore a different coordination mask.
+# ⚠ AND THE SUFFIX HAD TO MOVE WITH THE SOURCE. `prep` REWRITES `corpus_<lang><suffix>/`, so
+# leaving lzh at `_rm_sud` while the source default became traditional would have silently refilled
+# the BOTH-SCRIPTS corpus directory with traditional data — a worse failure than the one being
+# fixed, because nothing about the directory name would have changed. `_trad_sud` names what is now
+# built; the both-scripts artefacts keep their own directories, reachable via LZH_SRC + SUD_SUFFIX.
 arm_suffix() {
   case "$1" in
-    lzh) echo "_rm_sud" ;;
+    lzh) echo "${LZH_ARM_SUFFIX:-_trad_sud}" ;;
     *)   echo "_sud" ;;
   esac
 }
@@ -144,11 +151,12 @@ src_model() {
   case "$1" in
     # The rule-merged punctuation arm, and the MORPH storey of it: lzh has no trained lemmatizer
     # any more (han_lemma_lut replaces it at packaging), so _morph is the top of its chain.
-    # LZH_BASE_ARM: lzh is going TRADITIONAL-ONLY end to end, with s2t/t2s adapters at the
-    # pipeline boundary (`lzh_script`), so the SUD pipes stack on the traditional base rather
-    # than the both-scripts one. Costs 2.4 parser LAS (79.0 -> 76.57) -- accepted, because a
-    # both-scripts inventory never pools 遠 with 远 and the ranking layers pay for it.
-    lzh) echo "${LZH_BASE_ARM:-training_lzh_rm_morph/model-best}" ;;
+    # lzh is TRADITIONAL-ONLY end to end, with s2t/t2s adapters at the pipeline boundary
+    # (`lzh_script`), so the SUD pipes stack on the traditional base. Costs 2.4 parser LAS
+    # (79.0 -> 76.57) -- accepted, because a both-scripts inventory never pools 遠 with 远 and the
+    # ranking layers pay for it. ⚠ THIS DEFAULT ALSO NAMED THE BOTH-SCRIPTS ARM
+    # (training_lzh_rm_morph), against its own comment; LZH_BASE_ARM is the escape hatch for it.
+    lzh) echo "${LZH_BASE_ARM:-training_lzh_trad_morph/model-best}" ;;
     sa) echo "training_sa_multitask/model-best" ;;
     ko) echo "training_ko_eojeol_lemma/model-best" ;;
     # id's released arm is the SPLIT chain (char segmenter, enclitics separated). The generic
@@ -168,7 +176,7 @@ src_model() {
 # The base config matching src_model (same exception list).
 base_config() {
   case "$1" in
-    lzh) echo "configs/config_lzh_rm_morph.cfg" ;;
+    lzh) echo "${LZH_BASE_CONFIG:-configs/config_lzh_trad_morph.cfg}" ;;   # matches src_model
     sa) echo "configs/config_sa_multitask.cfg" ;;
     ko) echo "configs/config_ko_eojeol_lemma.cfg" ;;
     id) echo "configs/config_id_split_lemma.cfg" ;;
