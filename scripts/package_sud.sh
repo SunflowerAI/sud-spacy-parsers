@@ -160,6 +160,49 @@ if preset and not nlp.get_pipe("tagger").cfg.get("overwrite"):
           "the trained tagger is a no-op at inference", file=sys.stderr)
     sys.exit(1)
 GUARD
+  # ⚠ THE MISSING-`--code` GUARD. A custom registry name in the model's config resolves at LOAD
+  # time, so a file left out of `--code` produces a wheel that builds, installs, and raises E893 the
+  # first time a user opens it. The build itself cannot catch that -- the training machine has
+  # `scripts/` on `sys.path` -- and it has already happened once: `scripts/sud_lemmavec_embed.py`
+  # was missing from all three `la` lists, found only by installing into a clean directory.
+  # So the config is read back and every `sud.*` name in it is resolved to the module that
+  # registers it, which is checked against the list actually being passed. A refusal, not a comment
+  # asking the next person to remember (standing hazard 2).
+  $PY - "$src" "$code" <<'GUARD' || { echo "  $arm: --code list is INCOMPLETE — refusing to package"; return; }
+import pathlib, re, sys
+sys.path.insert(0, "scripts")
+import seg_code  # noqa: F401  (registers every custom architecture, reader, tokeniser and factory)
+from spacy.util import registry
+
+from thinc.api import Config
+
+# ONLY the sections spaCy resolves at LOAD time. `[corpora]`, `[training]` and `[initialize]` name
+# readers, augmenters and batchers that exist on the training machine and are never touched by
+# `spacy.load`, so requiring them in --code would refuse arms that are perfectly loadable — the
+# released ko arm names `sud.GoldTokCorpus.v1` and needs nothing at all.
+cfg = Config().from_disk(pathlib.Path(sys.argv[1]) / "config.cfg", interpolate=False)
+text = str({k: cfg.get(k) for k in ("nlp", "components")})
+listed = {pathlib.Path(p).name for p in sys.argv[2].replace("--code", "").split(",") if p.strip()}
+names = set(re.findall(r"'(sud\.[A-Za-z0-9_.]+)'", text))
+missing = {}
+for name in sorted(names):
+    for reg in ("architectures", "tokenizers", "factories", "misc", "layers", "callbacks"):
+        try:
+            func = getattr(registry, reg).get(name)
+        except Exception:
+            continue
+        # NOT `sys.modules[func.__module__]`: seg_code.py loads each file with `exec_module` and
+        # never puts it in sys.modules, so that lookup returns None for every custom name and the
+        # guard would pass everything — a check that cannot fail, which is worse than no check.
+        f = getattr(func, "__globals__", {}).get("__file__")
+        if f:
+            missing.setdefault(pathlib.Path(f).name, set()).add(name)
+        break
+gaps = {m: n for m, n in missing.items() if m not in listed and m != "seg_code.py"}
+for m, n in sorted(gaps.items()):
+    print(f"    config names {sorted(n)} but scripts/{m} is not in --code", file=sys.stderr)
+sys.exit(1 if gaps else 0)
+GUARD
   # An arm straight out of `spacy train` has an EMPTY license field, and `spacy package` copies it
   # through without complaint -- so a rebuilt arm ships unlicensed unless this runs. Every model
   # here derives from CC BY-SA treebanks (la and ar, from NonCommercial ones), so this is an
@@ -285,7 +328,11 @@ for lang in "$@"; do
     # CAVEAT: the original treebank populates FEATS on only 4.7 % of tokens, so this arm's
     # `morph_acc` 95.36 is ~the base rate for predicting empty and says nothing. POS 83.05 and
     # lemma 78.30 are real.
-    ko)           base=training_ko_eojeol_lemma/model-best ;;
+    # KO_BASE is the override for the analyser-channel arm (docs/korean.md): that arm's config names
+    # `sud.KoAnalyserEmbed.v1`, so its wheel MUST carry scripts/sud_ko_embed.py and
+    # scripts/ko_analyser.py — which the ko --code list below now passes unconditionally, and the
+    # missing---code guard in pkg() refuses without.
+    ko)           base=${KO_BASE:-training_ko_eojeol_lemma/model-best} ;;
     # lzh ships the punctuation-restored chain and takes its lemmas from a lookup table, so its
     # base is the MORPH arm (there is no trained lemmatizer above it) and it must be packaged
     # against the treebank generation it was trained on. Both are overridable so a differently
@@ -602,8 +649,11 @@ case $lang in
             "$CODE_SHARED,scripts/sud_misc.py,scripts/sud_tagger.py,scripts/id_lemma_case_fix.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py" ;;
        # ko ships NO Shared layer: trained F 32.5 at P 40.1, i.e. wrong three times in five, and
        # the candidate mask reaches only 37.6 % of its own gold. Same call as zh's Subject.
-       # (ko takes no --code at all)
-  ko)  pkg ko  "$base" sud_gsd "" ;;
+       # ko's list is no longer empty: the analyser channel's two modules travel whether or not
+       # KO_BASE names an arm that uses them. Inert in a wheel that does not (`ko_analyser` loads
+       # its backend lazily, so importing it costs nothing and needs no mecab), and the difference
+       # between a working wheel and an E893 on the user's machine in one that does.
+  ko)  pkg ko  "$base" sud_gsd "scripts/sud_ko_embed.py,scripts/ko_analyser.py" ;;
   *) echo "  unknown lang: $lang" ;;
 esac
 done

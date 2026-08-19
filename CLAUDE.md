@@ -71,7 +71,8 @@ Layer drivers, run in this order per language: `retrain_seg.sh` → `train_morph
 `package_morph.sh` / `package_lemma.sh`). Relabel drivers: `relabel_retrain.sh` (verb scope),
 `relabel_retrain_ext.sh` (extended scope), `retrain_udep_ruled.sh` (derived-rule residue commits).
 Other drivers: `train_vocal.sh` (ar/fa vocalisation augmentation), `train_xpos.sh` / `eval_xpos.sh`
-(the conditioned tagger), `train_la_ext_macron.sh` / `train_la_aug.sh` (Latin orthography).
+(the conditioned tagger), `train_la_ext_macron.sh` / `train_la_aug.sh` (Latin orthography),
+`train_ko_analyser.sh` (the Korean analyser channel and its capacity control, three seeds each).
 Superseded but kept: `train_baselines.sh`, `train_all_retok.sh` / `eval_retok.sh` /
 `relabel_retrain_retok.sh` (the matched-tokenisation arms), the `*_new.sh` drivers that brought in
 fa/ar/la/sa/lzh/ja, `both_scripts_release.sh`, and `rebuild_sa_csl_rev.sh` (+ `hyphen_to_pipe_sa.py`,
@@ -99,7 +100,8 @@ evidence**. Which release figures are stale, and on which single field:
 | `docs/sanskrit.md` | the raw-sandhied-text front end, the CSLiser, the sandhi machinery, the joint multi-task arm | an **unset** MORPH and an **empty** one are different inputs (cost 6.8 LAS) |
 | `docs/chinese-family.md` | zh traditional-only + `zh_script`, lzh's restored punctuation and `clause_parser`, yue | `_looks_simplified` cannot be "would `s2t` change it?"; `keep_marks` is coupled to the arm underneath |
 | `docs/lzh-tokenisation.md` | lzh's multi-character tokens, the trained char segmenter, the Heart Sūtra gold set, and every lexicon/gazetteer route measured | the released lzh tokeniser splits 孔子, and **no standard metric can see it** — `gold_preproc` bypasses the tokeniser |
-| `docs/languages.md` | en's two arms and two licences; id's FEATS and lemma-casing fixes; ko's eojeol arm | an arm name is not a language — the two places that confused them both failed silently |
+| `docs/korean.md` | the eojeol tokenisation, the mecab-ko analyser channel, the constrained scrambler | 34.5 % of test tokens are unseen STRINGS and parse 33.7 LAS below the rest; the headline never said so |
+| `docs/languages.md` | en's two arms and two licences; id's FEATS and lemma-casing fixes | an arm name is not a language — the two places that confused them both failed silently |
 
 ## The twelve wheels
 
