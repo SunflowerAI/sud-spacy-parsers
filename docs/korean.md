@@ -214,31 +214,70 @@ direction.
 
 ## The release chain (2026-08-20) — built, verified, NOT uploaded
 
-⚠ **The arm measured above cannot ship, and no gold-preproc number says so.**
+⚠ **The arm measured above cannot ship as it stands, and no gold-preproc number says so.**
 `config_ko_analyser.cfg` is built on `config_ko_eojeol.cfg`, whose reader hands the parser one
 sentence per example, so the arm never learns to START one: fed two sentences it returns ONE, with a
 single self-headed root, while its `--gold-preproc` SENT F reads 99.70. The released ko chain is
 built on `config_ko_eojeol_seg.cfg`, whose only difference is the reader, and **`seg` is a BASE
-recipe rather than a stackable layer** — so the release arm is the same one-block channel change
+recipe rather than a stackable layer** — so one route is the same one-block channel change
 applied to that config and trained from scratch (`configs/config_ko_analyser_seg.cfg`, three seeds,
-seed 2 picked on **dev** LAS 69.39). This is the defect zh shipped once already.
+seed 2 picked on **dev** LAS 69.39). This is the defect zh shipped once already. It is not the route
+that ships — a separate sentenciser turned out to be better on both counts, below — but it is what
+made the defect visible.
 
-`scripts/build_ko_release.sh` (`seeds | pick | stack | graft | raw | wheel | verify`) is the chain.
-Test, **raw end to end** — the model finding its own sentences, which is what a user gets, and both
-columns through the same command:
+### Segmentation: a separate sentenciser beats teaching the parser
 
-    metric   released 0.2.0   analyser chain
+Two ways to get sentence boundaries, and they are not equally priced. The seg recipe hands the job
+to the PARSER, and the parser pays for it: the same channel arm reads **72.88** gp LAS trained that
+way against **74.45** trained on single sentences. So the alternative is to keep the better parser
+and put a component in front of it that does nothing but segment.
+
+⚠ **That only works because spaCy's parser honours preset boundaries as a HARD constraint**, which
+was verified rather than assumed. Same weights, same input, the plain arm:
+
+    no preset   1 sentence,  roots ['설계했다']
+    preset      2 sentences, roots ['청했다', '설계했다']
+
+`ArcEager` reads `sent_start` off the doc, so a `senter` in front is not advisory.
+
+`scripts/make_ko_senter_config.py` builds it by the freeze recipe — everything sourced and frozen,
+only the senter trained — with two choices that matter. Its encoder is **its own**, and its embed is
+`sud.KoAnalyserEmbed.v1`: a Korean sentence ends on a final ending `EF`, which is exactly what the
+channel's last-morpheme columns carry, so the sentenciser reads the one feature the task is about.
+And it trains through `sud.GoldTokCorpus.v1`, because under `gold_preproc` every example is already
+one sentence and a senter trained there would score 100 on a task it never met.
+
+**It wins on both counts.** Test, raw end to end, all three arms through one command:
+
+    arm                    TAG     UAS     LAS   SENT F
+    released 0.2.0       72.51   64.30   55.81    81.37
+    seg recipe           88.46   78.01   72.41    90.14
+    SENTER CHAIN         88.38   78.57   73.16    93.30
+
++0.75 LAS and +3.16 SENT F over the seg recipe, for −0.08 TAG. Buying segmentation from a dedicated
+component is better than making the parser learn it, on the segmentation as well as on the parse.
+
+### What a user gets
+
+Test, **raw end to end** — the model finding its own sentences — both columns through the same
+command:
+
+    metric   released 0.2.0   senter chain
     TOK           99.77          99.77
-    TAG           72.51          88.46     +15.95
+    TAG           72.51          88.38     +15.87
     POS           83.05          83.05      unchanged, and necessarily so
     MORPH         95.36          95.36      unchanged
     LEMMA         78.30          78.30      unchanged
-    UAS           64.30          78.01     +13.71
-    LAS           55.81          72.41     +16.60
-    SENT F        81.37          90.14      +8.77
+    UAS           64.30          78.57     +14.27
+    LAS           55.81          73.16     +17.35
+    SENT F        81.37          93.30     +11.93
 
 POS, MORPH and LEMMA are identical to two decimals because those components have their own encoders
 and never listen to the shared one — the freeze recipe behaving exactly as designed, not a copy.
+
+The shipping pipeline is `[tok2vec, senter, parser, morphologizer, lemmatizer, tagger]`, and
+`verify` asserts the senter is doing the work rather than decorating: **disabling it collapses the
+two sentences back into one**, because this chain's parser genuinely cannot segment.
 
 ### ⚠ ko was never grafted, and this is how anyone found out
 
@@ -279,7 +318,7 @@ is inert for it.
 
 **It has NOT been uploaded, and a directory is not a release** (standing hazard 1). What remains is
 the upload itself and the audit that follows it: `gh release upload v0.3.0 <the wheel, BY NAME>`,
-then hash `parser/model` out of the DOWNLOADED asset against `training_ko_anseg_xposwarm/model-best`
+then hash `parser/model` out of the DOWNLOADED asset against `training_ko_an_senter/model-best`
 and confirm it differs from the 0.2.0 asset's. Until then `CLAUDE.md`'s wheel table correctly says
 ko is at 0.2.0.
 

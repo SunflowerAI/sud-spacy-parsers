@@ -25,7 +25,7 @@ SEEDS="${SEEDS:-0 1 2}"
 #: set by `pick`, overridable. The arm the stack and the wheel are built on.
 PICK_FILE=.ko_release_pick
 #: the arm that ships — the grafted one, not the lemma arm it was grafted from
-ARM="${ARM:-training_ko_anseg_xposwarm/model-best}"
+ARM="${ARM:-training_ko_an_senter/model-best}"
 
 do_seeds() {
   for s in $SEEDS; do
@@ -104,6 +104,52 @@ do_graft() {
   grep -E '^[[:space:]]*[0-9]' train_ko_anseg_xposwarm.log | tail -1
 }
 
+do_altstack() {
+  # THE ALTERNATIVE CHAIN: keep the parser trained on single sentences — the one that reads 74.45
+  # LAS under gold sentences, 1.57 above the seg recipe — and buy segmentation from a SEPARATE
+  # component instead of from the parser. Everything else is the same recipe on a different base.
+  local base=${ALT_BASE:-training_ko_analyser_s2/model-best}
+  echo "### ALTSTACK: morphologiser, lemmatiser and the graft on $base"
+  $PY scripts/make_ko_stack_configs.py "$base" --prefix an
+  $PY -u -m spacy train configs/config_ko_an_morph.cfg $CODE --output training_ko_an_morph/ \
+    --paths.train "$TRAIN" --paths.dev "$DEV" > train_ko_an_morph.log 2>&1
+  grep -E '^[[:space:]]*[0-9]' train_ko_an_morph.log | tail -1
+  $PY -u -m spacy train configs/config_ko_an_lemma.cfg $CODE --output training_ko_an_lemma/ \
+    --paths.train "$TRAIN" --paths.dev "$DEV" > train_ko_an_lemma.log 2>&1
+  grep -E '^[[:space:]]*[0-9]' train_ko_an_lemma.log | tail -1
+  $PY scripts/make_xpos_config.py configs/config_ko_an_lemma.cfg training_ko_an_lemma/model-best \
+      --out configs/config_ko_an_xposwarm.cfg --top \
+      --warm-start training_ko_an_lemma/model-best --force
+  $PY -u -m spacy train configs/config_ko_an_xposwarm.cfg $CODE \
+    --output training_ko_an_xposwarm/ --paths.train "$TRAIN" --paths.dev "$DEV" \
+    > train_ko_an_xposwarm.log 2>&1
+  grep -E '^[[:space:]]*[0-9]' train_ko_an_xposwarm.log | tail -1
+}
+
+do_senter() {
+  echo "### SENTER: a standalone sentenciser, grafted in front of the parser"
+  $PY scripts/make_ko_senter_config.py training_ko_an_xposwarm/model-best \
+      --out configs/config_ko_an_senter.cfg
+  $PY -u -m spacy train configs/config_ko_an_senter.cfg $CODE --output training_ko_an_senter/ \
+    --paths.train "$TRAIN" --paths.dev "$DEV" > train_ko_an_senter.log 2>&1
+  [ -d training_ko_an_senter/model-best ] \
+    || { echo "!! FAILED"; tail -20 train_ko_an_senter.log; exit 1; }
+  grep -E '^[[:space:]]*[0-9]' train_ko_an_senter.log | tail -1
+}
+
+do_compare() {
+  # The only comparison that decides anything: RAW end to end, both chains, one command.
+  echo "### COMPARE: raw end-to-end, the model finding its own sentences"
+  printf "%-30s %7s %7s %7s %7s\n" arm TAG UAS LAS SENT_F
+  for arm in eojeol_lemma anseg_xposwarm an_senter; do
+    d=training_ko_$arm/model-best
+    [ -d "$d" ] || { printf "%-30s MISSING\n" "$arm"; continue; }
+    printf "%-30s " "$arm"
+    $PY -m spacy evaluate "$d" "$TEST" $CODE --output metrics_ko_${arm}_raw.json 2>/dev/null \
+      | awk '/^TAG/{t=$2} /^UAS/{u=$2} /^LAS/{l=$2} /^SENT F/{s=$3} END{printf "%7s %7s %7s %7s\n", t, u, l, s}'
+  done
+}
+
 do_wheel() {
   # 0.3.0, not a re-clobber of 0.2.0: the 0.2.0 set has been re-clobbered in place as layers landed,
   # so `pip install -U` is inert for it (CLAUDE.md). ja, la and sa took the same bump for the same
@@ -112,7 +158,7 @@ do_wheel() {
   echo "### WHEEL: package $ARM as ko_sud_gsd $version"
   # KO_BASE names the arm; the --code list in package_sud.sh already carries sud_ko_embed.py and
   # ko_analyser.py, and pkg() refuses to build without them.
-  KO_BASE=training_ko_anseg_xposwarm/model-best VERSION="$version" bash scripts/package_sud.sh ko
+  KO_BASE="$ARM" VERSION="$version" bash scripts/package_sud.sh ko
 }
 
 do_verify() {
@@ -133,12 +179,15 @@ phase=${1:-all}
 case "$phase" in
   seeds)  do_seeds ;;
   graft)  do_graft ;;
+  altstack) do_altstack ;;
+  senter) do_senter ;;
+  compare) do_compare ;;
   pick)   do_pick ;;
   stack)  do_stack ;;
   wheel)  do_wheel ;;
   verify) do_verify ;;
   raw)    do_raw ;;
   all)    do_seeds; do_pick; do_stack; do_graft; do_raw; do_wheel; do_verify ;;
-  *) echo "unknown phase: $phase (seeds|pick|stack|graft|wheel|verify|raw)"; exit 1 ;;
+  *) echo "unknown phase: $phase (seeds|pick|stack|graft|altstack|senter|compare|wheel|verify|raw)"; exit 1 ;;
 esac
 echo "DONE: $phase"

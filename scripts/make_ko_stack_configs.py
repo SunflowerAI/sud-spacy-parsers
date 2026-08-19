@@ -12,30 +12,34 @@ must come out byte-identical, which `scripts/verify_ko_release.sh` asserts with 
 assuming.
 
     .venv/bin/python scripts/make_ko_stack_configs.py training_ko_anseg_s2/model-best
+    .venv/bin/python scripts/make_ko_stack_configs.py training_ko_analyser_s2/model-best --prefix an
 """
 from __future__ import annotations
 
-import sys
+import argparse
 
 from thinc.api import Config
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit(__doc__)
-    base = sys.argv[1]
+    ap = argparse.ArgumentParser()
+    ap.add_argument("base")
+    ap.add_argument("--prefix", default="anseg",
+                    help="names the configs and the arms: config_ko_<prefix>_morph.cfg, etc.")
+    args = ap.parse_args()
+    pre = args.prefix
 
     morph = Config().from_disk("configs/config_ko_eojeol_morph.cfg", interpolate=False)
     for comp in ("tok2vec", "tagger", "parser"):
-        morph["components"][comp]["source"] = base
-    morph.to_disk("configs/config_ko_anseg_morph.cfg")
-    print(f"wrote configs/config_ko_anseg_morph.cfg   sourcing {base}")
+        morph["components"][comp]["source"] = args.base
+    morph.to_disk(f"configs/config_ko_{pre}_morph.cfg")
+    print(f"wrote configs/config_ko_{pre}_morph.cfg   sourcing {args.base}")
 
     lemma = Config().from_disk("configs/config_ko_eojeol_lemma.cfg", interpolate=False)
     for comp in ("tok2vec", "tagger", "parser", "morphologizer"):
-        lemma["components"][comp]["source"] = "training_ko_anseg_morph/model-best"
-    lemma.to_disk("configs/config_ko_anseg_lemma.cfg")
-    print("wrote configs/config_ko_anseg_lemma.cfg   sourcing training_ko_anseg_morph/model-best")
+        lemma["components"][comp]["source"] = f"training_ko_{pre}_morph/model-best"
+    lemma.to_disk(f"configs/config_ko_{pre}_lemma.cfg")
+    print(f"wrote configs/config_ko_{pre}_lemma.cfg   sourcing training_ko_{pre}_morph/model-best")
 
 
 if __name__ == "__main__":
