@@ -109,17 +109,30 @@ def main() -> None:
                 for k, gt in enumerate(sent):
                     pt = pred[k]
                     for b in ("all", "seen" if gt.text in seen else "OOV"):
+                        c[(b, "tag_n")] += 1
+                        c[(b, "tag")] += pt.tag_ == gt.tag_
+                        # ⚠ PUNCTUATION IS EXCLUDED FROM UAS/LAS, because `spacy.parser_scorer.v1`
+                        # excludes it (`ignore_labels = ("p", "punct")`). Scoring it here would put
+                        # this script on a different scale from every `metrics_ko_*.json`, and the
+                        # two sets would be quoted side by side in the same table — the shape of
+                        # error NEGATIVE-RESULTS.md records as "never compare numbers from two
+                        # different harnesses", where both numbers were right and only the
+                        # comparison was invalid. Marks cost ~3 UAS here: they are 13 % of tokens
+                        # and nearly free to attach.
+                        if gt.dep_ in ("punct", "p"):
+                            continue
                         c[(b, "n")] += 1
                         # head compared within the sentence, so a doc-level index cannot drift
                         if pt.head.i == gt.head.i - sent.start:
                             c[(b, "uas")] += 1
                             if pt.dep_ == gt.dep_:
                                 c[(b, "las")] += 1
-                        c[(b, "tag")] += pt.tag_ == gt.tag_
         row = f"{name:<22}"
         for b in ("all", "seen", "OOV"):
             n = c[(b, "n")] or 1
-            row += f"{100 * c[(b,'uas')] / n:8.2f}{100 * c[(b,'las')] / n:7.2f}{100 * c[(b,'tag')] / n:7.2f}   "
+            tn = c[(b, "tag_n")] or 1
+            row += (f"{100 * c[(b,'uas')] / n:8.2f}{100 * c[(b,'las')] / n:7.2f}"
+                    f"{100 * c[(b,'tag')] / tn:7.2f}   ")
         print(row)
 
 

@@ -15,11 +15,18 @@ combination is a fresh string: `잡스는`, `잡스가`, `잡스를`, `잡스에
 symbols to a hash embedding. `scripts/eval_ko_oov.py` splits every metric on whether the eojeol
 appeared in training (released arm, test, gold sentences and gold tokens):
 
-    seen  7 645 tok (65.5 %)   UAS 75.95   LAS 71.84   TAG 96.87
-    OOV   4 032 tok (34.5 %)   UAS 52.16   LAS 38.10   TAG 27.50
+    seen  7 645 tok (65.5 %)   UAS 73.71   LAS 68.54   TAG 96.87
+    OOV   4 032 tok (34.5 %)   UAS 53.23   LAS 38.97   TAG 27.50
 
-**34.5 % of test tokens are unseen eojeol, and they parse 33.7 LAS below the rest.** That single
+**34.5 % of test tokens are unseen eojeol, and they parse 29.6 LAS below the rest.** That single
 split is the whole deficit — the seen column is a perfectly ordinary parser.
+
+⚠ **These figures exclude punctuation from UAS/LAS**, because `spacy.parser_scorer.v1` excludes it
+(`ignore_labels = ("p", "punct")`) and every `metrics_ko_*.json` in this repo is therefore on that
+scale. Marks are 13 % of Korean tokens and nearly free to attach, so scoring them lifts LAS by about
+3 points — enough that a table mixing the two scales would read as a result. Both eval scripts here
+were written the other way first and corrected; the meta-lesson in NEGATIVE-RESULTS.md is exactly
+this shape, where both numbers were individually right and only the comparison was invalid.
 
 It is not a vocabulary shortage. Cutting each token to its first morpheme drops the
 out-of-vocabulary rate from 34.5 % to 12.4 %, because the stems are in the training data already,
@@ -133,27 +140,93 @@ shaped it (`scripts/calibrate_ko_order.py`, on train):
 
 **The prior is not encouraging.** Latin's word-order augmentation collapsed the LAS spread across
 word orders from 17.44 to 8.38 and bought **+0.13 on natural order**; Sanskrit's bought +1.70 over
-three seeds, most plausibly as small-data regularisation. Korean's measured order-sensitivity, on
-the released arm (`scripts/eval_ko_scramble.py`):
-
-    rendering   what moves                                    UAS      LAS
-    identity    nothing                                     68.44    60.79
-    attested    siblings resampled from the corpus bigrams  65.69    58.05
-    uniform     siblings shuffled uniformly                 65.58    57.81
-
-**−2.7 LAS, against Latin's −17.4.** So there is little robustness to buy; the argument that remains
-is regularisation, and ko trains on 56 687 tokens, the smallest treebank in the set. Which of those
-dominates is a measurement, not a prediction — `configs/config_ko_order.cfg` is the analyser arm
-plus the augmenter and nothing else, so the three analyser seeds are its control.
+three seeds, most plausibly as small-data regularisation. Korean's measured order-sensitivity is
+about a sixth of Latin's (`scripts/eval_ko_scramble.py`, table under Results). So there is little
+robustness to buy; the argument that remains is regularisation, and ko trains on 56 687 tokens, the
+smallest treebank in the set. Which of those dominates is a measurement, not a prediction —
+`configs/config_ko_order.cfg` is the analyser arm plus the augmenter and nothing else, so the three
+analyser seeds are its control.
 
 ⚠ An earlier unconstrained prototype put this figure at −5.1 LAS. It was measuring more than word
 order: it moved marks and re-linearised non-projective sentences, so part of that number was
 punctuation landing in the wrong place and pseudo-projective labels changing underneath the parser.
-−2.7 is the figure for a permutation that changes nothing but the order of siblings.
+The Results table is the figure for a permutation that changes nothing but the order of siblings.
 
-## Results
+## Results (2026-08-20)
 
-(filled in by `bash scripts/train_ko_analyser.sh eval` and `… oov`)
+Three seeds per arm, test, `--gold-preproc`. The control is `constant = true` — same columns, same
+Maxout width, same 1 935 360 parameters, every token given the sentinel.
+
+    arm                              TAG      UAS      LAS
+    released (eojeol_lemma)        72.92    65.58    56.84
+    capacity control, 3 seeds      72.65    66.33    57.61      72.24/72.88/72.83 · 57.18/58.01/57.63
+    ANALYSER CHANNEL, 3 seeds      88.91    80.12    74.45      88.90/88.82/89.00 · 74.39/74.32/74.65
+    + word-order augmentation      88.75    79.52    73.97      88.90/88.76/88.58 · 74.44/73.42/74.05
+
+**The channel is worth +16.85 LAS, +13.79 UAS and +16.26 TAG over its own capacity control**, and it
+is positive on every metric on every one of the three seed pairs (9/9). The control sits +0.77 LAS
+above the released arm, so the extra parameters are worth about a twentieth of the total: this is
+the information.
+
+⚠ The seed spread is small and the arms do not overlap: the channel's three test LAS figures span
+74.32–74.65, the control's 57.18–58.01. Latin's measured seed spread is mean absolute 0.272 LAS on a
+treebank ten times the size, and this delta is sixty times that.
+
+### The gain lands where the mechanism said it had to
+
+Means of three seeds, from `scripts/eval_ko_oov.py`:
+
+    arm                     all LAS        seen eojeol        unseen eojeol
+    released                  56.85           68.54               38.97
+    capacity control          57.61           69.38               39.62
+    ANALYSER CHANNEL          74.42           77.89               69.13
+    channel − control        +16.81          +8.51              +29.51
+
+**+29.5 LAS on unseen eojeol against +8.5 on seen ones** — three and a half times as much on the
+tokens the channel was built for, and the falsification test in `sud_ko_embed.py` therefore passes
+rather than merely failing to fail. The seen column moves too, which is expected: the shared encoder
+is better for every token, and the tagger it feeds goes from 96.59 to 98.31 there. On unseen tokens
+TAG goes **27.26 → 71.08**.
+
+The remaining gap is the honest headroom: unseen eojeol still parse 8.8 LAS below seen ones, and
+27.7 % of them land on a first-morpheme key that training never saw either.
+
+### Word-order augmentation: robustness at a small price, not a win
+
+    arm                    natural order    resampled order    uniform shuffle
+    released                   56.85            53.72              53.44
+    ANALYSER CHANNEL           74.42            71.26              70.86
+    + order augmentation       73.97            72.47              72.25
+
+The augmenter does what Latin's did, at a sixth of the scale: it **halves the order-sensitivity**
+(−3.19 → −1.50 LAS under resampled order) and **costs 0.48 LAS on natural order** (per seed +0.05,
+−0.90, −0.60 — negative on two of three, and the order seeds spread 1.00 LAS against the channel
+seeds' 0.37, so the cost is at the edge of the noise but the sign is not in doubt on the scrambled
+column, where it gains +1.21).
+
+**Not shipped, and the reasoning is Latin's.** A user parsing edited Korean prose pays 0.5 LAS for
+robustness against orders that text does not contain. `configs/config_ko_order.cfg` stays for anyone
+whose input is scrambled or spoken Korean, where +1.2 to +1.4 LAS is the trade in the other
+direction.
+
+### What ships
+
+Nothing yet — `training_ko_analyser_s*` are training directories, and standing hazard 1 applies.
+Before any of this can be a wheel:
+
+1. **The runtime dependency has to be settled.** The wheel would need `python-mecab-ko` declared,
+   and `ko_analyser` verified against that backend rather than against natto — a different backend
+   is a different channel, which is why the fingerprint is checked on load. The three arms above
+   were all trained against `natto-py/mecab-ko-dic`.
+2. **The stack has to be rebuilt on the new base.** The released arm is base + morphologiser +
+   lemmatiser, and this changes the base, so both layers must be retrained on it by the freeze
+   recipe. ko ships no SUD MISC layer, so hazard 5 is vacuous here — for this language only.
+3. **The clean-directory install has to be verified**, `scripts/` off `sys.path`, as the la
+   lemma-vector arm needed. `pkg()` now refuses to package this arm without
+   `scripts/sud_ko_embed.py` and `scripts/ko_analyser.py` in `--code`, and ko's list carries both.
+4. **A raw end-to-end evaluation.** Everything above is gold-preproc; `SENTS_F` reads 99.55 for the
+   channel arm against the released 88.77, but under gold sentences that number means less than it
+   looks (hazard 4).
 
 ## What is NOT addressed here
 
