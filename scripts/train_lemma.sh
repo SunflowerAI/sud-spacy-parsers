@@ -47,6 +47,12 @@ case $lang in
  yue) train yue corpus_yue_ext/yue_hk-sud-train.relabeled_ext.spacy    corpus_yue_ext/yue_hk-sud-dev.relabeled_ext.spacy ;;
  lzh) train lzh corpus_lzh_both/lzh_kyotoboth-sud-train.relabeled_ext.spacy corpus_lzh_both/lzh_kyotoboth-sud-dev.relabeled_ext.spacy ;;
  sa)  train sa  corpus_sa_csl_rev/train.csl_rev.spacy  corpus_sa_csl_rev/sa_vedic-sud-dev.csl_rev.spacy ;;
+ ta_ttb)  train ta_ttb  corpus_ta/ta_ttb-sud-train.spacy      corpus_ta/ta_ttb-sud-dev.spacy ;;
+ ta_both) train ta_both corpus_ta/ta_ttb_mwtt-sud-train.spacy corpus_ta/ta_ttb_mwtt-sud-dev.spacy ;;
+ # te has NO gold lemmas; scripts/prep_te.py falls the column back to IDENTITY (never to `_`, which
+ # spaCy keeps as a literal string -- CLAUDE.md). So this pipe learns the identity edit tree, which
+ # is the honest answer for an un-lemmatised language and gives the wheel a populated token.lemma_.
+ te)      train te      corpus_te/te_mtg-sud-train.spacy      corpus_te/te_mtg-sud-dev.spacy ;;
  *) echo "unknown lang: $lang" ;;
 esac
 done
