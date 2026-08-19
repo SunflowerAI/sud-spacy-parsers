@@ -103,9 +103,19 @@ evidence**. Which release figures are stale, and on which single field:
 
 ## The twelve wheels
 
-**ja and la are at v0.3.0**, on the `v0.3.0` release; the other ten are at v0.2.0 on `v0.2.0`.
-The 0.2.0 set was re-clobbered as layers landed, so `pip install -U` will NOT pull those —
-which is why ja and la took a version bump instead. Published on the GitHub Release, not in git.
+**ja, la and sa are at v0.3.0**, on the `v0.3.0` release; the other nine are at v0.2.0 on
+`v0.2.0`. Published on the GitHub Release, not in git.
+
+The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
+which is why the three above took a version bump instead. Most recently clobbered: **lzh and yue,
+both on 2026-08-19**, holding new bytes under an unchanged 0.2.0. **This paragraph goes stale
+faster than anything else in this file** (sa shipped 0.3.0 within a day of it last being written),
+so re-derive it rather than trusting it — the asset list, with the upload times that reveal a
+clobber, is one command:
+
+```bash
+gh release view v0.3.0 --json assets -q '.assets[] | "\(.name)  \(.updatedAt)"'
+```
 
 | lang | wheel | licence | tokeniser | note |
 |---|---|---|---|---|
