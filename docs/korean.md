@@ -212,24 +212,76 @@ robustness against orders that text does not contain. `configs/config_ko_order.c
 whose input is scrambled or spoken Korean, where +1.2 to +1.4 LAS is the trade in the other
 direction.
 
-### What ships
+## The release chain (2026-08-20) — built, verified, NOT uploaded
 
-Nothing yet — `training_ko_analyser_s*` are training directories, and standing hazard 1 applies.
-Before any of this can be a wheel:
+⚠ **The arm measured above cannot ship, and no gold-preproc number says so.**
+`config_ko_analyser.cfg` is built on `config_ko_eojeol.cfg`, whose reader hands the parser one
+sentence per example, so the arm never learns to START one: fed two sentences it returns ONE, with a
+single self-headed root, while its `--gold-preproc` SENT F reads 99.70. The released ko chain is
+built on `config_ko_eojeol_seg.cfg`, whose only difference is the reader, and **`seg` is a BASE
+recipe rather than a stackable layer** — so the release arm is the same one-block channel change
+applied to that config and trained from scratch (`configs/config_ko_analyser_seg.cfg`, three seeds,
+seed 2 picked on **dev** LAS 69.39). This is the defect zh shipped once already.
 
-1. **The runtime dependency has to be settled.** The wheel would need `python-mecab-ko` declared,
-   and `ko_analyser` verified against that backend rather than against natto — a different backend
-   is a different channel, which is why the fingerprint is checked on load. The three arms above
-   were all trained against `natto-py/mecab-ko-dic`.
-2. **The stack has to be rebuilt on the new base.** The released arm is base + morphologiser +
-   lemmatiser, and this changes the base, so both layers must be retrained on it by the freeze
-   recipe. ko ships no SUD MISC layer, so hazard 5 is vacuous here — for this language only.
-3. **The clean-directory install has to be verified**, `scripts/` off `sys.path`, as the la
-   lemma-vector arm needed. `pkg()` now refuses to package this arm without
-   `scripts/sud_ko_embed.py` and `scripts/ko_analyser.py` in `--code`, and ko's list carries both.
-4. **A raw end-to-end evaluation.** Everything above is gold-preproc; `SENTS_F` reads 99.55 for the
-   channel arm against the released 88.77, but under gold sentences that number means less than it
-   looks (hazard 4).
+`scripts/build_ko_release.sh` (`seeds | pick | stack | graft | raw | wheel | verify`) is the chain.
+Test, **raw end to end** — the model finding its own sentences, which is what a user gets, and both
+columns through the same command:
+
+    metric   released 0.2.0   analyser chain
+    TOK           99.77          99.77
+    TAG           72.51          88.46     +15.95
+    POS           83.05          83.05      unchanged, and necessarily so
+    MORPH         95.36          95.36      unchanged
+    LEMMA         78.30          78.30      unchanged
+    UAS           64.30          78.01     +13.71
+    LAS           55.81          72.41     +16.60
+    SENT F        81.37          90.14      +8.77
+
+POS, MORPH and LEMMA are identical to two decimals because those components have their own encoders
+and never listen to the shared one — the freeze recipe behaving exactly as designed, not a copy.
+
+### ⚠ ko was never grafted, and this is how anyone found out
+
+`package_sud.sh` refused to package the new arm, and refused the released one too:
+**`ko_sud_gsd-0.2.0` ships a tagger that is a LISTENER sitting BEFORE its morphologiser.** ko never
+received the v0.2.0 XPOS graft, so the script could not rebuild the wheel that is live. It is not a
+stale default — there was no post-graft ko arm to name.
+
+An exemption was drafted and **thrown away**: the reasoning was that ko has no FEATS to condition
+on, and the morphologiser's own label inventory refutes it — 8 of its 47 labels carry `NumType` or
+`ExtPos`. (`Shared=` is the SUD gold hoisted through FEATS and is not morphology, but it is not the
+whole story either.) So ko gets the graft it never had, warm-started from **this arm's own tagger**
+rather than the released one — `train_xpos.sh`'s table names `training_ko_eojeol_lemma`, whose
+tagger reads 72.51 against this arm's 88.60, and starting there would throw the channel away and
+make the tagger relearn it. Cost of the graft: **0.14 TAG** (88.60 → 88.46), parser untouched.
+
+### What `verify` asserts, and what is left
+
+`scripts/verify_ko_release.sh` passes all six checks, each of which corresponds to something this
+repo has already shipped broken:
+
+1. tok2vec and parser byte-identical from the measured base up to the wheel; morphologiser and
+   lemmatiser identical to their own arms; the tagger DIFFERENT, as the graft requires; pipeline
+   `[tok2vec, parser, morphologizer, lemmatizer, tagger]`.
+2. Two sentences in, two sentences out, two self-headed roots — the check gold_preproc cannot make.
+3. The wheel installs into a clean target and loads with `scripts/` off `sys.path`.
+4. The installed model's parse is identical to the training directory's.
+5. The analyser channel is LIVE in the loaded wheel (three inflections of one stem → one lexical
+   key, three functional keys), not silently reading nothing.
+6. It runs through **`python-mecab-ko`**, the backend the wheel declares — pinned with
+   `KO_ANALYSER_BACKEND`, because natto-py is importable in this venv without `MECAB_PATH` and an
+   unpinned run silently exercises the development backend and proves nothing.
+
+The wheel is `build_sud/ko/ko_sud_gsd-0.3.0/dist/ko_sud_gsd-0.3.0-py3-none-any.whl`, licence
+CC BY-SA 4.0, requirements `python-mecab-ko>=1.3.7` and spaCy. **0.3.0 rather than a re-clobber of
+0.2.0**, because the 0.2.0 set has been re-clobbered in place as layers landed and `pip install -U`
+is inert for it.
+
+**It has NOT been uploaded, and a directory is not a release** (standing hazard 1). What remains is
+the upload itself and the audit that follows it: `gh release upload v0.3.0 <the wheel, BY NAME>`,
+then hash `parser/model` out of the DOWNLOADED asset against `training_ko_anseg_xposwarm/model-best`
+and confirm it differs from the 0.2.0 asset's. Until then `CLAUDE.md`'s wheel table correctly says
+ko is at 0.2.0.
 
 ## What is NOT addressed here
 

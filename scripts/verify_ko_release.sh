@@ -17,25 +17,41 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY=.venv/bin/python
-ARM=${ARM:-training_ko_anseg_lemma/model-best}
+ARM=${ARM:-training_ko_anseg_xposwarm/model-best}
 BASE=${BASE:-$(cat .ko_release_pick 2>/dev/null || echo training_ko_anseg_s0/model-best)}
 WHEEL=$(find build_sud/ko -name 'ko_sud_gsd-*.whl' 2>/dev/null | head -1)
 TARGET=${TARGET:-build_sud/ko_install_check}
 MECAB_TARGET=${MECAB_TARGET:-build_sud/ko_mecab_check}
 
 echo "### 1  frozen components byte-identical (the freeze recipe's own claim)"
-for c in tok2vec tagger parser; do
-  if cmp -s "$BASE/$c/model" "$ARM/$c/model"; then
-    echo "    $c: identical"
-  else
-    echo "    $c: DIFFERS — the freeze recipe did not hold"; exit 1
-  fi
+# ⚠ The TAGGER is deliberately not in this list. Every other component travels up the chain
+# unchanged — which is what lets the parser figures measured on the base stand for the wheel without
+# re-verification — but the graft REPLACES the tagger, moving it behind the morphologiser and
+# conditioning it on predicted UPOS+MORPH. Asserting it identical would be asserting the graft did
+# not happen, so it is asserted DIFFERENT instead, and the pipeline order is checked directly.
+for c in tok2vec parser; do
+  cmp -s "$BASE/$c/model" "$ARM/$c/model" \
+    && echo "    $c: identical to the base the parser was measured on" \
+    || { echo "    $c: DIFFERS — the freeze recipe did not hold"; exit 1; }
 done
-for c in tok2vec tagger parser morphologizer; do
+for c in morphologizer; do
   cmp -s "training_ko_anseg_morph/model-best/$c/model" "$ARM/$c/model" \
+    && echo "    $c: identical to the morph arm" \
     || { echo "    $c: DIFFERS against the morph arm"; exit 1; }
 done
-echo "    morph layer's four components also identical in the lemma arm"
+cmp -s "training_ko_anseg_lemma/model-best/lemmatizer/model" "$ARM/lemmatizer/model" \
+  && echo "    lemmatizer: identical to the lemma arm" \
+  || { echo "    lemmatizer: DIFFERS against the lemma arm"; exit 1; }
+cmp -s "$BASE/tagger/model" "$ARM/tagger/model" \
+  && { echo "    tagger: IDENTICAL to the base's — the graft did not happen"; exit 1; } \
+  || echo "    tagger: differs from the base's, as the graft requires"
+$PY - "$ARM" <<'EOF'
+import json, pathlib, sys
+pipe = json.loads((pathlib.Path(sys.argv[1]) / "meta.json").read_text())["pipeline"]
+ok = pipe.index("morphologizer") < pipe.index("tagger")
+print(f"    pipeline {pipe}")
+sys.exit(0 if ok else 1)
+EOF
 
 echo "### 2  the arm segments (the check gold_preproc cannot make)"
 MECAB_PATH="${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}" $PY - "$ARM" <<'EOF'
@@ -58,10 +74,12 @@ $PY -m pip install --quiet --target "$TARGET" "$WHEEL" >/dev/null
 $PY -m pip install --quiet --target "$MECAB_TARGET" python-mecab-ko >/dev/null
 echo "    installed $(basename "$WHEEL")"
 
-echo "### 4-6  load it with scripts/ off sys.path, no MECAB_PATH, and parse"
-# `env -u` rather than `unset`: the point is that the user's machine has no Homebrew mecab, so the
-# subprocess must not inherit the one this machine happens to have.
-env -u MECAB_PATH -u KO_ANALYSER_BACKEND \
+echo "### 4-6  load it with scripts/ off sys.path, through the backend the wheel DECLARES"
+# ⚠ `env -u MECAB_PATH` is NOT enough to make this test honest. natto-py is in this venv and finds
+# libmecab without the variable, so an unpinned run silently exercises the development backend and
+# proves nothing about what a user gets. `KO_ANALYSER_BACKEND=python-mecab-ko` pins it to the one
+# declared in the wheel's requirements — the whole point of the check.
+env -u MECAB_PATH KO_ANALYSER_BACKEND=python-mecab-ko \
   PYTHONPATH="$TARGET:$MECAB_TARGET" \
   $PY - "$ARM" <<'EOF'
 import sys, pathlib

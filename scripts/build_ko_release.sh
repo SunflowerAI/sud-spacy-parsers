@@ -10,7 +10,7 @@
 # (CLAUDE.md hazard 4). `seg` is a BASE recipe, not a stackable layer, so the release arm is the
 # same one-block change applied to `config_ko_eojeol_seg.cfg` and trained from scratch.
 #
-# Phases (run all, or name one): base | seeds | pick | stack | wheel | verify | raw
+# Phases (run all, or name one): seeds | pick | stack | graft | raw | wheel | verify
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 PY=.venv/bin/python
@@ -24,6 +24,8 @@ TEST=corpus_ko_eojeol/$P-test.relabeled_ext.spacy
 SEEDS="${SEEDS:-0 1 2}"
 #: set by `pick`, overridable. The arm the stack and the wheel are built on.
 PICK_FILE=.ko_release_pick
+#: the arm that ships — the grafted one, not the lemma arm it was grafted from
+ARM="${ARM:-training_ko_anseg_xposwarm/model-best}"
 
 do_seeds() {
   for s in $SEEDS; do
@@ -40,16 +42,25 @@ do_seeds() {
 do_pick() {
   # ⚠ SELECT ON DEV. The test set is reported, never chosen on; spaCy's own `model-best` is already
   # a dev choice, and picking the seed on test would be a second, hidden one.
-  echo "### PICK: best dev SCORE across seeds"
+  #
+  # ⚠ NOT FROM THE LOG. Two traps there, both of which produced a wrong pick before this was
+  # rewritten: the SCORE column is printed to two decimals, so three seeds a whole LAS point apart
+  # all read `0.81` and the tie broke on whichever ran first; and the columns are
+  # (E, #, 3 losses, TAG, POS, UAS, LAS, SENTS, SCORE), so the obvious `$8` is UAS, not LAS.
+  # Re-evaluating on dev costs seconds and reports full precision.
+  echo "### PICK: best dev LAS across seeds, re-evaluated at full precision"
   best=""; bestv=0
   for s in $SEEDS; do
-    v=$(grep -E '^[[:space:]]*[0-9]' "train_ko_anseg_s$s.log" | awk '{print $NF}' | sort -g | tail -1)
-    las=$(grep -E '^[[:space:]]*[0-9]' "train_ko_anseg_s$s.log" | awk '{print $8}' | sort -g | tail -1)
-    printf "   seed %s  best dev SCORE %s  best dev LAS %s\n" "$s" "$v" "$las"
-    if awk "BEGIN{exit !($v > $bestv)}"; then bestv=$v; best=$s; fi
+    d=training_ko_anseg_s$s/model-best
+    [ -d "$d" ] || continue
+    read -r las uas sents <<<"$($PY -m spacy evaluate "$d" "$DEV" $CODE 2>/dev/null \
+      | awk '/^LAS/{l=$2} /^UAS/{u=$2} /^SENT F/{s=$3} END{print l, u, s}')"
+    printf "   seed %s  dev LAS %s  UAS %s  SENT F %s\n" "$s" "$las" "$uas" "$sents"
+    if awk "BEGIN{exit !($las > $bestv)}"; then bestv=$las; best=$s; fi
   done
+  [ -n "$best" ] || { echo "!! no arms to pick from"; exit 1; }
   echo "training_ko_anseg_s$best/model-best" > $PICK_FILE
-  echo "   -> $(cat $PICK_FILE)"
+  echo "   -> $(cat $PICK_FILE)  (dev LAS $bestv)"
 }
 
 do_stack() {
@@ -66,12 +77,42 @@ do_stack() {
   grep -E '^[[:space:]]*[0-9]' train_ko_anseg_lemma.log | tail -1
 }
 
+do_graft() {
+  # ⚠ THE STEP THE RELEASED ko ARM NEVER HAD. `ko_sud_gsd-0.2.0` ships a tagger that is a LISTENER
+  # sitting BEFORE its morphologiser, so `package_sud.sh ko` refuses to rebuild the wheel that is
+  # live — ko was never grafted, and the guard is right to say so. The graft moves the tagger behind
+  # the morphologiser and conditions it on predicted UPOS+MORPH through `sud.Tok2VecPlusFeats.v1`,
+  # ABOVE the encoder (docs/xpos.md).
+  #
+  # ⚠ WARM-START FROM THIS ARM'S OWN TAGGER, not the released one. `train_xpos.sh`'s table names
+  # `training_ko_eojeol_lemma` for ko, whose tagger reads 72.51 against this arm's 88.60 — starting
+  # the conditioned tagger there would throw the channel away and then have to relearn it. This is
+  # the same reason `XPOS_SRC_ARM` exists for the vocalisation chains: a warm start has to come from
+  # a tagger trained on the same input regime. The label set is the treebank's own either way, so
+  # the ORDER matches and `--warm-start` accepts it (standing hazard 7).
+  echo "### GRAFT: the conditioned tagger, behind the morphologiser"
+  $PY scripts/make_xpos_config.py configs/config_ko_anseg_lemma.cfg \
+      training_ko_anseg_lemma/model-best --out configs/config_ko_anseg_xposwarm.cfg \
+      --top --warm-start training_ko_anseg_lemma/model-best --force
+  # A missing annotating component leaves the new channels constant and NOTHING raises, so the
+  # inputs are verified before the run rather than after it.
+  $PY scripts/check_xpos_inputs.py configs/config_ko_anseg_xposwarm.cfg \
+      --train "$TRAIN" --dev "$DEV" 2>&1 | grep -E "POS |MORPH |order|FAIL" || true
+  $PY -u -m spacy train configs/config_ko_anseg_xposwarm.cfg $CODE \
+    --output training_ko_anseg_xposwarm/ --paths.train "$TRAIN" --paths.dev "$DEV" \
+    > train_ko_anseg_xposwarm.log 2>&1
+  grep -E '^[[:space:]]*[0-9]' train_ko_anseg_xposwarm.log | tail -1
+}
+
 do_wheel() {
-  echo "### WHEEL: package training_ko_anseg_lemma as ko_sud_gsd $VERSION"
+  # 0.3.0, not a re-clobber of 0.2.0: the 0.2.0 set has been re-clobbered in place as layers landed,
+  # so `pip install -U` is inert for it (CLAUDE.md). ja, la and sa took the same bump for the same
+  # reason. A change of this size has to be one users can actually pull.
+  local version="${VERSION:-0.3.0}"
+  echo "### WHEEL: package $ARM as ko_sud_gsd $version"
   # KO_BASE names the arm; the --code list in package_sud.sh already carries sud_ko_embed.py and
   # ko_analyser.py, and pkg() refuses to build without them.
-  KO_BASE=training_ko_anseg_lemma/model-best VERSION="${VERSION:-0.3.0}" \
-    bash scripts/package_sud.sh ko
+  KO_BASE=training_ko_anseg_xposwarm/model-best VERSION="$version" bash scripts/package_sud.sh ko
 }
 
 do_verify() {
@@ -81,22 +122,23 @@ do_verify() {
 
 do_raw() {
   echo "### RAW: end-to-end, the model finding its own sentences"
-  $PY -m spacy evaluate training_ko_anseg_lemma/model-best "$TEST" $CODE \
+  $PY -m spacy evaluate "$ARM" "$TEST" $CODE \
       --output metrics_ko_anseg_raw.json | grep -E '^(TOK|TAG|POS|MORPH|LEMMA|UAS|LAS|SENT)'
   echo "--- and with gold sentences, for comparison with everything else in docs/korean.md"
-  $PY -m spacy evaluate training_ko_anseg_lemma/model-best "$TEST" --gold-preproc $CODE \
+  $PY -m spacy evaluate "$ARM" "$TEST" --gold-preproc $CODE \
       --output metrics_ko_anseg_gp.json | grep -E '^(TAG|UAS|LAS|SENT)'
 }
 
 phase=${1:-all}
 case "$phase" in
   seeds)  do_seeds ;;
+  graft)  do_graft ;;
   pick)   do_pick ;;
   stack)  do_stack ;;
   wheel)  do_wheel ;;
   verify) do_verify ;;
   raw)    do_raw ;;
-  all)    do_seeds; do_pick; do_stack; do_raw; do_wheel; do_verify ;;
-  *) echo "unknown phase: $phase (seeds|pick|stack|wheel|verify|raw)"; exit 1 ;;
+  all)    do_seeds; do_pick; do_stack; do_graft; do_raw; do_wheel; do_verify ;;
+  *) echo "unknown phase: $phase (seeds|pick|stack|graft|wheel|verify|raw)"; exit 1 ;;
 esac
 echo "DONE: $phase"

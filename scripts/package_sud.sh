@@ -115,6 +115,16 @@ pkg() {  # $1=arm  $2=src model dir  $3=--name value  $4=comma-separated --code 
   # `training_la_xposwarm` tagger grafted in by `graft_standalone_tagger.py` (parse unchanged
   # 5 527/5 527, donor tags reproduced 5 527/5 527) and the MISC pipes transplanted on top.
   #
+  # ⚠ ko IS PRE-GRAFT AND ALWAYS WAS, found on 2026-08-20 when this guard refused a rebuild.
+  # `ko_sud_gsd-0.2.0` ships a tagger that is a LISTENER on the shared tok2vec sitting BEFORE the
+  # morphologiser — so ko never received the v0.2.0 graft at all, and this script cannot rebuild the
+  # wheel that is live. It is not a stale default: there is no post-graft ko arm to name. The fix is
+  # a rebuild, not an exemption, and `scripts/build_ko_release.sh graft` is it — the conditioned
+  # tagger, warm-started from the arm's OWN tagger rather than the released one (72.51 against
+  # 88.60 TAG; starting from the released tagger would throw the analyser channel away). Until that
+  # arm is released, KO_BASE still defaults to the pre-graft released chain, and this guard will
+  # keep refusing it — which is correct, and is the only reason anyone found out.
+  #
   # The pipeline ORDER is the cheap invariant that encodes all of this, so assert it here rather
   # than hope the next person diffs: a wheel whose tagger precedes its morphologiser is pre-graft,
   # whatever else is right about it.
