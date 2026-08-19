@@ -136,6 +136,25 @@ uses this project's morphologiser at inference, so RFTagger is not a runtime dep
 above does not touch it at all — `macrons.txt` is Morpheus's own output, tagged by Morpheus, so
 fetching skips RFTagger, Docker and the Morpheus compile together.
 
+## Korean morphological analyser — declared, not bundled (`ko_sud_gsd`)
+
+The Korean model reads the morphemes an eojeol hides — the stem inside `잡스는`, and the particle
+that follows it — off **mecab-ko** at runtime, which is what lets it reach a word it has never seen
+as a whole string. The wheel therefore declares **`python-mecab-ko`** (BSD 3-Clause), which in turn
+pulls **`python-mecab-ko-dic`** (Apache License 2.0), the packaged form of **mecab-ko-dic**.
+
+**Nothing of either is redistributed here**: they are ordinary pip dependencies, installed from
+PyPI and carrying their own licences. Both are permissive, so — unlike the Latin macronisation
+tables and the Sanskrit kosha above — this arrangement is a packaging convenience rather than a
+licence position, and it leaves `ko_sud_gsd` itself **CC BY-SA 4.0** like the treebank it is
+trained on.
+
+mecab-ko and mecab-ko-dic are derived from **MeCab** (Taku Kudo; BSD/LGPL/GPL tri-licence) and the
+**Sejong corpus** tagset, adapted for Korean by Yongwoon Lee and Yungho Yu.
+
+The component refuses to run when no analyser is installed, rather than treating every token as
+unanalysable — a silent fallback would load cleanly and merely parse worse.
+
 ## Georgetown University Multilayer Corpus (GUM) — `en_sud_ewt_gum`
 
 English ships **two** wheels. `en_sud_ewt` is EWT-only and contains no GUM-derived data at all.

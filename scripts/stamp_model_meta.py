@@ -72,6 +72,20 @@ REQUIREMENTS = {
     # declared, so the released wheel raises ModuleNotFoundError on Devanagari input unless
     # the user happens to have it. Caught by feeding the installed wheel श्रियं दिशतु वः.
     "sa": ["vidyut>=0.4.0", "indic-transliteration>=2.3.0"],
+    # ko reads the morphemes an eojeol hides off mecab-ko at RUNTIME (`sud.KoAnalyserEmbed.v1`),
+    # which is what lets it reach the stem inside a token it has never seen -- a third of the test
+    # set (docs/korean.md). `python-mecab-ko` is the SHIPPABLE backend: it vendors the library and
+    # pulls `python-mecab-ko-dic`, so a user needs neither Homebrew nor MECAB_PATH, and no data
+    # download is left to do by hand. Both are permissive (BSD 3-Clause and Apache 2.0
+    # respectively), so unlike ar's and sa's data this is a plain dependency with no licence
+    # position attached -- the wheel still bundles none of it.
+    #
+    # ⚠ The arms were TRAINED through `natto-py` + Homebrew mecab-ko. That is a different binding on
+    # the same dictionary, and `scripts/check_ko_backends.py` measured what the difference is worth
+    # over all 31 532 distinct eojeol of the treebank: tag sequences identical on 100.00 %, lexical
+    # keys on 99.99 %, and the shipping arm scores TAG/UAS/LAS identically to two decimals through
+    # either. Hence the layer's guard compares the DICTIONARY, not the binding.
+    "ko": ["python-mecab-ko>=1.3.7"],
 }
 
 SOURCES = {

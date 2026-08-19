@@ -134,11 +134,17 @@ _TAG_INDEX = {t: i for i, t in enumerate(KO_TAGS)}
 def _check_backend(model: Model) -> None:
     want = model.attrs.get("ko_backend")
     got = ko_analyser.fingerprint()          # raises AnalyserUnavailable if none is installed
-    if want and want != got:
+    # ⚠ The DICTIONARY is compared, not the whole fingerprint. The binding is recorded because a
+    # model should say what produced its channel, but it is not the channel: measured over all
+    # 31 532 distinct eojeol of the treebank, natto-py and python-mecab-ko agree on 100.00 % of tag
+    # sequences and 99.99 % of lexical keys (scripts/check_ko_backends.py). Refusing on the binding
+    # would reject an install that reproduces the training channel to four decimal places.
+    if want and want.rsplit("/", 1)[-1] != got.rsplit("/", 1)[-1]:
         raise ValueError(
-            f"sud.KoAnalyserEmbed.v1: this model was trained against {want!r} but the analyser "
-            f"available here is {got!r}. Two analysers do not segment alike, so the channel would "
-            f"be fed values the parser never saw. Install the matching backend, or retrain. "
+            f"sud.KoAnalyserEmbed.v1: this model's channel was built with {want!r} and the analyser "
+            f"available here is {got!r} — a different DICTIONARY, not merely a different binding. "
+            f"Two analysers do not segment alike, so the parser would be fed values it never saw. "
+            f"Install a mecab-ko-dic backend (`pip install python-mecab-ko`), or retrain. "
             f"Refusing to run: the alternative is parsing quietly worse.")
 
 

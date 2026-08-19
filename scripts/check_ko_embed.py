@@ -103,13 +103,19 @@ assert ids2.attrs.get("ko_backend") == ko_analyser.fingerprint(), \
     "the backend fingerprint did NOT survive serialisation"
 J, _ = ids2(docs, False)
 assert all((numpy.asarray(p) == numpy.asarray(q)).all() for p, q in zip(I, J))
+# A different BINDING on the same dictionary must NOT refuse: measured at 100.00 % identical tag
+# sequences and 99.99 % identical lexical keys (scripts/check_ko_backends.py).
+ids2.attrs["ko_backend"] = "some-other-binding/" + ko_analyser.dictionary()
+ids2(docs, False)
+# A different DICTIONARY must refuse: that is a different channel.
 ids2.attrs["ko_backend"] = "some-other-analyser/its-own-dic"
 try:
     ids2(docs, False)
-    raise AssertionError("a backend mismatch did NOT refuse")
+    raise AssertionError("a dictionary mismatch did NOT refuse")
 except ValueError as e:
-    assert "trained against" in str(e)
-print(f"5 ok  fingerprint {ko_analyser.fingerprint()!r} survives the round trip; a mismatch refuses")
+    assert "different DICTIONARY" in str(e)
+print(f"5 ok  fingerprint {ko_analyser.fingerprint()!r} survives the round trip; another binding on "
+      f"{ko_analyser.dictionary()!r} passes, another dictionary refuses")
 
 # 6 — one sentinel, and never an all-zero row
 odd = Doc(nlp.vocab, words=["ㅤ", "＠"])          # a filler jamo and a fullwidth symbol

@@ -59,6 +59,7 @@ against a gold `잡스+는` / `NNP+JX`.
 """
 from __future__ import annotations
 
+import os
 from typing import List, Optional, Tuple
 
 # form -> [(morpheme, tag), ...]. Module level rather than a Model attr: thinc would try to
@@ -82,14 +83,23 @@ class AnalyserUnavailable(RuntimeError):
     pass
 
 
+#: `KO_ANALYSER_BACKEND=python-mecab-ko` (or `natto-py`) pins the choice. It exists for the
+#: verification in `scripts/check_ko_backends.py` — a machine with both installed must be able to
+#: run each in turn — and for a user who has both and wants the one their model was trained against.
+_ENV = "KO_ANALYSER_BACKEND"
+
+
 def _load_backend():
     """The first backend that imports wins. Never returns a do-nothing analyser: a silent backend
     would make every token read 'unanalysed' and the arm would score like its capacity control."""
     global _BACKEND, _BACKEND_NAME
     if _BACKEND is not None:
         return _BACKEND
+    want = os.environ.get(_ENV)
     tried = []
     try:
+        if want and want != "natto-py":
+            raise ImportError(f"{_ENV}={want}")
         from natto import MeCab  # type: ignore
 
         tagger = MeCab()
@@ -116,6 +126,8 @@ def _load_backend():
     except Exception as e:  # natto raises for a missing libmecab, not only ImportError
         tried.append(f"natto-py ({type(e).__name__}: {e})")
     try:
+        if want and want != "python-mecab-ko":
+            raise ImportError(f"{_ENV}={want}")
         import mecab  # type: ignore
 
         tagger = mecab.MeCab()
@@ -150,10 +162,24 @@ def backend_name() -> str:
 
 
 def fingerprint() -> str:
-    """What `sud.KoAnalyserEmbed.v1` stamps into the model and checks on load. Deliberately the
-    backend NAME and not a hash of its answers: a dictionary update that changes a few segmentations
-    should not invalidate a trained arm, while swapping mecab-ko for a different analyser should."""
+    """What `sud.KoAnalyserEmbed.v1` stamps into the model. Records the BINDING and the DICTIONARY,
+    `<binding>/<dictionary>`, so a model says exactly what produced its channel.
+
+    ⚠ It is checked on only the DICTIONARY half (`dictionary()`), and that is a measured decision,
+    not a convenience. `scripts/check_ko_backends.py` ran all 31 532 distinct eojeol of the treebank
+    through both bindings: the tag sequence — the whole multi-hot block — is identical on
+    **100.00 %** of them, and the first-morpheme key on **99.99 %** (3 forms differ, all of them a
+    dictionary-edition difference rather than a segmentation policy, e.g. Homebrew's mecab-ko-dic
+    returning `않` where the vendored one returns the correct `하`). Refusing a model because it was
+    trained through `natto-py` and run through `python-mecab-ko` would reject an install that gives
+    it the same channel to four decimal places. Swapping mecab-ko-dic for a different analyser still
+    refuses, which is what the guard is for."""
     return backend_name()
+
+
+def dictionary() -> str:
+    """The half of the fingerprint that is actually the channel."""
+    return backend_name().rsplit("/", 1)[-1]
 
 
 def analyse(form: str) -> List[Tuple[str, str]]:

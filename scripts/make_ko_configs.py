@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 """Write the three Korean channel configs off `configs/config_ko_eojeol.cfg`, single-variable.
 
-    config_ko_analyser.cfg      the analyser channel
+    config_ko_analyser.cfg      the analyser channel, on the plain (single-sentence) recipe
     config_ko_analyser_ctl.cfg  the same, `constant = true` -- the capacity control
+    config_ko_analyser_seg.cfg  the analyser channel on the SEG recipe -- the RELEASE arm
     config_ko_order.cfg         the analyser channel plus the constrained scrambler
+
+⚠ WHICH ONE SHIPS. `config_ko_analyser.cfg` is the MEASUREMENT arm: it differs from
+`config_ko_eojeol.cfg` in one block, so the channel's contribution is single-variable. It is NOT
+shippable, and gold_preproc cannot tell you that — fed two sentences it returns one, with a single
+self-headed root, because its reader hands the parser one sentence per example and it never learns
+to START one (CLAUDE.md hazard 4; the same defect zh shipped). The released ko chain is built on
+`config_ko_eojeol_seg.cfg`, whose only difference is the READER, and `seg` is a BASE recipe rather
+than a stackable layer — so the release arm is the channel trained on that reader from scratch.
 
 The point of generating them rather than hand-editing three files is that the diff against the base
 config stays readable: the first two differ from it in ONE block, and a reader can see that the
@@ -27,6 +36,7 @@ path overrides (CLAUDE.md; it caused E913).
 from thinc.api import Config
 
 BASE = "configs/config_ko_eojeol.cfg"
+SEG_BASE = "configs/config_ko_eojeol_seg.cfg"
 
 EMBED = {
     "@architectures": "sud.KoAnalyserEmbed.v1",
@@ -42,8 +52,8 @@ EMBED = {
 }
 
 
-def channel(constant: bool) -> Config:
-    cfg = Config().from_disk(BASE, interpolate=False)
+def channel(constant: bool, base: str = BASE) -> Config:
+    cfg = Config().from_disk(base, interpolate=False)
     embed = dict(EMBED)
     embed["constant"] = constant
     cfg["components"]["tok2vec"]["model"]["embed"] = embed
@@ -55,6 +65,10 @@ def main() -> None:
                           ("configs/config_ko_analyser_ctl.cfg", True)):
         channel(constant).to_disk(out)
         print(f"wrote {out}  (constant = {str(constant).lower()})")
+
+    # The release arm: the same one-block change, applied to the seg recipe instead.
+    channel(False, SEG_BASE).to_disk("configs/config_ko_analyser_seg.cfg")
+    print("wrote configs/config_ko_analyser_seg.cfg  (the release arm)")
 
     cfg = channel(False)
     cfg["training"]["max_epochs"] = -1
