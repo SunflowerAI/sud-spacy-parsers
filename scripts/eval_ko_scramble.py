@@ -47,13 +47,13 @@ def rendered(docs, nlp, style: str, seed: int, table: str):
     meaningful."""
     if style == "identity":
         return docs
-    bigrams, contexts = (None, None) if style == "uniform" else ko_order.load_table(table)
+    bigrams = None if style == "uniform" else ko_order.load_table(table)[0]
     rng = random.Random(seed)
     out = []
     for doc in docs:
         eg = Example(Doc(nlp.vocab, words=[t.text for t in doc],
                          spaces=[bool(t.whitespace_) for t in doc]), doc)
-        out.append(ko_order.order_example(nlp, eg, rng, 1.0, bigrams, contexts).reference)
+        out.append(ko_order.order_example(nlp, eg, rng, 1.0, bigrams).reference)
     return out
 
 

@@ -40,7 +40,7 @@ def main() -> None:
 
     nlp = spacy.blank("ko")
     docs = list(DocBin().from_disk(args.corpus).get_docs(nlp.vocab))[:args.docs]
-    bigrams, contexts = ko_order.load_table(args.table)
+    bigrams, _ = ko_order.load_table(args.table)
     rng = random.Random(0)
 
     n_moved = n_sent = n_np = n_np_moved = 0
@@ -49,7 +49,7 @@ def main() -> None:
     for doc in docs:
         eg = Example(spacy.tokens.Doc(nlp.vocab, words=[t.text for t in doc],
                                       spaces=[bool(t.whitespace_) for t in doc]), doc)
-        out = ko_order.order_example(nlp, eg, rng, 1.0, bigrams, contexts)
+        out = ko_order.order_example(nlp, eg, rng, 1.0, bigrams)
         ref, new = eg.reference, out.reference
 
         assert len(new) == len(ref), "the permutation changed the token count"
@@ -58,13 +58,12 @@ def main() -> None:
 
         # 1 — the tree survives: match tokens by a key that a permutation cannot change
         def arcs(d):
-            key = lambda t: (t.i - t.sent.start, t.text)          # noqa: E731
-            bag = collections.Counter()
-            for t in d:
-                bag[(t.sent.start, t.text, t.dep_, t.head.text,
-                     t.head.i - t.i)] += 0                        # relative distance may change
-                bag[(t.text, t.dep_, t.head.text, t.tag_, t.lemma_)] += 1
-            return bag
+            # Keyed on CONTENT, not on offsets: the whole point of the permutation is that the
+            # offsets change, so an index-based comparison would be trivially unequal. A token is
+            # identified by what it says and what it hangs off, and the multiset of those must
+            # survive.
+            return collections.Counter(
+                (t.text, t.dep_, t.head.text, t.tag_, t.lemma_) for t in d)
         assert arcs(new) == arcs(ref), "an arc, tag or lemma did not travel with its token"
 
         for s_old, s_new in zip(ref.sents, new.sents):

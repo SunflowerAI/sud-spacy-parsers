@@ -95,7 +95,7 @@ def _nonprojective(heads: List[int]) -> bool:
     return False
 
 
-def _sample_order(deps: List[str], rng: random.Random, bigrams, contexts) -> List[int]:
+def _sample_order(deps: List[str], rng: random.Random, bigrams) -> List[int]:
     """Order the indices of `deps` by drawing each next relation from P(d | previous relation).
 
     `bigrams = None` is the UNIFORM sampler, which is not an augmentation recipe but the worst case
@@ -129,7 +129,7 @@ def _sample_order(deps: List[str], rng: random.Random, bigrams, contexts) -> Lis
     return out
 
 
-def _relinearise(sent, rng: random.Random, p_head: float, bigrams, contexts) -> Optional[List[int]]:
+def _relinearise(sent, rng: random.Random, p_head: float, bigrams) -> Optional[List[int]]:
     """Doc-global indices in their new order, or None if this sentence is left alone."""
     start = sent.start
     heads = [t.head.i - start for t in sent]
@@ -171,7 +171,7 @@ def _relinearise(sent, rng: random.Random, p_head: float, bigrams, contexts) -> 
             movable = []                             # a mark stands in the region: leave it alone
         if len(movable) > 1 and rng.random() < p_head:
             deps = [sent[k].dep_.split("@")[0] for k in movable]
-            perm = _sample_order(deps, rng, bigrams, contexts)
+            perm = _sample_order(deps, rng, bigrams)
             reordered = [movable[j] for j in perm]
             if reordered != movable:
                 touched = True
@@ -197,7 +197,7 @@ def _relinearise(sent, rng: random.Random, p_head: float, bigrams, contexts) -> 
 
 
 def order_example(nlp: Language, example: Example, rng: random.Random, p_head: float,
-                  bigrams, contexts) -> Example:
+                  bigrams) -> Example:
     """Re-linearise the projective sentences of one example. The TREE is untouched — heads are
     re-indexed through the permutation, so every arc still joins the same two words — and so is
     every annotation on every token. Only the string moves."""
@@ -206,7 +206,7 @@ def order_example(nlp: Language, example: Example, rng: random.Random, p_head: f
     order = list(range(n))
     changed = False
     for sent in ref.sents:
-        seq = _relinearise(sent, rng, p_head, bigrams, contexts)
+        seq = _relinearise(sent, rng, p_head, bigrams)
         if seq is None:
             continue
         order[sent.start:sent.end] = seq
@@ -250,11 +250,11 @@ def create_ko_order_augmenter(p_order: float = 0.5, p_head: float = 0.5,
     has its pre-head dependents resampled. The rest pass through in their attested order, so the
     model never stops seeing the Korean people actually write."""
     rng = random.Random(seed)
-    bigrams, contexts = load_table(table)
+    bigrams, _ = load_table(table)
 
     def augmenter(nlp: Language, example: Example) -> Iterator[Example]:
         if rng.random() < p_order:
-            yield order_example(nlp, example, rng, p_head, bigrams, contexts)
+            yield order_example(nlp, example, rng, p_head, bigrams)
         else:
             yield example
 
