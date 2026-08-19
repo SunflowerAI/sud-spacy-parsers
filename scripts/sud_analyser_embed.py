@@ -179,7 +179,21 @@ def analyse(form_iast, values, feats, path=None):
     return got
 
 
-def _layout(values: dict, feats: List[str]):
+# Agreement is a RELATION between two tokens, but a spaCy embed is per-token, so it is encoded as
+# "which of my neighbours am I compatible with". The MaxoutWindowEncoder then convolves these over a
+# window, so a token's own bits reach its neighbours' representations too.
+#
+# COMPATIBILITY, NOT EQUALITY. At inference the parser runs BEFORE the morphologiser in the joint
+# arm, so predicted FEATS do not exist when the parser needs them — but vidyut's candidate sets do,
+# at tokenisation time. Two tokens are compatible when their candidate sets INTERSECT on Case,
+# Number and Gender; a feature unknown for either side is not evidence against. Measured on the
+# Vedic test with no predicted morphology at all: gold ADJ--mod-->NOUN pairs are 89.5 % compatible
+# against 65.4 % for random nearby ADJ/NOUN non-arcs.
+AGREE_OFFSETS = (-3, -2, -1, 1, 2, 3)
+AGREE_DIMS = len(AGREE_OFFSETS) + 3          # + any-left, + any-right, + "no candidates at all"
+
+
+def _layout(values: dict, feats: List[str], agreement: bool = False):
     """Bit offsets. Each feature gets len(values[f]) value bits plus ONE 'analyser silent' bit —
     a feature the analyser did not offer and a feature it offered every value for must not be the
     same input, for the same reason an unset MORPH and an empty one must not be (CLAUDE.md)."""
@@ -187,13 +201,15 @@ def _layout(values: dict, feats: List[str]):
     for f in feats:
         off[f] = n
         n += len(values[f]) + 1
+    if agreement:
+        n += AGREE_DIMS
     return off, n
 
 
-def AnalyserExtractor(payload: dict, feats: List[str], constant: bool):
+def AnalyserExtractor(payload: dict, feats: List[str], constant: bool, agreement: bool = False):
     return Model("extract_analyser_sets", _analyser_forward,
                  attrs={"an_payload": payload, "an_feats": list(feats),
-                        "an_constant": bool(constant)})
+                        "an_constant": bool(constant), "an_agreement": bool(agreement)})
 
 
 def _analyser_forward(model: Model, docs, is_train: bool) -> Tuple[List[Floats2d], Callable]:
@@ -205,17 +221,22 @@ def _analyser_forward(model: Model, docs, is_train: bool) -> Tuple[List[Floats2d
     table = payload.get("table") or {}
     values = payload.get("values") or {}
     live = bool(payload.get("kosha_mode"))
+    agreement = bool(model.attrs.get("an_agreement"))
     if not constant and not live and not table:
         raise ValueError(
             "sud.AnalyserFeatsEmbed.v1: the analyser table is empty. Either it never reached the "
             "model, or it was dropped on serialisation (thinc skips an unserialisable attr without "
             "saying so). Refusing to run: every token would read 'silent'.")
-    off, n_dims = _layout(values, feats) if values else ({f: i for i, f in enumerate(feats)}, len(feats))
+    off, n_dims = (_layout(values, feats, agreement) if values
+                   else ({f: i for i, f in enumerate(feats)}, len(feats)))
+    agree_base = n_dims - AGREE_DIMS if agreement else None
+    AF = ("Case", "Number", "Gender")
 
     out: List[Floats2d] = []
     for doc in docs:
         toks = list(doc)
         arr = xp.zeros((len(toks), n_dims), dtype="f")
+        cache = [None] * len(toks) if agreement else None
         for i, tok in enumerate(toks):
             if constant:
                 bits = None
@@ -231,6 +252,32 @@ def _analyser_forward(model: Model, docs, is_train: bool) -> Tuple[List[Floats2d
                         arr[i, base + j] = 1.0
                 else:
                     arr[i, base + len(values.get(f, []))] = 1.0     # the silent bit
+        if agreement and not constant:
+            def sets(k):
+                if cache[k] is None:
+                    b = (analyse(toks[k].norm_, values, feats, payload.get("kosha"))
+                         if live else (table.get(toks[k].norm_) or {}))
+                    cache[k] = {f: set(b.get(f, ())) for f in AF}
+                return cache[k]
+
+            for i in range(len(toks)):
+                mine = sets(i)
+                if not any(mine[f] for f in AF):
+                    arr[i, agree_base + AGREE_DIMS - 1] = 1.0      # analyser knows nothing
+                    continue
+                left = right = False
+                for k, off_ in enumerate(AGREE_OFFSETS):
+                    j = i + off_
+                    if not (0 <= j < len(toks)):
+                        continue
+                    theirs = sets(j)
+                    ok = all(not (mine[f] and theirs[f]) or (mine[f] & theirs[f]) for f in AF)
+                    if ok and any(theirs[f] for f in AF):
+                        arr[i, agree_base + k] = 1.0
+                        left |= off_ < 0
+                        right |= off_ > 0
+                arr[i, agree_base + len(AGREE_OFFSETS)] = 1.0 if left else 0.0
+                arr[i, agree_base + len(AGREE_OFFSETS) + 1] = 1.0 if right else 0.0
         out.append(model.ops.asarray2f(arr))
 
     backprop: Callable[[List[Floats2d]], List] = lambda d: []
@@ -249,6 +296,7 @@ def AnalyserFeatsEmbed(
     kosha=None,
     runtime: bool = False,
     constant: bool = False,
+    agreement: bool = False,
     suffixes: List[int] = [],
     suffix_rows: List[int] = [],
     prefixes: List[int] = [],
@@ -287,7 +335,7 @@ def AnalyserFeatsEmbed(
             f"sud.AnalyserFeatsEmbed.v1: {missing} absent from the table's value inventory "
             f"{sorted(values)}. A feature with no value list has no bit layout, and silently "
             f"widening the block would misalign every feature after it.")
-    _, n_dims = _layout(values, feats) if feats else ({}, 0)
+    _, n_dims = _layout(values, feats, agreement) if feats else ({}, 0)
 
     # seed 7 and the same increment order as MultiHashEmbed, so the hash columns are seeded
     # identically to stock and an arm switched over with feats=[] stays single-variable.
@@ -315,7 +363,7 @@ def AnalyserFeatsEmbed(
         extras.append(StaticVectors(width, dropout=0.0))
     if feats:
         extras.append(chain(
-            AnalyserExtractor(payload, feats, constant),
+            AnalyserExtractor(payload, feats, constant, agreement),
             list2ragged(),
             with_array(Linear(width, n_dims)),
         ))

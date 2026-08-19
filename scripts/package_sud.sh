@@ -200,7 +200,11 @@ for lang in "$@"; do
     # base components AND the sud_* pipes -- is byte-identical to the one hashed out of the
     # DOWNLOADED v0.2.0 wheel. EN_BASE/YUE_BASE/ID_BASE get back the pre-graft arm.
     en)  base="${EN_BASE:-training_en_sud_xpos/model-best}" ;;
-    yue) base="${YUE_BASE:-training_yue_sud_xpos/model-best}" ;;
+    # ⚠ NO `/model-best`: graft_xpos_tagger.py writes a MODEL directory, not a training directory,
+    # so the old default pointed at a path that does not exist — and because the yue branch mutes
+    # its steps, the only symptom was "SRC build_sud/work_yue.pkuseg missing — skip". lzh's grafted
+    # default (training_lzh_seg_sud_xw) has always been correct on this; yue's never was.
+    yue) base="${YUE_BASE:-training_yue_sud_xpos}" ;;
     id)  base="${ID_BASE:-training_id_sud_xpos/model-best}" ;;
     # fa names the GRAFTED arm, for the same reason ar does -- see the ar note below. Rebuilt with
     #   python scripts/graft_xpos_tagger.py training_fa_sud/model-best \
@@ -263,7 +267,12 @@ for lang in "$@"; do
     # actual use case) LAS 0.3873 -> 0.4163 / UAS 0.5685 -> 0.6199. It costs Vedic LAS 0.5470 ->
     # 0.5140, accepted by user decision because the target is classical, not Vedic. NB the UFAL
     # figure rests on 416 tokens; the Vedic one on 18 k, so the cost is better measured than the gain.
-    sa)           base="${SA_BASE:-training_sa_multitask/model-best}" ;;
+    # ⚠ THIS DEFAULT NAMED THE JOINT MULTI-TASK ARM, which is NOT what ships. The v0.2.0 wheel was
+    # built with SA_BASE overridden to the morph-first arm (parser/model 7de6d8d667d0fd3d ==
+    # training_sa_mp2_s1, verified out of the DOWNLOADED wheel), so a bare `package_sud.sh sa` built
+    # a different model from the released one — the same class of defect as lzh's and yue's defaults.
+    # SA_MULTITASK is the escape hatch for the superseded joint arm.
+    sa)           base="${SA_BASE:-training_sa_mp2_sub_s1/model-best}" ;;
     # ko ships the EOJEOL arm, trained on the ORIGINAL SUD_Korean-GSD with spaCy's rule tokeniser
     # instead of mecab morphemes. The point is tokenisation fidelity: against that treebank the
     # shipped tokeniser now scores TOK 99.77, where the morpheme arm scored 0.3070 (strict span
@@ -532,11 +541,20 @@ case $lang in
             || { echo "  lzh: charseg bundling FAILED — skip"; continue; }
        $PY scripts/han_lemma_lut.py --build "$work.tok" "$work.lut" \
             --conllu "$LZH_TRAIN_CONLLU" >/dev/null 2>&1
-       # --keep-marks is COUPLED to the base: worth +2.34 LAS on the punctuation-trained arm and
-       # -3.80 on one that has never seen a mark. Drop it if you set LZH_BASE to a pre-punctuation
-       # arm. `$LZH_KEEP_MARKS` exists so that can be done without editing this line.
-       $PY scripts/add_clause_parser.py "$work.lut" "$work.seg" \
-            ${LZH_KEEP_MARKS:---keep-marks} >/dev/null 2>&1
+       # ⚠ NO clause_parser ON lzh ANY MORE. It had three jobs; the punctuation-restored arm took
+       # over marks and their morphology, and the SENTENCE-SEGMENTING base (config_lzh_seg.cfg) took
+       # over the last one. Measured on the shipped wheel over 50 raw documents, dropping it is
+       # 76.11 -> 76.23 LAS, 81.42 -> 81.51 UAS, 82.48 -> 83.24 SENTS_F — small, but consistent in
+       # all three, and it removes a pipe that RE-PARSES every sentence.
+       # ⚠ IT IS COUPLED TO THE BASE, so restoring it is one variable: set LZH_CLAUSE_PARSER=1, and
+       # only for a base that does not segment. `--keep-marks` (worth +2.34 LAS on a
+       # punctuation-trained arm, -3.80 on one that has never seen a mark) rides with it.
+       if [ -n "${LZH_CLAUSE_PARSER:-}" ]; then
+         $PY scripts/add_clause_parser.py "$work.lut" "$work.seg" \
+              ${LZH_KEEP_MARKS:---keep-marks} >/dev/null 2>&1
+       else
+         cp -R "$work.lut" "$work.seg"
+       fi
        $PY scripts/add_sud_subject_rule.py "$work.seg" "$work.rule" --lang lzh >/dev/null 2>&1
        $PY scripts/add_sud_idiom.py "$work.rule" "$work" --drop sud_subject >/dev/null 2>&1
        pkg lzh "$work" sud_kyoto \
