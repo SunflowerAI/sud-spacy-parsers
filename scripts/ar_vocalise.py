@@ -28,10 +28,12 @@ same free pairing the Latin macron table was harvested from, except that here it
 treebank rather than needing a separate tool to generate it. ``build_ar_vocalise_lut.py`` reads it.
 
 ⚠ LICENCE. SUD_Arabic-PADT is **CC BY-NC-SA 3.0** (see its LICENSE.txt), so a table harvested from
-it is NonCommercial and so, by this project's own reasoning about en_gum -- annotations are what a
-trained model absorbs -- is any model trained on it. The released `ar_sud_padt` wheel currently
-declares CC BY-SA 4.0, which looks wrong independently of this component. Nothing here is packaged
-until that is settled; see the module notes in `build_ar_vocalise_lut.py`.
+it is NonCommercial and so is any model trained on it. Unlike en_gum -- whose NC turned out to come
+only from five filterable genres, the rest of GUM being CC BY -- PADT is NonCommercial WHOLE: there
+is no non-NC subset to keep, so the conclusion does not depend on the argument about whether
+annotations carry the source's licence. The released `ar_sud_padt` wheel declares CC BY-SA 4.0,
+which is wrong independently of this component. Nothing here is packaged until that is corrected;
+see the module notes in `build_ar_vocalise_lut.py`.
 
 CAMEL TOOLS IS THE FALL-THROUGH, AND IT IS NOT BUNDLED. The residue the table cannot reach is
 vocabulary, not morphology -- 6.07 % of test tokens have a skeleton train never saw, and that is

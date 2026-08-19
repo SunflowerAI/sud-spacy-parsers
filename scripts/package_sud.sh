@@ -82,9 +82,11 @@ CODE_REP="$CODE_BASE,scripts/sud_reported_data.py,scripts/sud_reported_rule.py"
 # every arm carrying a trained sud_shared pipe needs the candidate mask it looks up by name
 CODE_SHARED="scripts/sud_shared_data.py"
 # Treebank the lzh lemma lookup table is harvested from. It MUST be the same generation of the data
-# the lzh arm was trained on -- override when packaging a differently-trained arm, e.g. the
-# punctuation-restored chain (.relabeled_ext.udep_ruled.punct.rulemerged.conllu).
-LZH_TRAIN_CONLLU="${LZH_TRAIN_CONLLU:-assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-train.relabeled_ext.udep_ruled.punct.rulemerged.conllu}"
+# the lzh arm was trained on. ⚠ THIS DEFAULT NAMED Kyoto-BOTH while lzh is traditional-only end to
+# end, so the lookup table would have been harvested from the both-scripts text — the same stale
+# default that `train_sud.sh` carried in four places. LZH_TRAIN_CONLLU remains the override for the
+# superseded both-scripts arm.
+LZH_TRAIN_CONLLU="${LZH_TRAIN_CONLLU:-assets_lzh/SUD_Classical_Chinese-Kyoto/lzh_kyoto-sud-train.relabeled_ext.udep_ruled.punct.rulemerged.conllu}"
 
 pkg() {  # $1=arm  $2=src model dir  $3=--name value  $4=comma-separated --code files (no flag)
          # $5=the model's own language code, if it differs from the arm name (en_gum -> en)
@@ -98,26 +100,72 @@ pkg() {  # $1=arm  $2=src model dir  $3=--name value  $4=comma-separated --code 
   if [ ! -d "$src" ]; then echo "  $arm: SRC $src missing — skip"; return; fi
   # ⚠ THE XPOS-DOWNSTREAM GUARD. All twelve v0.2.0 wheels ship the warm-started tagger MOVED behind
   # the morphologiser so it can read UPOS+FEATS (graft_xpos_tagger.py; ar 89.44 -> 89.71, sa +1.52).
-  # That release grafted per arm through SUD_BASE and kept a `_sud_xpos` directory only for en_gum
-  # and la, so the DEFAULTS for en/fa/yue/id/ar still name pre-graft arms -- and rebuilding one
-  # produces a wheel that builds, loads and parses perfectly while shipping the previous tagger
-  # generation. Only a file-by-file diff against the downloaded asset catches that, which is how it
-  # was found on ar. The pipeline ORDER is the cheap invariant that encodes it, so assert it here
-  # rather than hope the next person diffs: a wheel whose tagger precedes its morphologiser is
-  # pre-graft, whatever else is right about it.
-  $PY - "$src" <<'GUARD' || { echo "  $arm: PRE-GRAFT arm — refusing to package. Rebuild with scripts/graft_xpos_tagger.py"; return; }
+  # That release grafted per arm through SUD_BASE and kept no directory, so the defaults named
+  # pre-graft arms -- and rebuilding one produces a wheel that builds, loads and parses perfectly
+  # while shipping the previous tagger generation. Only a file-by-file diff against the downloaded
+  # asset catches that, which is how it was found on ar.
+  #
+  # STATE OF THE DEFAULTS, re-derived from the arms themselves on 2026-08-17 (do not trust the
+  # prose -- run the check): en, yue, id (7eafb16), ar and fa are POST-graft and safe. en_gum was
+  # NOT, although an earlier version of this comment exempted it and la on the grounds that a
+  # `_sud_xpos` directory had been kept for them; that claim was false for both. en_gum's default
+  # now names `training_en_gum_sud_xw`, rebuilt and verified byte-identical to the released asset.
+  # la is RESOLVED as of 2026-08-19: `training_la_aug_sud_xpos` is still pre-graft and is no longer
+  # the default. `training_la_lemvec_misc` replaces it -- the lemma-vector arm, sealed, with the
+  # `training_la_xposwarm` tagger grafted in by `graft_standalone_tagger.py` (parse unchanged
+  # 5 527/5 527, donor tags reproduced 5 527/5 527) and the MISC pipes transplanted on top.
+  #
+  # The pipeline ORDER is the cheap invariant that encodes all of this, so assert it here rather
+  # than hope the next person diffs: a wheel whose tagger precedes its morphologiser is pre-graft,
+  # whatever else is right about it.
+  # sa is the ONE documented exemption, and it is not a loophole: its XPOS is a COPY of UPOS on
+  # 100 % of tokens in both halves of its corpus (docs/sanskrit.md), so there is no XPOS tagset to
+  # condition on and nothing for graft_xpos_tagger.py to graft. Its tagger sits before the
+  # morphologiser because the arm is JOINT MULTI-TASK — one shared encoder feeding all four heads
+  # at once, so "before" is a listing order, not a data dependency. Left implicit, this guard
+  # refused the RELEASED sa arm too, i.e. sa could not be rebuilt by its own packaging script.
+  $PY - "$src" "$arm" <<'GUARD' || { echo "  $arm: PRE-GRAFT arm — refusing to package. Rebuild with scripts/graft_xpos_tagger.py"; return; }
 import sys, json, pathlib
 cfg = (pathlib.Path(sys.argv[1]) / "meta.json")
 pipe = json.loads(cfg.read_text())["pipeline"] if cfg.exists() else []
+if sys.argv[2] == "sa":
+    sys.exit(0)
 if "tagger" in pipe and "morphologizer" in pipe and pipe.index("tagger") < pipe.index("morphologizer"):
     print("    tagger precedes morphologizer: %s" % pipe, file=sys.stderr)
     sys.exit(1)
 GUARD
+  # ⚠ THE SILENCED-TAGGER GUARD. spaCy's tagger writes only where `token.tag == 0` unless
+  # `overwrite` is on, and the stock configs here all carry `overwrite = false`. Harmless for
+  # eleven arms -- nothing sets a tag before the tagger runs -- but `spacy.ja.JapaneseTokenizer`
+  # assigns `token.tag_` at TOKENISATION, so ja's trained tagger was a NO-OP at inference and users
+  # got SudachiPy's raw UniDic tag (0.7673 against gold) where the tagger would have given 0.9457.
+  # It shipped in ja_sud_gsd-0.2.0 and gold_preproc could never have caught it: the predicted doc
+  # is built from gold words, carries no tag, so the tagger DOES write and tag_acc looked healthy.
+  # BEHAVIOURAL, not a list of languages: tokenise an ASCII probe and ask the arm whether its own
+  # tokeniser pre-set anything. ja pre-sets 3/3 on "Test 1.", en/ko/zh 0/3 -- so one probe
+  # separates them with no per-language table to fall out of date. Fix with
+  # scripts/fix_tagger_overwrite.py, which patches config.cfg AND the pipe's serialised cfg (the
+  # latter is what from_disk restores, so patching the config alone changes nothing).
+  $PY - "$src" <<'GUARD' || { echo "  $arm: SILENCED TAGGER — refusing to package. Fix with scripts/fix_tagger_overwrite.py $src"; return; }
+import pathlib, sys
+sys.path.insert(0, "scripts")
+import seg_code  # noqa: F401  (custom architectures/tokenisers)
+import spacy
+nlp = spacy.load(sys.argv[1])
+if "tagger" not in nlp.pipe_names:
+    sys.exit(0)
+preset = sum(1 for t in nlp.make_doc("Test 1.") if t.tag != 0)
+if preset and not nlp.get_pipe("tagger").cfg.get("overwrite"):
+    print("    tokeniser pre-sets tags and tagger.overwrite=false: "
+          "the trained tagger is a no-op at inference", file=sys.stderr)
+    sys.exit(1)
+GUARD
   # An arm straight out of `spacy train` has an EMPTY license field, and `spacy package` copies it
   # through without complaint -- so a rebuilt arm ships unlicensed unless this runs. Every model
-  # here derives from CC BY-SA treebanks (la, and en_gum, from NonCommercial ones), so this is an
+  # here derives from CC BY-SA treebanks (la and ar, from NonCommercial ones), so this is an
   # obligation. --arm keys the licence/sources tables, --lang goes into the meta: en ships TWO
-  # wheels at two licences, so keying on the language code alone would flip both.
+  # wheels and only en_gum owes GUM's CC BY attribution, so keying on the language code alone
+  # would give it to both.
   $PY scripts/stamp_model_meta.py "$src" --lang "$lang" --arm "$arm" \
     ${DESCRIPTION:+--description "$DESCRIPTION"} \
     >/dev/null || { echo "  $arm: meta stamp FAILED"; return; }
@@ -130,7 +178,8 @@ GUARD
 }
 
 # add_idiom <in> <out> -- deterministic Idiom=Yes / InIdiom=Yes, last in the pipeline
-add_idiom() { $PY scripts/add_sud_idiom.py "$1" "$2" >/dev/null 2>&1; }
+add_idiom() { $PY scripts/add_sud_idiom.py "$1" "$2" >/dev/null || {
+  echo "  add_sud_idiom FAILED"; return 1; }; }
 
 for lang in "$@"; do
   # Base arm: the trained SUD arm where it won, else the released lemma arm.
@@ -151,7 +200,11 @@ for lang in "$@"; do
     # base components AND the sud_* pipes -- is byte-identical to the one hashed out of the
     # DOWNLOADED v0.2.0 wheel. EN_BASE/YUE_BASE/ID_BASE get back the pre-graft arm.
     en)  base="${EN_BASE:-training_en_sud_xpos/model-best}" ;;
-    yue) base="${YUE_BASE:-training_yue_sud_xpos/model-best}" ;;
+    # ⚠ NO `/model-best`: graft_xpos_tagger.py writes a MODEL directory, not a training directory,
+    # so the old default pointed at a path that does not exist — and because the yue branch mutes
+    # its steps, the only symptom was "SRC build_sud/work_yue.pkuseg missing — skip". lzh's grafted
+    # default (training_lzh_seg_sud_xw) has always been correct on this; yue's never was.
+    yue) base="${YUE_BASE:-training_yue_sud_xpos}" ;;
     id)  base="${ID_BASE:-training_id_sud_xpos/model-best}" ;;
     # fa names the GRAFTED arm, for the same reason ar does -- see the ar note below. Rebuilt with
     #   python scripts/graft_xpos_tagger.py training_fa_sud/model-best \
@@ -170,7 +223,18 @@ for lang in "$@"; do
     # component byte-identical. Headline TAG is flat (0.3 % of the corpus) but accuracy on the
     # affected punctuation goes 72.47 -> 82.98. `en` (EWT-only) is deliberately NOT in this arm:
     # on its own, EWT's convention is internally consistent.
-    en_gum)       base=training_en_gum_sud_xpos/model-best ;;
+    #
+    # ⚠ THE DEFAULT NAMED `training_en_gum_sud_xpos/model-best` UNTIL 2026-08-17, AND THAT ARM IS
+    # PRE-GRAFT -- its tagger sits before the morphologiser, so the guard in pkg() refuses it and
+    # the shipped wheel could not be rebuilt from this script at all. The comment in pkg() said
+    # v0.2.0 "kept a `_sud_xpos` directory only for en_gum and la", implying those two defaults were
+    # safe; they are not, and `training_la_aug_sud_xpos` is pre-graft in exactly the same way.
+    # `training_en_gum_sud_xw` is the GRAFTED arm, rebuilt with (and reproducible by):
+    #   graft_xpos_tagger.py training_en_gum_sud_xpos/model-best training_en_gum_xposwarm/model-best \
+    #     training_en_gum_sud_xw --corpus corpus_en_gum_ext/en_ewtgum-sud-test.relabeled_ext.spacy
+    # All three of that script's checks pass, and the wheel it packages is byte-identical to the
+    # released v0.2.0 asset in every weight file -- only the licence metadata differs.
+    en_gum)       base=training_en_gum_sud_xw ;;
     # la ships the ORTHOGRAPHICALLY AUGMENTED chain, not the plain-plus-macron union: one copy of
     # the macronised treebank resampled into a fresh edition style every epoch (macrons, breves,
     # u/v, i/j, æ/œ, sentence-initial capitals). It costs ~0.5 LAS and 2.7 TAG on ordinary input
@@ -183,14 +247,32 @@ for lang in "$@"; do
     # of two-and-a-hole. ITTB's own rows are untouched, and on the ITTB test slice -- the one span
     # whose gold never moved -- TAG goes 90.68 -> 92.92, combined 77.61 -> 86.16 with LAS/UAS/POS/
     # LEMMA identical to the decimal. LA_BASE gets back the pre-normalisation arm.
-    la)           base="${LA_BASE:-training_la_aug_sud_xpos/model-best}" ;;
+    # ⚠ THE ARM CHANGED ON 2026-08-19 and the old default is a generation BEHIND in two ways at
+    # once: pre-graft tagger AND pre-lemma-vector parser. `training_la_lemvec_misc` is the whole
+    # chain -- morphologiser and lemmatiser in FRONT of the parser and annotating, so the parser
+    # reads their predictions through `sud.LemmaVecFeatsEmbed.v1` (one hash table per morphological
+    # category, plus PPMI+SVD lemma vectors). +1.51 LAS / +1.28 UAS on the combined test against a
+    # CAPACITY CONTROL that is -2.56 below it, so the gain is the information and not the rows.
+    # `sud_shared` is RETRAINED on this base rather than inherited (standing hazard 5): it pools
+    # over the head and the head's other dependents, so a changed parse is a changed input, and the
+    # transplanted pipe lost 0.44 F. Retrained it reaches 38.88 against the released 38.11.
+    # The table is SEALED into the model bytes (seal_la_lemvec_model.py); an unsealed arm would
+    # load on this machine and nowhere else. The wheel must therefore also ship
+    # scripts/sud_lemmavec_embed.py -- it is in all three `la` --code lists below, and without it
+    # the installed model raises E893 at load.
+    la)           base="${LA_BASE:-training_la_lemvec_sud/model-best}" ;;
     # sa ships the JOINT MULTI-TASK arm: ONE shared encoder for tagger + parser + morphologizer +
     # lemmatizer, instead of the three-encoder freeze recipe every other arm uses. 25.85 -> 19.16 MB
     # (-25.9 %), tag/pos/morph/lemma each +0.3 to +0.7, and on HELD-OUT UFAL (classical prose, the
     # actual use case) LAS 0.3873 -> 0.4163 / UAS 0.5685 -> 0.6199. It costs Vedic LAS 0.5470 ->
     # 0.5140, accepted by user decision because the target is classical, not Vedic. NB the UFAL
     # figure rests on 416 tokens; the Vedic one on 18 k, so the cost is better measured than the gain.
-    sa)           base=training_sa_multitask/model-best ;;
+    # ⚠ THIS DEFAULT NAMED THE JOINT MULTI-TASK ARM, which is NOT what ships. The v0.2.0 wheel was
+    # built with SA_BASE overridden to the morph-first arm (parser/model 7de6d8d667d0fd3d ==
+    # training_sa_mp2_s1, verified out of the DOWNLOADED wheel), so a bare `package_sud.sh sa` built
+    # a different model from the released one — the same class of defect as lzh's and yue's defaults.
+    # SA_MULTITASK is the escape hatch for the superseded joint arm.
+    sa)           base="${SA_BASE:-training_sa_mp2_sub_s1/model-best}" ;;
     # ko ships the EOJEOL arm, trained on the ORIGINAL SUD_Korean-GSD with spaCy's rule tokeniser
     # instead of mecab morphemes. The point is tokenisation fidelity: against that treebank the
     # shipped tokeniser now scores TOK 99.77, where the morpheme arm scored 0.3070 (strict span
@@ -219,7 +301,15 @@ for lang in "$@"; do
     # asset file by file -- the wheel built, loaded and ran, and nothing else would have said so.
     # Third time this repo has shipped lzh a generation backwards; a default that names the arm is
     # the fix, not a note telling the next person to remember.
-    lzh)          base="${LZH_BASE:-training_lzh_trad_sud/model-best}" ;;
+      # ⚠ AND THIS DEFAULT WAS PRE-GRAFT TOO. `training_lzh_trad_sud` has the tagger BEFORE the
+    # morphologiser, so pkg()'s guard refuses it and the shipped wheel could not be rebuilt from
+    # this script -- the same defect recorded for en_gum and la above, in a third place.
+    # `training_lzh_trad_sud_xw` is the grafted arm, rebuilt with (and reproducible by):
+    #   graft_xpos_tagger.py training_lzh_trad_sud/model-best training_lzh_xposwarm/model-best \
+    #     training_lzh_trad_sud_xw --corpus corpus_lzh_trad/lzh_kyoto-sud-test.<suffix>.spacy
+    # All three of that script's checks pass (parse unchanged 5628/5628, tags match donor
+    # 5628/5628) and TAG goes 0.8469 -> 0.9254, which is the released wheel's generation.
+  lzh)          base="${LZH_BASE:-training_lzh_seg_sud_xw}" ;;   # the SENTENCE-SEGMENTING arm
     # zh is TRADITIONAL-ONLY end to end, like lzh, and for the same reason -- a both-scripts
     # inventory never pools 個 with 个. Naming the arm here rather than falling through to
     # `training_zh_lemma` is not tidiness: the fall-through is the both-scripts generation, and it
@@ -277,9 +367,11 @@ case $lang in
        add_idiom "$work.rep" "$work"
        pkg en  "$work" sud_ewt   "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py" ;;
        # en_gum: the SECOND English wheel, EWT + the ten non-NonCommercial GUM genres. Same pipe
-       # surgery as en, different corpus and a different licence -- CC BY-NC-SA 4.0, keyed off the
-       # ARM name so plain `en_sud_ewt` stays CC BY-SA and commercially usable. The two wheels
-       # coexist deliberately; users choose. See scripts/build_en_ewt_gum.sh for the data build.
+       # surgery as en, different corpus. It is CC BY-SA 4.0 like plain `en`, since 2026-08-17 --
+       # GUM's maintainer confirmed the annotations are CC BY and the NC belongs to the individual
+       # documents, which the genre filter already drops. The ARM key still matters: en_gum owes
+       # GUM's CC BY ATTRIBUTION (SOURCES in stamp_model_meta.py) and plain en does not.
+       # See scripts/build_en_ewt_gum.sh for the data build.
        # ⚠ Which Reported arm ships here is NOT inherited from en: the MISC layer reads the base
        # arm's own predictions, so the rule-vs-trained comparison must be re-run on this arm
        # (eval_sud_reported.py) before this line is trusted.
@@ -355,13 +447,13 @@ case $lang in
        # 17.65, trained 8.00, on 24 test instances.
   la)  $PY scripts/add_sud_idiom.py "$base" "$work.idiom" --drop sud_reported >/dev/null 2>&1
        $PY scripts/add_la_macronise.py "$work.idiom" "$work.mac" --no-lut \
-            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,sud_feats_embed.py \
+            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,sud_feats_embed.py,sud_lemmavec_embed.py \
             >/dev/null 2>&1
        $PY scripts/add_la_enclitic_tokenizer.py "$work.mac" "$work" --verify \
-            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,la_macronise.py,sud_feats_embed.py \
+            --code sud_tagger.py,sud_misc.py,sud_shared_data.py,sud_shared_frames.py,sud_shared_rule.py,sud_idiom.py,sud_subject_frames.py,sud_subject_rule.py,la_macronise.py,sud_feats_embed.py,sud_lemmavec_embed.py \
             || { echo "  la: enclitic tokeniser swap FAILED — skip"; continue; }
        pkg la  "$work" sud_ittb_proiel_perseus \
-            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py" ;;
+            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/la_macronise.py,scripts/la_tokenizer.py,scripts/la_enclitics.py,scripts/sud_lemmavec_embed.py" ;;
        # ar now takes the TRAINED arm as its base (for sud_shared); add_sud_reported_rule drops
        # the trained sud_reported it also carries, since ar ships the Reported RULE (73.5 v 46.0).
        # ar ships `ar_vocalise` WITH its table, which is what separates it from la_macronise.
@@ -436,30 +528,55 @@ case $lang in
        # yue (99.762 / 99.841) are one token apart either way, so they keep the trained layer.
        # HARVEST FROM THE TREEBANK THE ARM WAS TRAINED ON -- a table built from a different
        # generation of the data silently disagrees with the model's own vocabulary.
-  lzh) $PY scripts/han_lemma_lut.py --build "$base" "$work.lut" \
+       # THE CHARACTER SEGMENTER. lzh shipped "one Han character = one token" for its whole life,
+       # but the Kyoto treebank is not: 852 of the traditional test set's 34,233 tokens are
+       # multi-character (孔子 君子 匈奴 五十), so the rule tokeniser scored token F 0.9624 with
+       # multi-char recall of exactly ZERO. The trained segmenter scores 0.9825 / 0.7124.
+       # NO RETRAIN IS INVOLVED: gold_preproc + sud.GoldTokCorpus.v1 make the parser
+       # segmenter-agnostic, and bundle_lzh_charseg.py asserts every component comes out
+       # BYTE-IDENTICAL. It also refuses a segmenter whose stamped training corpus is not the
+       # traditional one -- the both-scripts model differs by nothing a weight check can see.
+  lzh) $PY scripts/bundle_lzh_charseg.py --src "$base" --seg "${LZH_SEG:-models/lzh_seg_char_trad}" \
+            --out "$work.tok" --verify >/dev/null 2>&1 \
+            || { echo "  lzh: charseg bundling FAILED — skip"; continue; }
+       $PY scripts/han_lemma_lut.py --build "$work.tok" "$work.lut" \
             --conllu "$LZH_TRAIN_CONLLU" >/dev/null 2>&1
-       # --keep-marks is COUPLED to the base: worth +2.34 LAS on the punctuation-trained arm and
-       # -3.80 on one that has never seen a mark. Drop it if you set LZH_BASE to a pre-punctuation
-       # arm. `$LZH_KEEP_MARKS` exists so that can be done without editing this line.
-       $PY scripts/add_clause_parser.py "$work.lut" "$work.seg" \
-            ${LZH_KEEP_MARKS:---keep-marks} >/dev/null 2>&1
+       # ⚠ NO clause_parser ON lzh ANY MORE. It had three jobs; the punctuation-restored arm took
+       # over marks and their morphology, and the SENTENCE-SEGMENTING base (config_lzh_seg.cfg) took
+       # over the last one. Measured on the shipped wheel over 50 raw documents, dropping it is
+       # 76.11 -> 76.23 LAS, 81.42 -> 81.51 UAS, 82.48 -> 83.24 SENTS_F — small, but consistent in
+       # all three, and it removes a pipe that RE-PARSES every sentence.
+       # ⚠ IT IS COUPLED TO THE BASE, so restoring it is one variable: set LZH_CLAUSE_PARSER=1, and
+       # only for a base that does not segment. `--keep-marks` (worth +2.34 LAS on a
+       # punctuation-trained arm, -3.80 on one that has never seen a mark) rides with it.
+       if [ -n "${LZH_CLAUSE_PARSER:-}" ]; then
+         $PY scripts/add_clause_parser.py "$work.lut" "$work.seg" \
+              ${LZH_KEEP_MARKS:---keep-marks} >/dev/null 2>&1
+       else
+         cp -R "$work.lut" "$work.seg"
+       fi
        $PY scripts/add_sud_subject_rule.py "$work.seg" "$work.rule" --lang lzh >/dev/null 2>&1
        $PY scripts/add_sud_idiom.py "$work.rule" "$work" --drop sud_subject >/dev/null 2>&1
        pkg lzh "$work" sud_kyoto \
-            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/han_lemma_lut.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py" ;;
+            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/han_lemma_lut.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py" ;;
        # sa: Subject is too sparse to ship (142 train / 14 test); the idiom layer still applies.
        # sa_compound must stay FIRST (the encoder reads MORPH); clause_parser before sud_idiom.
        # sa: the whole front end (CSLiser + de-CSLizer + de-sandhifier + Devanagari rendering)
        # is assembled by add_sa_frontend.py, which also inserts sa_compound / clause_parser /
        # sa_deva in their required positions. CSL is an INTERNAL representation only — the wheel
        # takes raw IAST or Devanagari.
+  # ⚠ NOT MUTED. `>/dev/null 2>&1` here swallowed an E893 registration failure and shipped the
+  # PREVIOUS pipeline with a clean-looking log — the failure mode CLAUDE.md lists as standing
+  # hazard 2. Both steps now fail loudly and stop the build.
   sa)  $PY scripts/add_sa_frontend.py "$base" "$work.front" \
             --csliser models/sa_presegment_ortho \
-            --unsandhi training_sa_mwt_unsandhi/model-best >/dev/null 2>&1
-       $PY scripts/add_sud_reported_rule.py "$work.front" "$work.rep" --lang sa >/dev/null 2>&1
+            --unsandhi training_sa_mwt_unsandhi/model-best \
+         || { echo "  sa: add_sa_frontend FAILED"; return; }
+       $PY scripts/add_sud_reported_rule.py "$work.front" "$work.rep" --lang sa \
+         || { echo "  sa: add_sud_reported_rule FAILED"; return; }
        add_idiom "$work.rep" "$work"
        pkg sa  "$work" sud_vedic_ufal_dcs \
-            "$CODE_REP,scripts/sa_tokenizer.py,scripts/clause_parser.py,scripts/sa_presegment.py,scripts/sud_unsandhi.py,scripts/sud_affix_embed.py,scripts/sa_devanagari.py" ;;
+            "$CODE_REP,scripts/sa_tokenizer.py,scripts/clause_parser.py,scripts/sa_presegment.py,scripts/sud_unsandhi.py,scripts/sud_affix_embed.py,scripts/sa_devanagari.py,scripts/sud_analyser_embed.py" ;;
        # yue ships NO Shared layer: trained F 21.5 at P 27.7 on 74 test tokens, with the candidate
        # mask reaching 28.4 % of gold. The trained pipe is DROPPED rather than left in place, so
        # the wheel carries no weights it never uses -- and so `Shared` keeps coming out of the

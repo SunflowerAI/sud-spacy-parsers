@@ -221,3 +221,45 @@ index; MISC carries DCS's `LemmaId`/`OccId`). That is the only way to check whet
 `external_sandhi.py`'s rule-based generation matches real sandhi, which the whole representation —
 released model included — currently rests on unverified.
 
+
+**Clause merging, and the first sa arm with punctuation** (`merge_sa_reparse.py`,
+`build_sa_pmerged.sh`, `configs/config_sa_mp2_pmerged.cfg`). The treebank splits its sentences into
+CLAUSE units — `sent_id` `…_1`, `…_2`, `…_3` off one base — and gives each its own root. Regrouping
+them by base id is trivial; the question is what relation joins them, and the answer is *ask the
+parser*: merge the units into one token sequence, re-parse the merged string, and if the re-parse
+attaches unit *n*'s root into an EARLIER unit, take that arc, head and label together. Otherwise the
+unit keeps its own root. On the training split that links 2 677 of 4 366 non-initial units and leaves
+1 689 alone, choosing `conj:coord` 1 065 times, `parataxis` 852, `comp:obj` 221, `subj` 110, `mod`
+103, `comp:obl` 87 — and the corpus comes out single-rooted 92.1 % of the time (train; dev 91.3,
+test 89.9) rather than one root per clause. A constant-`parataxis` merge (`merge_sa_clauses.py`) came
+first and is kept only as the thing this replaced: it asserts a relation the treebank never claimed.
+
+The treebank realises no punctuation at all — 0 PUNCT tokens, 0 `punct` arcs — but RECORDS it, as
+`Punctuation=fullStop` / `Punctuation=comma` in MISC on the token each mark follows. `--punct` turns
+those records into tokens. Three things had to be got right, each of which failed first:
+
+- **Which mark.** The mapping is EDITORIAL, matching what DCS is encoding: `fullStop` → double
+  daṇḍa (verse end), `comma` → single daṇḍa (half-verse). A *syntactic* mapping was written first —
+  demote a fullStop internal to a merged sentence to a single daṇḍa — and discarded, because then a
+  double daṇḍa would never once appear mid-sentence in training while a user pastes verses whose
+  marks fall where the metre puts them. That is standing hazard 10 arriving through the training
+  data. Being faithful costs two harmless oddities: 28 dev sentences end in a single daṇḍa (their
+  last recorded mark is a comma) and 229 end with no mark.
+- **Which STRING.** Not `।`/`॥`. The sa tokeniser transliterates to CSL and folds every double
+  daṇḍa to `‖` (U+2016), so Devanagari `।॥`, ASCII `|` `||` and CSL all arrive at the parser as
+  `|` / `‖` — those two strings are the only ones it can ever be shown, so those are what the corpus
+  carries.
+- **Where it goes.** A mark recorded on a token INSIDE an MWT is emitted after the LAST member of
+  that MWT: it follows the whole surface word, and an `n-m` range row may not span a token that is
+  not one of its members. Emitting it in place put 45 marks inside a range.
+
+One more trap on the way out: `make_norm_corpus.py` ran the sandhi transducer over the marks and
+appended a visarga to 93 of them (`‖` → `‖ḥ`) — it had never met a punctuation token. It now skips
+any token with no letter in it. `t.is_punct` is NOT the test: Unicode files the single daṇḍa `|`
+under Sm, so it comes back False.
+
+`config_sa_mp2_pmerged.cfg` trains the morph-first arm on this corpus through
+`sud.GoldTokNormCorpus.v1` — whole multi-sentence documents with gold tokenisation, so the parser
+learns where a sentence STARTS — and must therefore be evaluated WITHOUT `--gold-preproc`, which
+would hand it the boundaries for free. If it works it removes `clause_parser`'s reason to exist for
+sa: that component splits on daṇḍas and strips them precisely because the parser had never seen one.

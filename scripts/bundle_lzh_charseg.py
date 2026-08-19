@@ -35,10 +35,15 @@ import spacy                                       # noqa: E402
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", default="training_lzh_rm_morph/model-best",
-                    help="the arm the release is built from -- NOT training_lzh_lemma, which is a "
-                         "generation behind and carries a lemmatizer the wheel does not ship")
-    ap.add_argument("--seg", default="models/lzh_seg_char")
+    # ⚠ BOTH DEFAULTS PREVIOUSLY NAMED A SUPERSEDED ARM. lzh went traditional-only end to end, so
+    # `training_lzh_rm_morph` is the both-scripts generation and `models/lzh_seg_char` is a
+    # segmenter trained on both scripts. Neither is detectable from the weights. Standing hazard 2:
+    # a default that names the right arm is the fix; a comment telling the next person is not.
+    ap.add_argument("--src", default="training_lzh_trad_sud/model-best")
+    ap.add_argument("--seg", default="models/lzh_seg_char_trad")
+    ap.add_argument("--expect-corpus", default="data_seg_lzh_trad",
+                    help="refuse a segmenter stamped with a different training corpus; "
+                         "pass '' to skip (only when knowingly packaging another generation)")
     ap.add_argument("--lexicon", default=None,
                     help="optional word list for the lexicon channel; lzh trained without one")
     ap.add_argument("--out", default="build_lzh_charseg")
@@ -46,6 +51,14 @@ def main():
     args = ap.parse_args()
 
     from char_seg_tokenizer import CharSegTokenizer
+
+    if args.expect_corpus:
+        meta = json.loads((pathlib.Path(args.seg) / "vocab.json").read_text(encoding="utf-8"))
+        got = meta.get("corpus")
+        if got != args.expect_corpus:
+            raise SystemExit(f"REFUSING: {args.seg} was trained on {got!r}, expected "
+                             f"{args.expect_corpus!r}. lzh ships TRADITIONAL-ONLY and a "
+                             f"both-scripts segmenter is indistinguishable by any weight check.")
 
     nlp = spacy.load(args.src)
     before = {n: p.model.to_bytes() for n, p in nlp.pipeline if hasattr(p, "model")}

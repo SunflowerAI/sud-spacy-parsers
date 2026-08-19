@@ -43,16 +43,24 @@ except ImportError:                           # pragma: no cover
     # wheel. `to_csl` is the only caller (L116); the trained models for zh/id never see Devanagari.
     def normalise(text):
         return text
-from thinc.api import (Embed, Maxout, Softmax, chain, clone, expand_window, residual,
-                       with_array)
+from thinc.api import (Embed, Maxout, Softmax, chain, clone, concatenate, expand_window,
+                       residual, with_array)
 
 PAD_CHAR = "\x00"
 UNK_CHAR = "\x01"
 KEEP = "="
 
 
-def build_model(n_chars, n_labels, width=64, depth=6, window_size=1, maxout_pieces=3):
-    """List[Ints2d] (character ids, one column) -> List[Floats2d] (label scores)."""
+def build_model(n_chars, n_labels, width=64, depth=6, window_size=1, maxout_pieces=3,
+                aux_vocabs=()):
+    """List[Ints2d] (character ids in column 0) -> List[Floats2d] (label scores).
+
+    `aux_vocabs` adds one extra ID COLUMN per sub-character channel (radical, Qieyun 音韻地位), each
+    with its own embedding table, concatenated with the character embedding and projected back to
+    `width`. With no aux vocabs the graph is EXACTLY the original single-Embed one -- the arms that
+    already ship (sa, zh, id) must be bit-reproducible, so the extra path is opt-in and its absence
+    changes nothing.
+    """
     cnn = chain(
         expand_window(window_size=window_size),
         Maxout(nO=width, nI=width * (window_size * 2 + 1), nP=maxout_pieces,
@@ -60,8 +68,19 @@ def build_model(n_chars, n_labels, width=64, depth=6, window_size=1, maxout_piec
     )
     encoder = clone(residual(cnn), depth)
     encoder.set_dim("nO", width)
+    char_embed = Embed(nO=width, nV=n_chars, column=0, dropout=0.0)
+    if aux_vocabs:
+        embed = chain(
+            concatenate(char_embed,
+                        *[Embed(nO=width, nV=nv, column=i + 1, dropout=0.0)
+                          for i, nv in enumerate(aux_vocabs)]),
+            Maxout(nO=width, nI=width * (1 + len(aux_vocabs)), nP=maxout_pieces,
+                   dropout=0.0, normalize=True),
+        )
+    else:
+        embed = char_embed
     return chain(
-        with_array(Embed(nO=width, nV=n_chars, column=0, dropout=0.0)),
+        with_array(embed),
         with_array(encoder, pad=window_size * depth),
         with_array(Softmax(nO=n_labels, nI=width)),
     )
@@ -70,13 +89,22 @@ def build_model(n_chars, n_labels, width=64, depth=6, window_size=1, maxout_piec
 class Presegmenter:
     """A trained tagger plus its character and label inventories."""
 
-    def __init__(self, chars, labels, model=None, width=64, depth=6):
+    def __init__(self, chars, labels, model=None, width=64, depth=6, aux=None):
         self.chars = list(chars)
         self.labels = list(labels)
         self.width, self.depth = width, depth
         self.char_id = {c: i for i, c in enumerate(self.chars)}
+        # aux: ordered list of (name, {char: category}); category 0 is reserved for "unknown",
+        # which every unlisted character falls back to. A channel that silently mapped unknowns to
+        # a real category would teach the model a value it cannot mean.
+        self.aux = [(n, dict(t)) for n, t in (aux or [])]
+        self.aux_ids = []
+        for _, table in self.aux:
+            cats = sorted({v for v in table.values()})
+            self.aux_ids.append({c: i + 1 for i, c in enumerate(cats)})
         self.model = model if model is not None else build_model(
-            len(self.chars), len(self.labels), width, depth)
+            len(self.chars), len(self.labels), width, depth,
+            aux_vocabs=[len(m) + 1 for m in self.aux_ids])
 
     @property
     def reads_spaces(self):
@@ -92,8 +120,16 @@ class Presegmenter:
     # ---- encoding ---------------------------------------------------------------------------
     def encode_chars(self, text):
         unk = self.char_id[UNK_CHAR]
-        return self.model.ops.asarray2i(
-            [[self.char_id.get(c, unk)] for c in text], dtype="i")
+        if not self.aux:
+            return self.model.ops.asarray2i(
+                [[self.char_id.get(c, unk)] for c in text], dtype="i")
+        rows = []
+        for c in text:
+            row = [self.char_id.get(c, unk)]
+            for (_, table), ids in zip(self.aux, self.aux_ids):
+                row.append(ids.get(table.get(c), 0))
+            rows.append(row)
+        return self.model.ops.asarray2i(rows, dtype="i")
 
     def encode_labels(self, labels):
         idx = {lb: i for i, lb in enumerate(self.labels)}
@@ -158,14 +194,19 @@ class Presegmenter:
         path.mkdir(parents=True, exist_ok=True)
         (path / "vocab.json").write_text(json.dumps(
             {"chars": self.chars, "labels": self.labels,
-             "width": self.width, "depth": self.depth}, ensure_ascii=False), encoding="utf-8")
+             "width": self.width, "depth": self.depth,
+             "aux": [[n, t] for n, t in self.aux],
+             **({"corpus": self.corpus} if getattr(self, "corpus", None) else {})},
+            ensure_ascii=False), encoding="utf-8")
         srsly.write_msgpack(path / "model.bin", self.model.to_bytes())
 
     @classmethod
     def from_disk(cls, path):
         path = pathlib.Path(path)
         meta = json.loads((path / "vocab.json").read_text(encoding="utf-8"))
-        obj = cls(meta["chars"], meta["labels"], width=meta["width"], depth=meta["depth"])
+        obj = cls(meta["chars"], meta["labels"], width=meta["width"], depth=meta["depth"],
+                  aux=meta.get("aux"))
+        obj.corpus = meta.get("corpus")
         obj.model.initialize()
         obj.model.from_bytes(srsly.read_msgpack(path / "model.bin"))
         return obj

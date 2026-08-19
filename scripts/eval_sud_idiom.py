@@ -83,6 +83,7 @@ def gold_doc(vocab, rows):
     return Doc(
         vocab,
         words=[f[1] or "_" for f in rows],
+        spaces=["SpaceAfter=No" not in (f[9] if len(f) > 9 else "") for f in rows],
         heads=[ids.get(f[6], i) for i, f in enumerate(rows)],
         deps=[f[7] for f in rows],
         morphs=["" if f[5] == "_" else f[5] for f in rows],
@@ -105,12 +106,18 @@ def main():
         # Registers the custom tokenisers (ar/yue/lzh/sa) and clause_parser, exactly as
         # `spacy train --code scripts/seg_code.py` does; without it ar/lzh/sa fail with E893.
         import seg_code  # noqa: F401
+        import stamp_ja_inflection
         nlp = spacy.load(args.model)
         if "sud_idiom" not in nlp.pipe_names:
             nlp.add_pipe("sud_idiom", last=True)
         vocab = nlp.vocab
+        _chan_nlp = (stamp_ja_inflection.build_tokenizer()
+                     if stamp_ja_inflection.needs_channels(nlp) else None)
+        if _chan_nlp is not None:
+            print("  (restoring tokeniser-supplied channels: this arm's encoder reads them)")
     else:
         nlp = None
+        _chan_nlp = None
         vocab = spacy.blank("xx").vocab
     component = sud_idiom.SudIdiom(None, "sud_idiom")
 
@@ -124,7 +131,19 @@ def main():
         else:
             # Feed gold tokens so the comparison is token-aligned: this measures the ExtPos/unk
             # predictions, not the tokeniser. (A tokeniser-level evaluation is a different question.)
-            doc = Doc(vocab, words=[f[1] or "_" for f in rows])
+            # SpaceAfter matters, and not only cosmetically: `Doc(words=...)` puts a space after
+            # EVERY token, so doc.text becomes fully-spaced Japanese -- a string that never occurs
+            # at inference. Re-running the tokeniser over that to recover its channels yields an
+            # analysis of the wrong text, which measured WORSE than having no channels at all.
+            doc = Doc(vocab, words=[f[1] or "_" for f in rows],
+                      spaces=["SpaceAfter=No" not in f[9] for f in rows])
+            # ⚠ A bare Doc has tag == 0 and MORPH unset. For an arm whose encoder reads
+            # tokeniser-supplied channels (ja: XPOS + Inflection) that DELETES its inputs and the
+            # arm runs out of regime while every number still prints -- measured at -16 F on ja's
+            # `unk`, which this rule conjoins. So put the channels back exactly as the tokeniser
+            # would at inference. No-op for every arm whose tokeniser supplies nothing.
+            if _chan_nlp is not None:
+                stamp_ja_inflection.apply_channels(doc, _chan_nlp)
             doc = nlp(doc)
             if len(doc) != len(rows):
                 skipped += 1

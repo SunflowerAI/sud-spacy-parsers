@@ -116,7 +116,20 @@ def _normalise_body(text, deva):
             continue                      # drop a genuine Vedic accent mark
         else:
             out.append(c)                 # keep macron / dot-below / the ś acute
-    return unicodedata.normalize("NFC", "".join(out))
+    text = unicodedata.normalize("NFC", "".join(out))
+    # CASE-FOLD LAST. The corpus is lower-case throughout (0 capitals in 163 802 training tokens),
+    # but the wheel takes RAW TEXT typed by a user, who will write `Rāmaḥ` and capitalise a sentence
+    # opening. Without this, such a token is unseen in every channel at once: NORM and SHAPE differ,
+    # and the analyser table — 126 809 lower-case keys — MISSES, so the candidate-set channel falls
+    # to its silent bit exactly on the words a reader is most likely to capitalise. Worse, neither
+    # CSLiser has a single upper-case character in its inventory (41 and 40 chars), so a capital is
+    # an unknown character to the segmenter and the damage starts before the parser.
+    #
+    # Folding per character and only where it stays 1:1 keeps the `_.src_span` invariant intact:
+    # the offsets are recovered by normalising SEGMENTS and aligning, which requires every boundary
+    # character to map to exactly one character. (No IAST character folds to two, but `ẞ` -> `ss`
+    # does, so the guard is cheap insurance rather than decoration.)
+    return "".join(c.lower() if len(c.lower()) == 1 else c for c in text)
 
 
 # --------------------------------------------------------------------------------------------
@@ -1073,7 +1086,39 @@ class SanskritInputTokenizer:
         # wrong hands the encoder a MORPH value it never saw in training on every non-compound
         # token, i.e. ~94 % of them, and costs 6.8 LAS with nothing to show for it in any
         # string-level comparison.
+        # RESTORE THE USER'S CASE IN THE OUTPUT. `normalise` case-folds so the CSLiser (41-char
+        # inventory, no capitals) and the analyser table (126 809 lower-case keys) never meet an
+        # upper-case character. But folding is an INTERNAL convenience, and a wheel that silently
+        # rewrites `Rāmaḥ` to `rāmaḥ` in `token.text` has corrupted its own input: the caller asked
+        # for an analysis, not a transliteration. NORM keeps the folded form, so every model channel
+        # and the analyser lookup are unaffected — only ORTH is restored.
+        #
+        # ⚠ THE FORM IS OFTEN NOT THE RAW SLICE. This tokeniser REWRITES what it reads (CSLisation,
+        # de-sandhi), so an MWT-internal token's raw span holds the SANDHIED surface while its form
+        # is the unsandhied one. Copying the raw slice back would undo stage B. So the raw text is
+        # only trusted where it matches the form modulo case; otherwise just the capitalisation
+        # PATTERN of the first character is carried across, which is all that case restoration owes.
+        norm_words = list(words)
+        spans_pre = None if start_of is None else [
+            None if (a not in start_of or b not in end_of) else (start_of[a], end_of[b])
+            for a, b in at]
+        if spans_pre is not None:
+            cased = []
+            for w, sp in zip(words, spans_pre):
+                raw = text[sp[0]:sp[1]] if sp else ""
+                if raw.lower() == w.lower():
+                    cased.append(raw)                       # exact recovery
+                elif raw[:1].isupper() and w[:1].islower():
+                    cased.append(w[:1].upper() + w[1:])     # rewritten: carry the capital only
+                else:
+                    cased.append(w)
+            words = cased
         doc = Doc(self.vocab, words=words, spaces=spaces)
+        # NORM must stay the FOLDED form: it is the analyser table's key and the channel the model
+        # was trained on. spaCy's default norm is lower(orth), which is the folded form again, but
+        # setting it explicitly means a future norm-exception table cannot silently divert it.
+        for tok, w in zip(doc, norm_words):
+            tok.norm_ = w
         for tok, c in zip(doc, compound):
             if c:
                 tok.set_morph("Compound=Yes")
@@ -1082,15 +1127,31 @@ class SanskritInputTokenizer:
         # FORM of the MWT members); `sud_unsandhi` as a pipeline component is then unnecessary.
         if self.split_only and self._last_unsandhied and len(self._last_unsandhied) == len(doc):
             for tok, u in zip(doc, self._last_unsandhied):
-                tok._.unsandhied = u
+                # CASE IS A BINARY PROPERTY OF THE TOKEN, NOT OF THE STRING. The padapāṭha of
+                # `Rāmo` is `rāmaḥ`, whose first letter is not even the same letter — but the
+                # capital was the user's, and an output that silently drops it is the same defect
+                # as an ORTH that silently drops it. So carry the one bit across rather than trying
+                # to align characters.
+                tok._.unsandhied = (u[:1].upper() + u[1:]) if (u and tok.text[:1].isupper()) else u
+                # ...and into NORM, which is the only place a spaCy EMBED can read it from. An
+                # extension is invisible to `Doc.to_array`, so `_.unsandhied` alone cannot reach a
+                # model. Writing it here is what makes the padapāṭha a model INPUT rather than
+                # merely an output: `scripts/make_norm_corpus.py` puts the identical value in NORM
+                # at training time, and `sud.AnalyserFeatsEmbed.v1` keys its candidate-set table on
+                # `token.norm_`. Without this line every token falls to the analyser's silent bit
+                # and the arm scores like its own capacity control — loading cleanly, parsing
+                # slightly worse, with nothing raising.
+                if u:
+                    # NORM stays FOLDED: it is the analyser table's key (126 809 lower-case
+                    # entries) and the channel the model trained on. Only the published
+                    # `_.unsandhied` carries the user's case.
+                    tok.norm_ = u
         self._last_unsandhied = None
         doc._.src_text = text
         # A span is emitted only when BOTH ends of the token's normalised range land on a segment
         # boundary; anything else would be a guess, and a caller can live with a hole but not with
         # a wrong span.
-        doc._.src_spans = [None] * len(words) if start_of is None else [
-            None if (a not in start_of or b not in end_of) else (start_of[a], end_of[b])
-            for a, b in at]
+        doc._.src_spans = [None] * len(words) if spans_pre is None else spans_pre
         return doc
 
     def to_bytes(self, **kwargs):

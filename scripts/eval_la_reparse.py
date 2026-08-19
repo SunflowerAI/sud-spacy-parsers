@@ -65,11 +65,14 @@ def main():
         forms = [r[1] for r in pb]
         g_head = [int(r[6]) for r in pb]
         g_dep = [r[7] for r in pb]
+        # one spacing for all three variants: they differ only in ORTHOGRAPHY (macrons), never in
+        # segmentation, so the plain block's SpaceAfter is the right one throughout.
+        sp = ["SpaceAfter=No" not in (r[9] if len(r) > 9 else "") for r in pb]
         variants = {"plain": forms, "gold": [r[1] for r in mb]}
-        variants["ours"] = [t._.macron for t in nlp(Doc(nlp.vocab, words=forms))]
+        variants["ours"] = [t._.macron for t in nlp(Doc(nlp.vocab, words=forms, spaces=sp))]
 
         for name, words in variants.items():
-            doc = nlp(Doc(nlp.vocab, words=words))
+            doc = nlp(Doc(nlp.vocab, words=words, spaces=sp))
             if len(doc) != len(forms):
                 continue                      # tokenisation moved; skip (should not happen)
             for i, tok in enumerate(doc):

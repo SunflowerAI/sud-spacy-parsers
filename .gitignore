@@ -155,3 +155,33 @@ corpus_la_tokens.txt
 # git is a licence position, not just hygiene.
 scripts/ar_vocalise_lut.json.gz
 scripts/fa_vocalise_lut.json.gz
+
+# vidyut's linguistic data bundle (~100M generated Sanskrit word forms), downloaded by
+# vidyut.download_data(). Never committed: it is a third-party redistribution whose licence is
+# unresolved, and it is reproducible with one call.
+vidyut-data/
+
+# lzh kanripo vector artefacts (regenerate: make_leakfree_lzh_corpus.py -> build_lzh_vectors.py)
+corpus_lzh_kanripo_leakfree*.txt
+vectors_lzh_*.vec
+vectors_lzh_leakfree*/
+vectors_lzh_shuffled*/
+build_lzh_vectors_leakfree.log
+# CC0 Qieyun data, refetched by build_lzh_vectors.py (URL in its docstring)
+assets_qieyun/
+assets_cbeta/
+assets_unihan/
+assets_dila/
+assets_soothill/
+assets_wiktionary/
+
+# Derived from vidyut (~100M forms) and the Heritage/Inria lexicon, on the same footing as
+# scripts/{ar,fa}_vocalise_lut.json.gz: rebuildable with scripts/build_analyser_lexicon.py, and
+# kept out of git because its licence is unresolved. The SHIPPED arm is runtime-mode and never
+# reads it.
+scripts/sa_analyser_lut.json.gz
+corpus_sa_pmerged_raw/
+corpus_sa_pmerged_norm/
+
+# lemma-vector tables: build artefacts, rebuilt by build_lemma_vectors.py
+scripts/*_lemmavec_*.npz

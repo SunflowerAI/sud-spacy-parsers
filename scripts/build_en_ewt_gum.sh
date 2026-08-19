@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
 # A SECOND English wheel: EWT + the non-NonCommercial part of GUM.
 #
-# LICENSING, and why this is a separate wheel rather than a change to en_sud_ewt.
-# GUM's LICENSE says two things that are in tension for a filtered subset. Its first line: "The
+# LICENSING -- SETTLED 2026-08-17: this wheel is CC BY-SA 4.0, and the filter below is what earns it.
+# GUM's LICENSE said two things that are in tension for a filtered subset. Its first line: "The
 # treebank is licensed under CC BY-NC-SA 4.0." Its explanation: the NC comes from the individual
 # text sources, and GUM "is made available under a Creative Commons license in keeping with the
 # underlying texts". The second supports filtering; the first, read strictly, offers the
 # ANNOTATIONS under NC whatever the document -- and annotations are what a trained model absorbs.
-# Pending word from the GUM maintainers, this wheel therefore ships CC BY-NC-SA 4.0 regardless of
-# the filter, and `en_sud_ewt` stays CC BY-SA 4.0 and EWT-only. Two wheels, two licences, no
-# ambiguity inherited by anyone downstream.
+# So this wheel shipped CC BY-NC-SA 4.0 at v0.2.0, pending word from the GUM maintainers.
+#
+# THAT WORD ARRIVED. Amir Zeldes, by email: the annotations are produced at Georgetown under a
+# **CC BY** licence, which "requires you to cite the corpus and point to the website, which lists
+# all of the annotators and links to the original data for each document"; the NC belongs to the
+# individual documents alone, and "if you only use documents without the NC license, I don't see
+# an issue in using the data for commercial purposes". The strict reading is therefore wrong: the
+# filter IS load-bearing, and this arm is commercially usable. It is CC BY-SA because EWT is
+# CC BY-SA 4.0 and two kept genres are ShareAlike -- not because of anything GUM-wide.
+#
+# WHAT SURVIVES IS THE ATTRIBUTION. CC BY makes it an obligation: cite GUM, link
+# https://gucorpling.org/gum/, credit the annotators, and cite the text sources as their own sites
+# require. `stamp_model_meta.py` puts all of that in the wheel's meta; NOTICE.md carries it here.
 #
 # WHAT THE FILTER KEEPS. 15 genres (`reddit` is not here -- SUD ships it separately as GUMReddit,
 # text-free). GUM's LICENSE.md puts FIVE of the 15 under CC BY-NC-SA, not two:
@@ -17,9 +27,22 @@
 #             -> train 64,477 tokens (32.2 %), dev 9,687, test 10,088
 #     keep  academic bio conversation court interview news speech textbook vlog voyage
 #             -> train 135,746 -> combined 340,324, i.e. +66 % on EWT's 204,578
-# NB two of the kept genres are ShareAlike (bio, voyage -- Wikipedia/Wikivoyage CC BY-SA 3.0) and
-# the political speeches carry no explicit licence beyond being government/UN public-domain
-# material. That affects ATTRIBUTION, not the filter, since the wheel ships NC either way.
+# NB two of the kept genres are ShareAlike (bio, voyage -- Wikimedia, CC BY-SA 3.0) and the
+# political speeches carry no explicit licence beyond being government/UN public-domain material.
+# NC_GENRES below is now a LICENCE BOUNDARY, not a conservative default: changing it changes what
+# this wheel may be used for.
+#
+# ⚠ STEP 1 MERGES THE **PRISTINE** TREEBANK, NOT en's FIXED FILES. It reads
+# `assets/SUD_English-EWT/en_ewt-sud-<split>.conllu`, while the `en` arm trains on
+# `assets/en_ewt-sud-<split>.relabeled_ext.conllu`. Those two lineages only agree because every
+# English annotation fix so far was applied to the pristine directory as well -- `comp:pred` for
+# appearance verbs + `like` is written into BOTH (719 in test either way), which is the only reason
+# en_gum inherited it. A future fix applied ONLY to the `assets/en_ewt-sud-*` files would be
+# invisible here, and nothing would raise: the wheel would build, load and parse, one annotation
+# generation behind en. Verified 2026-08-17 -- the EWT half of `en_ewtgum-sud-*.relabeled_ext` is
+# identical to `en_ewt-sud-*.relabeled_ext` on FORM/LEMMA/UPOS/FEATS/HEAD/DEPREL across all 16 622
+# shared sentences, differing ONLY in the 1 004/131/149 XPOS cells step 5's normalisation rewrites.
+# Re-run that comparison after any en annotation change; it is the cheap check that they agree.
 #
 # THE RELABEL IS FREE, IF THE ORDER IS RIGHT. An earlier draft of this script claimed "THE COST IS
 # THE RELABEL ... all of it has to be re-run over GUM", and filtered the NC genres in step 1. Both
@@ -224,4 +247,4 @@ fi
 
 echo
 echo "next: bash scripts/train_morph.sh en_gum -> train_lemma.sh en_gum -> train_sud.sh en_gum,"
-echo "      then package_sud.sh en_gum at CC BY-NC-SA 4.0."
+echo "      then package_sud.sh en_gum at CC BY-SA 4.0 (see the licensing note at the top)."

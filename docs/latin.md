@@ -254,3 +254,132 @@ necessary now the pipe is in the DEFAULT pipeline, since a raising component wou
 ordinary `nlp(text)`. The warning's fetch line is built from `__name__` so it reads correctly from
 inside the wheel. RFTagger (non-commercial) is used only to label the treebank offline.
 
+
+## Where the Latin parser actually loses: discontinuity, not agreement (2026-08-19)
+
+Two diagnostics were built to ask where the errors are, and the answer redirected the work. Both
+tools take `--model NAME=PATH` repeatedly and report every arm side by side.
+
+**`scripts/analyse_la_nonproj_errors.py` — non-projectivity dominates.** On the released `aug` arm,
+**63.0 % of all attachment errors fall in a sentence containing a crossing arc**, from 52.4 % of the
+tokens. The three buckets are worth separating:
+
+    bucket                       tokens   errors      UAS      LAS   of all errors
+    the non-projective arc        2 726    1 943    28.72    25.24         15.96 %
+    the rest of its sentence     26 045    5 725    78.02    71.51         47.01 %
+    a wholly projective sentence 26 126    4 509    82.74    76.75         37.03 %
+
+The crossing arcs are catastrophic — 5.0 % of tokens producing 16.0 % of errors — and discontinuity
+is **contagious**: ordinary projective arcs in the same sentence lose 4.7 UAS against identical arcs
+in a clean one. ⚠ This is **not sentence length in disguise**; controlling for length the penalty is
+8–11.5 UAS in every bucket including 2–9-token sentences, while projective UAS is nearly flat across
+length (83.56 → 82.66 → 81.55 → 82.61).
+
+The mechanism is that pseudo-projectivisation barely works here: the parser emits **1 082 crossing
+arcs against 2 726 in the gold** and recovers only 28.4 % of them as crossing at all. Closing the
+whole non-projective-sentence gap would be worth **4.92 UAS**.
+
+**`scripts/analyse_la_agreement_errors.py` — agreement is a small slice.** An error counts as
+agreement-detectable when the gold head agrees with the dependent and the predicted head does not,
+so agreement alone rules the error out. On the same arm that is **454 errors, 3.73 % of the total,
+worth 0.83 UAS**. Nominal agreement discriminates well (63 % of applicable errors detectable);
+subject agreement barely does (73 % ambiguous, because the wrongly-chosen verb almost always agrees
+in Number too). GOLD morphology is used deliberately — the question is what the INFORMATION is
+worth, not what one morphologiser recovers of it.
+
+Both counts fall monotonically `aug` → `lemvec` → `order_lemvec` (454 → 383 → 359), and `lemvec`
+cut agreement-detectable errors three times as fast as it cut errors overall, which is independent
+evidence that the per-feature morphology channel does what it was built to do.
+
+**The follow-up work is in `NEGATIVE-RESULTS.md`.** Handing agreement to the parser as an explicit
+relational input, and training the parser with a beam, were both tried on `lemvec` and both failed —
+the beam refuting its own premise by emitting FEWER crossing arcs than the greedy decoder. The
+standing conclusion is that discontinuity here is a **representation** problem, not a search
+problem, and that the pseudo-projective scheme is what to change.
+
+⚠ These figures parse whole multi-sentence documents, so the model finds its own sentence
+boundaries. That runs ≈0.9 UAS below the `--gold-preproc` figures quoted elsewhere in this file,
+which hand the parser gold sentences. The setting is harder and more realistic, and it applies
+equally to every arm compared.
+
+### Seed spread: what a Latin LAS delta has to clear (2026-08-19, partial)
+
+Two runs of the SAME config differing only in `--system.seed` and `--corpora.train.augmenter.seed`
+(`config_la_agree.cfg`, seeds 0 and 1), compared at matched steps from 3 000 onward:
+
+    43 matched evaluations    mean +0.077    mean ABSOLUTE gap 0.272    max 0.82 LAS
+
+**So a single-seed Latin delta below roughly 0.3 LAS says nothing, and one below 0.8 can happen by
+chance.** This is the first direct measurement of the quantity, and it retrospectively settles the
+`agree` arm: its +0.40 test delta over `lemvec` sits inside the band, which is what the dev
+(-0.17) and whole-doc UAS (-0.05) figures were already saying by disagreeing with it.
+
+⚠ PARTIAL, and both numbers are dev-side. Seed 1 was stopped at step 11 800 of 20 000 to free the
+machine for Sanskrit, so the spread is measured over the first 59 % of training and on DEV only —
+test-side spread is unmeasured and could be wider. `training_la_agree_s1/` and
+`train_la_agree_s1.log` are on disk; seeds `agree` s2 and `lemvec` s1/s2 were queued and never ran.
+Resume with the `run()` helper pattern in the driver, or re-queue all four for a clean comparison.
+
+## The shipped arm is now the lemma-vector one (2026-08-19)
+
+`training_la_lemvec_sud/model-best` replaces `training_la_aug_sud_xpos` as `LA_BASE`. Against the
+live `la_sud_ittb_proiel_perseus-0.2.0` wheel, on the combined test with `--gold-preproc`:
+
+    metric                 live wheel   new arm
+    LAS                        71.72     73.23   +1.51
+    UAS                        78.72     80.00   +1.28
+    TAG                        86.10     86.10    0.00
+    POS / MORPH / LEMMA   92.68 / 75.45 / 90.90   unchanged
+
+⚠ **HALF THE GAIN IS CAPACITY, and the partial control said otherwise.** The finished capacity
+control — same table count, same rows, same Maxout width, no information — reaches test LAS 72.47,
+i.e. **+0.75 of the +1.51 is the extra embedding rows alone**. Read at step 8 800 the same control
+sat 1.95 LAS below and looked like a clean information result; it closed most of that in its second
+half. On dev, over 70 matched evaluations, the information component reads −1.46, so the honest
+range for it is 0.76–1.46 LAS. The arm still delivers the full +1.51 to users, which is what the
+ship decision rests on; the decomposition is what any future claim about the channel must respect.
+
+**Four things had to be fixed before it could ship at all**, and each is a standing hazard:
+
+1. **The table did not travel in the model bytes.** `scripts/seal_la_lemvec_model.py` moves the
+   payload into the extractor's `attrs` (thinc serialises those with the weights) and rewrites the
+   stored config to `vectors = null` + `vector_dim = 96`. Build time and load time are different
+   contracts — spaCy rebuilds the architecture from the config BEFORE restoring weights — so
+   `resolve_vectors` takes a path OR a dimensionality and refuses when both are null, and only the
+   forward pass refuses on an empty payload. Verified by reloading with the .npz hidden.
+2. **The arm's own tagger is a listener** on the parser encoder and loses 0.81 TAG.
+   `graft_xpos_tagger.py` cannot be used here: it requires every SHARED component to be
+   byte-identical, which changing the parser's encoder necessarily breaks.
+   `scripts/graft_standalone_tagger.py` transplants the `training_la_xposwarm` tagger instead —
+   sound only because that tagger is standalone (`sud.Tok2VecPlusFeats.v1`, its own `HashEmbedCNN`),
+   which is the first thing it checks.
+3. **The MISC layer had to be re-measured, not inherited** (standing hazard 5):
+
+       pipe                released base   lemvec base
+       Subject, trained          67.02        67.02     reads NORM/PREFIX/SUFFIX/SHAPE, not the parse
+       Subject, rule             59.14        60.87
+       Shared, rule              36.78        36.78
+       Shared, trained           38.11        37.67     REGRESSED -- see below
+       Idiom                     32.00        42.31     a CONJUNCTION of upstream predictions
+       InIdiom                   52.05        56.76
+
+   `sud_shared` was RETRAINED on the new base (`config_la_lemvec_sud.cfg`, everything else sourced
+   and frozen) and reaches **38.88**, above the released 38.11. `sud.HeadDepsTagger.v1` pools over
+   the head and the head's other dependents, so a changed parse is a changed INPUT and the old
+   weights were fitted to the old parser's mistakes. The six frozen components come out
+   byte-identical (`cmp`), so no parser figure needed re-verifying.
+4. **The wheel must ship `scripts/sud_lemmavec_embed.py`.** It was missing from all three `la`
+   `--code` lists; without it the INSTALLED model raises `E893` at load, which the build itself does
+   not catch. Verified by `pip install --target` into a clean directory and loading with no
+   `scripts/` on `sys.path` and the .npz absent: table present (4 553 lemmas), parse correct,
+   `virumque` → `virum` + `que`.
+
+Wheel size 33.9 → 37.2 MB (the sealed table plus the per-feature tables).
+
+**RELEASED 2026-08-19 as `la_sud_ittb_proiel_perseus-0.3.0`**, on the `v0.3.0` GitHub release
+alongside ja. A version BUMP rather than a clobber of 0.2.0, so `pip install -U` actually upgrades —
+the 0.2.0 set was re-clobbered as layers landed and `-U` is inert for it. Verified after upload by
+hashing `parser/model` and `tok2vec/model` out of the DOWNLOADED asset against
+`training_la_lemvec_sud/model-best` (identical, and the parser differs from the 0.2.0 asset's
+`c2d25d81…`, which is what proves the new arm actually shipped), then installing from the public
+release URL into a clean target with `scripts/` off `sys.path` and the .npz absent.

@@ -32,6 +32,41 @@ Extracted from `CLAUDE.md` so the main guide stays short — the same reason
   **3.80 LAS** on one that has never seen a mark. Same input, opposite verdict: the setting is
   coupled to the arm underneath it.
 
+## What `clause_parser` is still for on lzh — and the arm that removes it
+
+Since punctuation was restored, `clause_parser` has been doing only ONE of its three jobs on lzh.
+Measured, not inferred: fed three punctuated 論語 sentences, `training_lzh_trad_sud_xw` tags all six
+marks `PUNCT` with the right Kyoto 記号 XPOS and attaches every one as `punct` — so stripping marks
+and normalising their morphology are both already redundant there, which is why the wheel ships
+`--keep-marks`. But it returns **one sentence for three, with zero self-headed roots**: the whole
+24-token string comes back as one connected tree. Segmentation is the only remaining job.
+
+The cause is one line. `config_lzh.cfg` reads the corpus through `spacy.Corpus.v1` with
+`gold_preproc = true`, so every training example is a single sentence and the parser never sees a
+boundary to learn — while the corpora were ALREADY converted at 10 sentences per document, which
+`gold_preproc` was throwing away. Its own log reads `sents_f 1.0000`, standing hazard 4 exactly.
+
+`config_lzh_seg.cfg` changes only the reader, to `sud.GoldTokCorpus.v1`. On the test set, scored on
+multi-sentence documents — the input users actually give it:
+
+    released training_lzh_trad_sud_xw    LAS 61.05   UAS 67.04   SENTS_F  0.00   TAG 92.43
+    training_lzh_seg                     LAS 74.48   UAS 80.14   SENTS_F 79.57   TAG 92.35
+                                             +13.43                 +79.57
+
+⚠ **It is a trade, not a free win.** Under `gold_preproc` — one sentence handed over, boundaries
+free — the released arm is still AHEAD (LAS 76.57 vs 74.81), and `SENTS_F` there reads 87.75 rather
+than 100 for the new arm, i.e. it sometimes splits a sentence that should not be split. The new arm
+is better on realistic input and slightly worse when the boundaries are given.
+
+⚠ **`seg` is a BASE recipe, so the whole stack is retrained on it**, not reused —
+`config_lzh_seg_{morph,xposwarm,sud}.cfg`, in that order, then `graft_xpos_tagger.py` so the tagger
+sits behind the morphologiser (`package_sud.sh` refuses an arm where it does not).
+`scripts/queue_lzh_stack.sh` is the driver. The morph layer lands on `MORPH_ACC 91.12`, identical to
+the released chain's, which is the freeze recipe behaving as designed — a dedicated encoder reading
+no parse cannot be reached by a base change. The SUD MISC pipes are the ones that must be
+RE-MEASURED rather than assumed to carry over: every one of them reads the base's own predictions
+(standing hazard 5).
+
 ## Restoring punctuation to Kyoto, and relating the units (lzh)
 
 Kyoto's README states it included no spaces or punctuation because Classical Chinese had none — so

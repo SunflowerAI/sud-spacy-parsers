@@ -45,6 +45,7 @@ from spacy.util import registry
 
 # `spacy train --code` loads this file by path, so scripts/ is not necessarily importable.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from la_order import OrderPolicy, Tok, reorder_doc  # noqa: E402
 from la_orth import OrthPolicy, Style, sample_style, set_initial_case, vary_word  # noqa: E402
 
 
@@ -104,5 +105,87 @@ def create_la_orth_augmenter(
         if keep_original:
             yield example
         yield vary_example(nlp, example, sample_style(rng, policy), rng, policy)
+
+    return augmenter
+
+
+# ---------------------------------------------------------------- word order
+
+def reorder_example(nlp: Language, example: Example, rng: random.Random,
+                    policy: OrderPolicy) -> Example:
+    """Re-linearise each sentence of an example. The TREE is untouched — heads are re-indexed
+    through the permutation, so every arc still joins the same two words.
+
+    ``SENT_START`` is deliberately NOT permuted: a permutation inside a sentence leaves every
+    sentence occupying the positions it already did, so the boundary list is a property of the
+    positions and is already correct.
+    """
+    ref = example.reference
+    data = example.to_dict()
+    ents = data["doc_annotation"]["entities"]
+    if any(tag not in ("O", "-") for tag in ents):
+        # A BILUO span is a fact about ADJACENT tokens, so permuting it silently invents entities.
+        # No SUD treebank carries one, which is why this refuses rather than trying to cope.
+        return example
+
+    toks = [Tok(form=t.text, lemma=t.lemma_, upos=t.pos_, deprel=t.dep_,
+                head=t.head.i if t.head.i != t.i else -1,
+                feats=str(t.morph), space_after=bool(t.whitespace_))
+            for t in ref]
+    r = reorder_doc(toks, sentence_starts(ref), rng, policy)
+    if r.order == list(range(len(toks))):
+        return example
+
+    where = {old: new for new, old in enumerate(r.order)}
+    ta = data["token_annotation"]
+    for key in ("LEMMA", "POS", "TAG", "MORPH", "DEP"):
+        ta[key] = [ta[key][i] for i in r.order]
+    ta["HEAD"] = [where[ta["HEAD"][i]] for i in r.order]
+    ta["ORTH"] = r.forms
+    ta["SPACY"] = r.spaces
+    data["doc_annotation"]["entities"] = [ents[i] for i in r.order]
+
+    predicted = Doc(nlp.vocab, words=r.forms, spaces=r.spaces)
+    return Example.from_dict(predicted, data)
+
+
+@registry.augmenters("sud.la_variants.v1")
+def create_la_variants_augmenter(
+    p_sentence: float = 0.5,
+    p_hyperbaton: float = 0.08,
+    p_rise: float = 0.4,
+    min_len: int = 3,
+    p_v: float = 0.5,
+    p_j: float = 0.5,
+    p_lig: float = 0.25,
+    p_capital: float = 0.5,
+    p_length: float = 0.5,
+    p_uniform_length: float = 0.5,
+    p_breve_doc: float = 0.3,
+    max_breve_rate: float = 0.5,
+    protect_propn: bool = True,
+    keep_original: bool = False,
+    seed: int = 0,
+) -> Callable[[Language, Example], Iterator[Example]]:
+    """Orthography AND word order: ``sud.la_orth_variants.v1`` with a re-linearisation in front.
+
+    ORDER FIRST, and that is not arbitrary. The orthographic pass decides whether the sentence
+    opens with a capital and applies it to whatever token is FIRST; run the other way round it
+    would capitalise a word that the shuffle is about to bury mid-sentence and leave the new
+    opening lowercase in a style that capitalises. See ``scripts/la_order.py`` for what the
+    linearisation preserves and ``scripts/calibrate_la_order.py`` for how ``p_hyperbaton`` was set.
+    """
+    orth = OrthPolicy(p_v=p_v, p_j=p_j, p_lig=p_lig, p_capital=p_capital, p_length=p_length,
+                      p_uniform_length=p_uniform_length, p_breve_doc=p_breve_doc,
+                      max_breve_rate=max_breve_rate, protect_propn=protect_propn)
+    order = OrderPolicy(p_sentence=p_sentence, p_hyperbaton=p_hyperbaton, p_rise=p_rise,
+                        min_len=min_len)
+    rng = random.Random(seed)
+
+    def augmenter(nlp: Language, example: Example) -> Iterator[Example]:
+        if keep_original:
+            yield example
+        moved = reorder_example(nlp, example, rng, order)
+        yield vary_example(nlp, moved, sample_style(rng, orth), rng, orth)
 
     return augmenter

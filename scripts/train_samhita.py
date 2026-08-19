@@ -58,13 +58,24 @@ def main():
     ap.add_argument("--lr", type=float, default=0.001)
     ap.add_argument("--patience", type=int, default=5)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--aux", default="", help="comma-separated sub-character channels, e.g. "
+                                              "'radical,qieyun' (see scripts/lzh_char_channels.py)")
     a = ap.parse_args()
 
     fix_random_seed(a.seed)
     rng = random.Random(a.seed)
     tr, dev = load(a.train), load(a.dev)
     chars, labels = build_vocabs(tr)
-    seg = Presegmenter(chars, labels, width=a.width, depth=a.depth)
+    aux = None
+    if a.aux:
+        from lzh_char_channels import build as build_channels
+        aux = build_channels([x for x in a.aux.split(",") if x])
+    seg = Presegmenter(chars, labels, width=a.width, depth=a.depth, aux=aux)
+    # Provenance, so a downstream bundler can REFUSE a segmenter trained on the wrong generation of
+    # the data. lzh ships traditional-only; a both-scripts segmenter has a near-identical character
+    # inventory and is indistinguishable by any check on the weights (measured: 1.6 % vs 1.5 % of
+    # characters absent from the arm's vocab -- the overlap test cannot tell them apart).
+    seg.corpus = str(pathlib.Path(a.train).parent)
     print(f"train {len(tr)}  dev {len(dev)}  chars {len(chars)}  labels {len(labels)}  "
           f"width {a.width} depth {a.depth} (receptive field +/-{a.depth})")
 

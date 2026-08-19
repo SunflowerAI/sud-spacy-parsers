@@ -21,6 +21,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import spacy  # noqa: E402
 from spacy.tokens import Doc  # noqa: E402
 
+import stamp_ja_inflection  # noqa: E402,F401
 import seg_code  # noqa: E402,F401  (custom tokenisers + sud_tagger)
 import sud_subject_rule  # noqa: E402,F401  (registers the rule factory)
 from sud_misc import get_misc  # noqa: E402
@@ -95,10 +96,41 @@ def gold_subject(fields):
     return None
 
 
+
+# ⚠ Any harness that builds a doc from GOLD WORDS must put back what the tokeniser would have
+# supplied. `Doc(vocab, words=[...])` yields tag == 0 and MORPH unset, so an arm whose encoder
+# reads tokeniser-set channels (ja: XPOS + Inflection) runs with those inputs DELETED and every
+# number still prints. Measured on ja's idiom layer: the parser's `unk` F fell 0.948 -> 0.786 and
+# the rule lost ~6-8 F, which looked exactly like a base regression and was not one.
+# `spaces=` matters for the same reason: without it doc.text gets a space after every token, and
+# re-running the tokeniser over that analyses a string that never occurs at inference -- which
+# measured WORSE than supplying no channels at all.
+_CHAN_CACHE = {}
+
+
+def _channel_nlp(nlp):
+    """The tokeniser whose channels this arm reads, or None. Behavioural, so no language table:
+    ja pre-sets 3/3 tags on an ASCII probe, en/ko/zh 0/3. Cached -- building it is not free."""
+    key = id(nlp)
+    if key not in _CHAN_CACHE:
+        _CHAN_CACHE[key] = (stamp_ja_inflection.build_tokenizer()
+                            if stamp_ja_inflection.needs_channels(nlp) else None)
+    return _CHAN_CACHE[key]
+
+
+def _gold_doc(nlp, rows):
+    doc = Doc(nlp.vocab, words=[f[1] or "_" for f in rows],
+              spaces=["SpaceAfter=No" not in (f[9] if len(f) > 9 else "") for f in rows])
+    chan = _channel_nlp(nlp)
+    if chan is not None:
+        stamp_ja_inflection.apply_channels(doc, chan)
+    return doc
+
+
 def score(nlp, rows_iter):
     tp = fp = fn = skipped = 0
     for rows in rows_iter:
-        doc = Doc(nlp.vocab, words=[f[1] or "_" for f in rows])
+        doc = _gold_doc(nlp, rows)
         doc = nlp(doc)
         if len(doc) != len(rows):
             skipped += 1
@@ -121,6 +153,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lang", required=True, choices=sorted(TEST))
     ap.add_argument("--split", default="test")
+    # ⚠ SUD_ARM / LEMMA_ARM name FIXED directories, several of which are superseded generations
+    # (lzh's entries are the BOTH-SCRIPTS arm while the wheel ships traditional-only). Standing
+    # hazard 5 says re-measure this layer after any base change -- which is impossible if the arm
+    # cannot be pointed at the thing that changed. --model does that.
+    ap.add_argument("--model", default=None,
+                    help="evaluate THIS pipeline instead of the hardcoded arm (e.g. the built wheel)")
     args = ap.parse_args()
 
     path = TEST[args.lang].format(split=args.split)
@@ -130,7 +168,7 @@ def main():
 
     print(f"{args.lang} {args.split}   (gold tokens, everything else predicted)")
 
-    trained_dir = SUD_ARM.get(args.lang, f"training_{args.lang}_sud/model-best")
+    trained_dir = args.model or SUD_ARM.get(args.lang, f"training_{args.lang}_sud/model-best")
     if pathlib.Path(trained_dir).exists():
         nlp = spacy.load(trained_dir)
         P, R, F, n, sk = score(nlp, rows)
@@ -140,7 +178,7 @@ def main():
         print(f"  sud_tagger (trained)  -- {trained_dir} missing")
 
     lemma = (lzh_rule_arm() if args.lang == "lzh"
-             else LEMMA_ARM.get(args.lang, f"training_{args.lang}_lemma/model-best"))
+             else args.model or LEMMA_ARM.get(args.lang, f"training_{args.lang}_lemma/model-best"))
     if pathlib.Path(lemma).exists():
         nlp = spacy.load(lemma)
         if "sud_subject_rule" in nlp.pipe_names:

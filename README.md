@@ -14,14 +14,16 @@ English ships twice at two licences (see
 Twelve wheels over eleven languages (English ships twice — see the licence column). The version
 is the one on the [Releases](https://github.com/SunflowerAI/sud-spacy-parsers/releases) page: seven
 models were rebuilt at **0.2.0**, the other five are unchanged since **0.1.0** and install from that
-release.
+release. Japanese is at **0.3.0**: its tagger was a no-op at inference (the tokeniser pre-sets every
+tag and spaCy's tagger does not overwrite by default), and its encoder now reads the conjugation and
+XPOS channels SudachiPy already supplies.
 
 | Model | Language | Version | Treebank | Licence |
 |-------|----------|:-------:|----------|---------|
 | `en_sud_ewt` | English | 0.2.0 | SUD_English-EWT | CC BY-SA 4.0 |
-| `en_sud_ewt_gum` | English | 0.2.0 | SUD_English-EWT + GUM (ten non-NC genres) | CC BY-NC-SA 4.0 |
+| `en_sud_ewt_gum` | English | 0.2.0 | SUD_English-EWT + GUM (ten non-NC genres) | CC BY-SA 4.0 |
 | `zh_sud_gsd` | Chinese | 0.2.0 | SUD_Chinese-GSD | CC BY-SA 4.0 |
-| `ja_sud_gsd` | Japanese | 0.2.0 | SUD_Japanese-GSD | CC BY-SA 4.0 |
+| `ja_sud_gsd` | Japanese | 0.3.0 | SUD_Japanese-GSD | CC BY-SA 4.0 |
 | `ko_sud_gsd` | Korean | 0.2.0 | SUD_Korean-GSD | CC BY-SA 4.0 |
 | `la_sud_ittb_proiel_perseus` | Latin | 0.2.0 | SUD_Latin-ITTB + PROIEL + Perseus | CC BY-NC-SA 4.0 |
 | `lzh_sud_kyoto` | Classical Chinese | 0.2.0 | SUD_Classical_Chinese-Kyoto (+ kanripo punctuation) | CC BY-SA 4.0 |
@@ -83,7 +85,7 @@ end-to-end token accuracy, which is where the tokeniser is measured instead.
 | `en_sud_ewt` | English | 0.2.0 | 86.3 | 81.3 | 70.9 | 99.6 |
 | `en_sud_ewt_gum` | English (EWT+GUM) | 0.2.0 | 86.8 | 81.9 | 70.8 | 99.7 |
 | `zh_sud_gsd` | Chinese | 0.2.0 | 73.3 | 68.9 | 28.7 | 96.9 ⚑ |
-| `ja_sud_gsd` | Japanese | 0.2.0 | 91.1 | 88.2 | 69.6 | 99.4 |
+| `ja_sud_gsd` | Japanese | 0.3.0 | 92.0 | 90.0 | 72.9 | 99.4 |
 | `ko_sud_gsd` | Korean | 0.2.0 | 65.6 | 56.8 | 35.5 | 99.8 § |
 | `la_sud_ittb_proiel_perseus` | Latin | 0.2.0 | 78.7 | 71.7 | 64.7 | 100.0 ¶ |
 | `lzh_sud_kyoto` | Classical Chinese | 0.2.0 | 82.9 | 77.2 | 66.5 | 100.0 † ‖ |
@@ -248,7 +250,7 @@ needs.
 | Package | Language | Treebank | `udep` | Tokenisation | Licence |
 |---------|----------|----------|--------|--------------|---------|
 | `en_sud_ewt`     | English    | SUD_English-EWT     | disambiguated (ext) | default rules | CC BY-SA 4.0 |
-| `en_sud_ewt_gum` | English    | SUD_English-EWT + GUM | disambiguated (ext) | default rules | CC BY-NC-SA 4.0 ‽ |
+| `en_sud_ewt_gum` | English    | SUD_English-EWT + GUM | disambiguated (ext) | default rules | CC BY-SA 4.0 ‽ |
 | `zh_sud_gsd`     | Chinese    | SUD_Chinese-GSD     | disambiguated (ext) | treebank-trained character segmenter (needs `jieba`, `opencc`) ⚑ | CC BY-SA 4.0 |
 | `ko_sud_gsd`     | Korean     | SUD_Korean-GSD      | disambiguated (ext) | eojeol words, rule tokeniser | CC BY-SA 4.0 |
 | `id_sud_gsd`     | Indonesian | SUD_Indonesian-GSD  | disambiguated (ext) | treebank-trained character segmenter, enclitics split | CC BY-SA 4.0 |
@@ -260,10 +262,17 @@ needs.
 | `la_sud_ittb_proiel_perseus` | Latin   | SUD_Latin-ITTB+PROIEL+Perseus | disambiguated (ext) | rule tokeniser, enclitic `-que` split (bundled) | CC BY-NC-SA § |
 | `yue_sud_hk`     | Cantonese  | SUD_Cantonese-HK    | disambiguated (ext) | pkuseg (needs `spacy-pkuseg`); char fallback | CC BY-SA 4.0 |
 
-‽ `en_sud_ewt_gum` is the second English wheel, not a replacement: it adds the ten GUM genres
-whose sources are not NonCommercial, which is +66 % training tokens and ~+0.6 LAS on EWT's own test,
-but GUM offers its annotations under CC BY-NC-SA, so the merged wheel is NonCommercial and
-`en_sud_ewt` stays the commercially usable one. Users choose.
+‽ `en_sud_ewt_gum` is the second English wheel: it adds the ten GUM genres whose sources are not
+NonCommercial, which is +66 % training tokens and ~+0.6 LAS on EWT's own test. It shipped
+**CC BY-NC-SA 4.0** at v0.2.0 because GUM's `LICENSE.txt` opens "The treebank is licensed under
+CC BY-NC-SA 4.0", which read strictly puts the *annotations* under NC whatever the document — and
+annotations are what a trained model absorbs. GUM's maintainer has since settled it: the
+annotations are Georgetown's, under **CC BY**, and the NC belongs only to the individual underlying
+documents. Dropping the five NonCommercial genres is therefore enough, and this wheel is
+**CC BY-SA 4.0** — the same terms as `en_sud_ewt`, which it now outscores. Its extra obligation is
+**attribution**: cite GUM, link <https://gucorpling.org/gum/>, credit the annotators, and cite the
+text sources. See [`NOTICE.md`](NOTICE.md). `en_sud_ewt` remains available for anyone who wants an
+EWT-only provenance and the narrower attribution that comes with it.
 
 Merging the two exposed one tagset conflict, now fixed in this wheel. EWT and GUM share the PTB
 tagset and agree on every word class, but PTB reserves `,` for the comma and gives dashes,
@@ -330,9 +339,10 @@ pip install https://github.com/SunflowerAI/sud-spacy-parsers/releases/download/v
 pip install jieba opencc-python-reimplemented   # Chinese tokeniser + script conversion
 ```
 
-English ships **twice**: `en_sud_ewt` is EWT-only and CC BY-SA, so it stays commercially usable,
-and `en_sud_ewt_gum` adds the ten non-NonCommercial GUM genres under CC BY-NC-SA. See
-[`NOTICE.md`](NOTICE.md) for licensing.
+English ships **twice**, and both wheels are CC BY-SA 4.0: `en_sud_ewt` is EWT-only, while
+`en_sud_ewt_gum` adds the ten non-NonCommercial GUM genres for +66 % training tokens and ~+0.6 LAS
+on EWT's own test. Prefer `en_sud_ewt_gum` unless you want an EWT-only provenance — it carries
+GUM's CC BY attribution obligation. See [`NOTICE.md`](NOTICE.md) for licensing.
 
 ## Reproduce
 
@@ -437,9 +447,10 @@ noun dependents, which the verb-ADP-only view missed. English is the lone regres
 disambiguated verb `comp:obl` well, so folding in noun/adjective heads dilutes the class. (Each
 relabelling also rewrites the test-set gold, so `comp:obl` F has a moving denominator.)
 
-> The **English** row is the development-time EWT+GUM setup. The **shipped** `en_sud_ewt` model is
-> retrained on EWT only (GUM is NonCommercial; see [`NOTICE.md`](NOTICE.md)) — its scores are in
-> the Results table above.
+> The **English** row is the development-time EWT+GUM setup, on the UNFILTERED treebank. The
+> shipped wheels are retrained: `en_sud_ewt` on EWT only, `en_sud_ewt_gum` on EWT plus GUM's ten
+> non-NonCommercial genres (see [`NOTICE.md`](NOTICE.md)) — their scores are in the Results table
+> above.
 
 ### Tokeniser–treebank matching
 
@@ -475,5 +486,7 @@ replaced. Drivers: `scripts/retrain_seg.sh` per language, plus `scripts/train_al
 
 Source code (`scripts/`, `webapp/`, `configs/`) is MIT (see `LICENSE`). The released models and the
 committed treebank-derived data are **CC BY-SA 4.0**, inherited from the SUD/UD treebanks they
-derive from; SUD_English-GUM (NonCommercial) is excluded so the models stay commercially usable.
+derive from — except the Latin and Arabic wheels, whose treebanks are NonCommercial at source
+(**CC BY-NC-SA**). SUD_English-GUM's five NonCommercial genres are excluded from `en_sud_ewt_gum`
+so that wheel stays commercially usable; its annotations are CC BY and require attribution.
 Full attribution and the per-treebank breakdown are in [`NOTICE.md`](NOTICE.md).
