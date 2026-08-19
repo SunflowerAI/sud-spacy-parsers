@@ -82,9 +82,11 @@ CODE_REP="$CODE_BASE,scripts/sud_reported_data.py,scripts/sud_reported_rule.py"
 # every arm carrying a trained sud_shared pipe needs the candidate mask it looks up by name
 CODE_SHARED="scripts/sud_shared_data.py"
 # Treebank the lzh lemma lookup table is harvested from. It MUST be the same generation of the data
-# the lzh arm was trained on -- override when packaging a differently-trained arm, e.g. the
-# punctuation-restored chain (.relabeled_ext.udep_ruled.punct.rulemerged.conllu).
-LZH_TRAIN_CONLLU="${LZH_TRAIN_CONLLU:-assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-train.relabeled_ext.udep_ruled.punct.rulemerged.conllu}"
+# the lzh arm was trained on. ⚠ THIS DEFAULT NAMED Kyoto-BOTH while lzh is traditional-only end to
+# end, so the lookup table would have been harvested from the both-scripts text — the same stale
+# default that `train_sud.sh` carried in four places. LZH_TRAIN_CONLLU remains the override for the
+# superseded both-scripts arm.
+LZH_TRAIN_CONLLU="${LZH_TRAIN_CONLLU:-assets_lzh/SUD_Classical_Chinese-Kyoto/lzh_kyoto-sud-train.relabeled_ext.udep_ruled.punct.rulemerged.conllu}"
 
 pkg() {  # $1=arm  $2=src model dir  $3=--name value  $4=comma-separated --code files (no flag)
          # $5=the model's own language code, if it differs from the arm name (en_gum -> en)
@@ -247,11 +249,14 @@ for lang in "$@"; do
     # reads their predictions through `sud.LemmaVecFeatsEmbed.v1` (one hash table per morphological
     # category, plus PPMI+SVD lemma vectors). +1.51 LAS / +1.28 UAS on the combined test against a
     # CAPACITY CONTROL that is -2.56 below it, so the gain is the information and not the rows.
+    # `sud_shared` is RETRAINED on this base rather than inherited (standing hazard 5): it pools
+    # over the head and the head's other dependents, so a changed parse is a changed input, and the
+    # transplanted pipe lost 0.44 F. Retrained it reaches 38.88 against the released 38.11.
     # The table is SEALED into the model bytes (seal_la_lemvec_model.py); an unsealed arm would
     # load on this machine and nowhere else. The wheel must therefore also ship
     # scripts/sud_lemmavec_embed.py -- it is in all three `la` --code lists below, and without it
     # the installed model raises E893 at load.
-    la)           base="${LA_BASE:-training_la_lemvec_misc}" ;;
+    la)           base="${LA_BASE:-training_la_lemvec_sud/model-best}" ;;
     # sa ships the JOINT MULTI-TASK arm: ONE shared encoder for tagger + parser + morphologizer +
     # lemmatizer, instead of the three-encoder freeze recipe every other arm uses. 25.85 -> 19.16 MB
     # (-25.9 %), tag/pos/morph/lemma each +0.3 to +0.7, and on HELD-OUT UFAL (classical prose, the
@@ -295,7 +300,7 @@ for lang in "$@"; do
     #     training_lzh_trad_sud_xw --corpus corpus_lzh_trad/lzh_kyoto-sud-test.<suffix>.spacy
     # All three of that script's checks pass (parse unchanged 5628/5628, tags match donor
     # 5628/5628) and TAG goes 0.8469 -> 0.9254, which is the released wheel's generation.
-  lzh)          base="${LZH_BASE:-training_lzh_trad_sud_xw}" ;;
+  lzh)          base="${LZH_BASE:-training_lzh_seg_sud_xw}" ;;   # the SENTENCE-SEGMENTING arm
     # zh is TRADITIONAL-ONLY end to end, like lzh, and for the same reason -- a both-scripts
     # inventory never pools 個 with 个. Naming the arm here rather than falling through to
     # `training_zh_lemma` is not tidiness: the fall-through is the both-scripts generation, and it

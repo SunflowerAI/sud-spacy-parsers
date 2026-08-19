@@ -111,7 +111,7 @@ All at v0.2.0 (re-clobbered as layers landed), published on the GitHub Release, 
 | en | `en_sud_ewt_gum` | CC BY-SA 4.0 | rule | + the ten non-NC GUM genres, +66 % train tokens; owes GUM's CC BY attribution |
 | ar | `ar_sud_padt` | CC BY-NC-SA 4.0 | rule + `ar_tokenizer` | vocalisation-augmented; ships the `Vform` table and a trained Idiom pipe |
 | fa | `fa_sud_perdt` | CC BY-SA 4.0 | rule + `sud.FaNormTokenizer.v1` | normalises Arabic letterforms **in**; ships ezāfe rules without the GPL lexicon |
-| la | `la_sud_ittb_proiel_perseus` | CC BY-NC-SA 4.0 | rule + `-que` split | orthography-augmented; `la_macronise` ships without its data |
+| la | `la_sud_ittb_proiel_perseus` | CC BY-NC-SA 4.0 | rule + `-que` split | orthography-augmented; parser reads predicted lemma vectors + per-feature morphology (LAS 71.72 → 73.23), table **sealed** into the bytes; `la_macronise` ships without its data |
 | sa | `sa_sud_vedic_ufal_dcs` | CC BY-SA 4.0 | `sa.SanskritInputTokenizer.v3` | accepts **raw sandhied** IAST or Devanagari; joint multi-task arm |
 | zh | `zh_sud_gsd` | CC BY-SA 4.0 | char tagger + jackknifed lexicon + jieba BMES | traditional-only; vendors a pruned jieba |
 | yue | `yue_sud_hk` | CC BY-SA 4.0 | pkuseg trained on yue | test-only treebank → deterministic 80/10/10 split |
