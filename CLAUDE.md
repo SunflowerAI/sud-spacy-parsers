@@ -103,7 +103,9 @@ evidence**. Which release figures are stale, and on which single field:
 
 ## The twelve wheels
 
-All at v0.2.0 (re-clobbered as layers landed), published on the GitHub Release, not in git.
+**ja and la are at v0.3.0**, on the `v0.3.0` release; the other ten are at v0.2.0 on `v0.2.0`.
+The 0.2.0 set was re-clobbered as layers landed, so `pip install -U` will NOT pull those —
+which is why ja and la took a version bump instead. Published on the GitHub Release, not in git.
 
 | lang | wheel | licence | tokeniser | note |
 |---|---|---|---|---|

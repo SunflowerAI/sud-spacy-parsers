@@ -375,3 +375,11 @@ ship decision rests on; the decomposition is what any future claim about the cha
    `virumque` → `virum` + `que`.
 
 Wheel size 33.9 → 37.2 MB (the sealed table plus the per-feature tables).
+
+**RELEASED 2026-08-19 as `la_sud_ittb_proiel_perseus-0.3.0`**, on the `v0.3.0` GitHub release
+alongside ja. A version BUMP rather than a clobber of 0.2.0, so `pip install -U` actually upgrades —
+the 0.2.0 set was re-clobbered as layers landed and `-U` is inert for it. Verified after upload by
+hashing `parser/model` and `tok2vec/model` out of the DOWNLOADED asset against
+`training_la_lemvec_sud/model-best` (identical, and the parser differs from the 0.2.0 asset's
+`c2d25d81…`, which is what proves the new arm actually shipped), then installing from the public
+release URL into a clean target with `scripts/` off `sys.path` and the .npz absent.
