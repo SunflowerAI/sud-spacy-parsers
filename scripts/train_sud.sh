@@ -122,6 +122,11 @@ src_conllu() {
     # generation for ja (802 cells committed: NOUN<-AUX た/だ -> mod), the same files its base arm
     # was retrained on -- the plain `.relabeled_ext` ones are a generation behind.
     ja)  echo "assets_ja/SUD_Japanese-GSD/ja_gsd-sud-$2.relabeled_ext.udep_ruled.conllu" ;;
+    # ta trains on TTB + the MWTT 80/10/10 split (scripts/prep_ta.py); te on the MWT-SPLIT MTG
+    # (scripts/split_te_mwt.py), NOT on MTG as shipped -- the parser under this layer was trained
+    # on the split words, so a corpus built from the unsplit files would not align with it.
+    ta)  echo "assets_ta/ta_ttb_mwtt-sud-$2.conllu" ;;
+    te)  echo "assets_te/te_mtg-sud-$2.conllu" ;;
     # sa trains on Vedic-train + UFAL combined (rebuild_sa_csl_rev.sh); dev/test are Vedic only
     sa)  if [ "$2" = train ]; then echo "corpus_sa_csl_rev/train.csl_rev.conllu"
          else echo "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-$2.csl_rev.conllu"; fi ;;

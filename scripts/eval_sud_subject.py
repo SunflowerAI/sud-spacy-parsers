@@ -39,6 +39,10 @@ TEST = {
     "fa":  "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-{split}.relabeled_ext.conllu",
     "la":  "assets_la/la_ittbproiel-sud-{split}.relabeled_ext.conllu",
     "sa":  "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{split}.csl_rev.conllu",
+    # ta: TTB + the MWTT 80/10/10 split. te: the MWT-SPLIT MTG, not MTG as shipped -- the arm
+    # under this layer trains on the split words (scripts/split_te_mwt.py).
+    "ta":  "assets_ta/ta_ttb_mwtt-sud-{split}.conllu",
+    "te":  "assets_te/te_mtg-sud-{split}.conllu",
 }
 LEMMA_ARM = {"sa": "training_sa_lemma3_noannot/model-best",
              "la": "training_la_aug_lemma/model-best"}

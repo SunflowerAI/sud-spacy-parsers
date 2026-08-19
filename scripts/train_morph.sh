@@ -52,6 +52,11 @@ case $lang in
  yue) train yue configs/config_yue_seg.cfg     training_yue_seg/model-best     corpus_yue_ext/yue_hk-sud-train.relabeled_ext.spacy    corpus_yue_ext/yue_hk-sud-dev.relabeled_ext.spacy ;;
  lzh) train lzh configs/config_lzh.cfg         training_lzh_both_ext/model-seg corpus_lzh_both/lzh_kyotoboth-sud-train.relabeled_ext.spacy corpus_lzh_both/lzh_kyotoboth-sud-dev.relabeled_ext.spacy ;;
  sa)  train sa  configs/config_sa.cfg          training_sa_csl_rev/model-seg   corpus_sa_csl_rev/train.csl_rev.spacy  corpus_sa_csl_rev/sa_vedic-sud-dev.csl_rev.spacy ;;
+ ta_ttb)  train ta_ttb  configs/config_ta_seg.cfg  training_ta_ttb_seg/model-best   corpus_ta/ta_ttb-sud-train.spacy       corpus_ta/ta_ttb-sud-dev.spacy ;;
+ ta_both) train ta_both configs/config_ta_seg.cfg  training_ta_both_seg/model-best  corpus_ta/ta_ttb_mwtt-sud-train.spacy  corpus_ta/ta_ttb_mwtt-sud-dev.spacy ;;
+ # te's FEATS column is all but empty (115 of 6 465 tokens carry anything), so morph_acc here is
+ # near-vacuous and the pipe is trained for its UPOS half, which MTG does have.
+ te)      train te      configs/config_te_seg.cfg  training_te_seg/model-best       corpus_te/te_mtg-sud-train.spacy       corpus_te/te_mtg-sud-dev.spacy ;;
  *) echo "unknown lang: $lang" ;;
 esac
 done

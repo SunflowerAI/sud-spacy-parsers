@@ -45,7 +45,15 @@ URL = "https://github.com/SunflowerAI/sud-spacy-parsers"
 # (CC BY-SA 4.0) and by the ShareAlike text sources among the kept genres, not by GUM as a whole.
 # What survives is the ATTRIBUTION, which CC BY makes an obligation -- see SOURCES below, which
 # must keep naming the corpus, its website and its annotators.
-LICENSE = {"la": "CC BY-NC-SA 4.0", "ar": "CC BY-NC-SA 4.0"}
+# ta: SUD_Tamil-TTB is CC BY-NC-SA 3.0, so both the NonCommercial term and the VERSION come from
+# it; the arm also contains MWTT, which is CC BY-SA 4.0, and ShareAlike propagates.
+# te: ⚠ SUD_Telugu-MTG CONTRADICTS ITSELF and this is upstream in UD's own current README --
+# LICENSE.txt and the README `License:` field say CC BY-SA 4.0, the README prose says
+# CC BY-NC-SA 3.0. The RESTRICTIVE reading is declared, because this project has already shipped
+# the other choice once: ar declares a licence its PADT source does not grant. Over-declaring a
+# restriction can be relaxed in a later release; under-declaring one cannot be undone.
+LICENSE = {"la": "CC BY-NC-SA 4.0", "ar": "CC BY-NC-SA 4.0",
+           "ta": "CC BY-NC-SA 3.0", "te": "CC BY-NC-SA 3.0"}
 DEFAULT_LICENSE = "CC BY-SA 4.0"
 
 # Runtime imports a wheel needs beyond spaCy, declared here so `pip install` yields a model that
@@ -75,6 +83,25 @@ REQUIREMENTS = {
 }
 
 SOURCES = {
+    "ta": [
+        {"name": "SUD_Tamil-TTB", "license": "CC BY-NC-SA 3.0",
+         "url": "https://github.com/surfacesyntacticud/SUD_Tamil-TTB",
+         "note": "The source of the NonCommercial term, and of the 9-position composite XPOS "
+                 "tagset the MWTT half is rendered onto (scripts/normalise_ta_xpos.py)."},
+        {"name": "SUD_Tamil-MWTT", "license": "CC BY-SA 4.0",
+         "url": "https://github.com/surfacesyntacticud/SUD_Tamil-MWTT",
+         "note": "Ships test-only; split 80/10/10 round robin by scripts/prep_ta.py and added "
+                 "train->train, dev->dev, test->test."},
+    ],
+    "te": [
+        {"name": "SUD_Telugu-MTG", "license": "CC BY-NC-SA 3.0",
+         "url": "https://github.com/surfacesyntacticud/SUD_Telugu-MTG",
+         "note": "The treebank states its licence three times and disagrees with itself "
+                 "(LICENSE.txt and the README License: field say CC BY-SA 4.0, the README prose "
+                 "says CC BY-NC-SA 3.0); the restrictive reading is declared. The multiword "
+                 "tokens this model is trained on were added by scripts/split_te_mwt.py from the "
+                 "treebank's own evidence -- MTG itself ships none."},
+    ],
     "ar": [
         {"name": "SUD_Arabic-PADT", "license": "CC BY-NC-SA 3.0",
          "url": "https://github.com/surfacesyntacticud/SUD_Arabic-PADT",

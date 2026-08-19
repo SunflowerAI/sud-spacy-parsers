@@ -13,7 +13,7 @@ repository. It is the **map**; two companions hold the territory.
 ## What this project is
 
 Two coupled pieces of work over **Surface-Syntactic Universal Dependencies (SUD)** treebanks, now
-eleven languages: en, zh, yue, lzh, ja, ko, id, fa, ar, la, sa — in **twelve** wheels, since
+thirteen languages: en, zh, yue, lzh, ja, ko, id, fa, ar, la, sa, ta, te — in **fourteen** wheels, since
 English ships twice (`en_sud_ewt` EWT-only, `en_sud_ewt_gum` + GUM; both CC BY-SA).
 
 1. **Small CPU spaCy pipelines** trained from SUD CoNLL-U and released as wheels. Component order
@@ -100,11 +100,12 @@ evidence**. Which release figures are stale, and on which single field:
 | `docs/chinese-family.md` | zh traditional-only + `zh_script`, lzh's restored punctuation and `clause_parser`, yue | `_looks_simplified` cannot be "would `s2t` change it?"; `keep_marks` is coupled to the arm underneath |
 | `docs/lzh-tokenisation.md` | lzh's multi-character tokens, the trained char segmenter, the Heart Sūtra gold set, and every lexicon/gazetteer route measured | the released lzh tokeniser splits 孔子, and **no standard metric can see it** — `gold_preproc` bypasses the tokeniser |
 | `docs/languages.md` | en's two arms and two licences; id's FEATS and lemma-casing fixes; ko's eojeol arm | an arm name is not a language — the two places that confused them both failed silently |
+| `docs/dravidian.md` | ta's two treebanks and its akṣara-decomposition tokeniser; te's missing multiword tokens and missing morphology; the head-final order augmenter | Telugu's lemma column is `_` on EVERY token and spaCy keeps that as a literal string; and MTG ships **no** multiword tokens, which is an annotation policy, not a fact about Telugu |
 
-## The twelve wheels
+## The fourteen wheels
 
-**ja, la and sa are at v0.3.0**, on the `v0.3.0` release; the other nine are at v0.2.0 on
-`v0.2.0`. Published on the GitHub Release, not in git.
+**ja, la and sa are at v0.3.0** and **ta and te are new at 0.1.0**, all five on the `v0.3.0`
+release; the other nine are at v0.2.0 on `v0.2.0`. Published on the GitHub Release, not in git.
 
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
 which is why the three above took a version bump instead. Most recently clobbered: **lzh and yue,
@@ -131,9 +132,34 @@ gh release view v0.3.0 --json assets -q '.assets[] | "\(.name)  \(.updatedAt)"'
 | ja | `ja_sud_gsd` | CC BY-SA 4.0 | SudachiPy | |
 | ko | `ko_sud_gsd` | CC BY-SA 4.0 | eojeol, spaCy's rule tokeniser | no SUD MISC layer — nothing cleared the precision floor |
 | id | `id_sud_gsd` | CC BY-SA 4.0 | char tagger, enclitics SPLIT | `id_lemma_case_fix` after the lemmatiser |
+| ta | `ta_sud_ttb_mwtt` | CC BY-NC-SA 3.0 | `sud.TamilSandhiTokenizer.v1` (trained) | TTB + test-only MWTT split 80/10/10; parser reads LEMMA + per-feature morphology (+1.34 LAS over its capacity control); akṣara decomposition makes sandhi splitting ordinary segmentation, token F 0.8389 → 0.9420 |
+| te | `te_sud_mtg` | CC BY-NC-SA 3.0 | `sud.TeluguSplitTokenizer.v1` (lookup) | no lemmas and no FEATS in the treebank, so no lemma/morphology channel; MTG ships NO multiword tokens and 20 were added from its own evidence |
 
 Per-language relabel model: fa/sa/lzh/en/id/zh/ko/yue → `qwen3:8b`, ar/la → `gemma4`, **ja → qwen3
 with a native-Japanese prompt**. zh and ko ship **no** SUD MISC layer at all.
+
+## Tamil and Telugu (`docs/dravidian.md`)
+
+**RELEASED 2026-08-19 on the `v0.3.0` release, both at 0.1.0**: `ta_sud_ttb_mwtt` (TTB + the
+test-only MWTT, split 80/10/10) and `te_sud_mtg`. Both **CC BY-NC-SA 3.0**. Verified after upload by
+hashing `parser/model` and `tok2vec/model` out of the DOWNLOADED assets, then installing from the
+public release URL into a clean target with `scripts/` off `sys.path`.
+
+Four things about them are load-bearing for anyone touching the area:
+
+- **te MTG carries no lemmas and almost no FEATS** (115 values in 6 465 tokens); its XPOS is a
+  verbatim copy of UPOS. So te has no lemma/morphology channel. Its empty lemma column is a TRAP
+  rather than an absence: `spacy convert` keeps `_` as a literal string, and all 5 082 training
+  tokens came out with `token.lemma_ == "_"`. `scripts/prep_te.py` falls back to IDENTITY.
+- **te had no multiword tokens at all** ("Word count: 6465, Token count: 6465" in its own README),
+  against Tamil's 9.67 % of orthographic words. `scripts/split_te_mwt.py` re-annotates 20 of them
+  from the treebank's own evidence; `training_te_nomwt_*` keeps the unsplit control.
+- **`min_action_freq = 30` deletes most of the label inventory at this corpus size** — 7 of ta
+  TTB's 19 deprels, 19 of the combined arm's 33, 14 of te's 29 — silently, with their recall pinned
+  to zero. `scripts/make_dravidian_config.py` sets it to 1.
+- **Neither ships a SUD MISC layer**, and that is measured rather than skipped: ta `Subject`
+  reaches P 75.0 % over EIGHT predictions, a 95 % interval of [41 %, 93 %] that spans the floor,
+  and `Shared` is capped at zero by a candidate mask reaching no gold at all.
 
 ## Conventions and invariants
 
