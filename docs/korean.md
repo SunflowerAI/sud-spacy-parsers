@@ -212,7 +212,7 @@ robustness against orders that text does not contain. `configs/config_ko_order.c
 whose input is scrambled or spoken Korean, where +1.2 to +1.4 LAS is the trade in the other
 direction.
 
-## The release chain (2026-08-20) — built, verified, NOT uploaded
+## RELEASED 2026-08-20 as `ko_sud_gsd-0.3.0`
 
 ⚠ **The arm measured above cannot ship as it stands, and no gold-preproc number says so.**
 `config_ko_analyser.cfg` is built on `config_ko_eojeol.cfg`, whose reader hands the parser one
@@ -316,22 +316,26 @@ CC BY-SA 4.0, requirements `python-mecab-ko>=1.3.7` and spaCy. **0.3.0 rather th
 0.2.0**, because the 0.2.0 set has been re-clobbered in place as layers landed and `pip install -U`
 is inert for it.
 
-**It has NOT been uploaded, and a directory is not a release** (standing hazard 1). What remains is
-the upload itself and the audit that follows it: `gh release upload v0.3.0 <the wheel, BY NAME>`,
-then hash `parser/model` out of the DOWNLOADED asset against `training_ko_an_senter/model-best`
-and confirm it differs from the 0.2.0 asset's. Until then `CLAUDE.md`'s wheel table correctly says
-ko is at 0.2.0.
+**RELEASED on the `v0.3.0` GitHub release**, a version BUMP rather than a clobber of 0.2.0, so
+`pip install -U` actually upgrades — the 0.2.0 set has been re-clobbered in place as layers landed
+and `-U` is inert for it.
 
-## What is NOT addressed here
+⚠ **The branch was 2 commits BEHIND main when the upload was requested**, and main's commits touched
+`scripts/stamp_model_meta.py` — the file that stamps the wheel's licence and requirements. The wheel
+was rebuilt after merging rather than uploaded as built (standing hazard 3, which was paid for once
+by a six-commit-behind branch that shipped lzh a generation backwards and eleven empty `License:`
+fields).
 
-* **Sentence segmentation.** Every figure in this file is gold-sentences, gold-tokens, as
-  `--gold-preproc` gives — comparable to the `metrics_ko_*_gp.json` set and not to a raw end-to-end
-  run. `training_ko_eojeol_seg` is the arm that learns boundaries; CLAUDE.md hazard 4 applies
-  unchanged.
-* **The SUD MISC layer.** ko ships none — nothing cleared the precision floor — so no `Idiom` /
-  `Subject` / `Shared` figure needs re-measuring after a base change here (standing hazard 5 is
-  vacuous for this language, and only for this one).
-* **The morpheme-tokenised arm** (`training_ko_retok_rl`, LAS 76 / TAG 95). Not comparable — a
-  different tokenisation with a different denominator and many trivially-attached tokens — but it
-  points the same way as everything above: the syntax of Korean lives on the morphemes the eojeol
-  hides.
+Audited after upload with `scripts/audit_ko_release.py`, against the **downloaded** asset:
+
+* all six components byte-identical to `training_ko_an_senter/model-best`
+* `tok2vec`, `parser` and `tagger` DIFFER from the 0.2.0 asset — which is what proves a new arm
+  shipped rather than a `--clobber` that quietly re-uploaded the old file
+* `morphologizer` and `lemmatizer` are byte-identical to 0.2.0's, and that is the predicted result,
+  not a defect: those components have their own encoders, never listen to the shared one, and were
+  retrained on the same data with the same seed. The audit prints it as a warning so the claim has
+  to be made out loud rather than assumed.
+* installed from the public release URL into a clean target, `scripts/` off `sys.path`, and parsed:
+  two sentences, `잡스는 subj→청했다`, `워즈니악에게 comp:obl→청했다`.
+
+`metrics_release_ko.json` is regenerated against the shipped arm.

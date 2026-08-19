@@ -106,11 +106,11 @@ evidence**. Which release figures are stale, and on which single field:
 
 ## The fourteen wheels
 
-**ja, la and sa are at v0.3.0** and **ta and te are new at 0.1.0**, all five on the `v0.3.0`
-release; the other nine are at v0.2.0 on `v0.2.0`. Published on the GitHub Release, not in git.
+**ja, ko, la and sa are at v0.3.0** and **ta and te are new at 0.1.0**, all six on the `v0.3.0`
+release; the other eight are at v0.2.0 on `v0.2.0`. Published on the GitHub Release, not in git.
 
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
-which is why the three above took a version bump instead. Most recently clobbered: **lzh and yue,
+which is why the four above took a version bump instead. Most recently clobbered: **lzh and yue,
 both on 2026-08-19**, holding new bytes under an unchanged 0.2.0. **This paragraph goes stale
 faster than anything else in this file** (sa shipped 0.3.0 within a day of it last being written),
 so re-derive it rather than trusting it — the asset list, with the upload times that reveal a
@@ -132,7 +132,7 @@ gh release view v0.3.0 --json assets -q '.assets[] | "\(.name)  \(.updatedAt)"'
 | yue | `yue_sud_hk` | CC BY-SA 4.0 | pkuseg trained on yue | test-only treebank → deterministic 80/10/10 split |
 | lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) | custom `lzh` language; `clause_parser`; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825) |
 | ja | `ja_sud_gsd` | CC BY-SA 4.0 | SudachiPy | |
-| ko | `ko_sud_gsd` | CC BY-SA 4.0 | eojeol, spaCy's rule tokeniser | no SUD MISC layer — nothing cleared the precision floor |
+| ko | `ko_sud_gsd` | CC BY-SA 4.0 | eojeol, spaCy's rule tokeniser | requires `python-mecab-ko`: the parser reads the morphemes an eojeol hides (`docs/korean.md`, raw LAS 55.81 → 73.16). Ships a `senter`; no SUD MISC layer |
 | id | `id_sud_gsd` | CC BY-SA 4.0 | char tagger, enclitics SPLIT | `id_lemma_case_fix` after the lemmatiser |
 | ta | `ta_sud_ttb_mwtt` | CC BY-NC-SA 3.0 | `sud.TamilSandhiTokenizer.v1` (trained) | TTB + test-only MWTT split 80/10/10; parser reads LEMMA + per-feature morphology (+1.34 LAS over its capacity control); akṣara decomposition makes sandhi splitting ordinary segmentation, token F 0.8389 → 0.9420 |
 | te | `te_sud_mtg` | CC BY-NC-SA 3.0 | `sud.TeluguSplitTokenizer.v1` (lookup) | no lemmas and no FEATS in the treebank, so no lemma/morphology channel; MTG ships NO multiword tokens and 20 were added from its own evidence |
