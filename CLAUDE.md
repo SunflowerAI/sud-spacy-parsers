@@ -71,7 +71,8 @@ Layer drivers, run in this order per language: `retrain_seg.sh` → `train_morph
 `package_morph.sh` / `package_lemma.sh`). Relabel drivers: `relabel_retrain.sh` (verb scope),
 `relabel_retrain_ext.sh` (extended scope), `retrain_udep_ruled.sh` (derived-rule residue commits).
 Other drivers: `train_vocal.sh` (ar/fa vocalisation augmentation), `train_xpos.sh` / `eval_xpos.sh`
-(the conditioned tagger), `train_la_ext_macron.sh` / `train_la_aug.sh` (Latin orthography).
+(the conditioned tagger), `train_la_ext_macron.sh` / `train_la_aug.sh` (Latin orthography),
+`train_ko_analyser.sh` (the Korean analyser channel and its capacity control, three seeds each).
 Superseded but kept: `train_baselines.sh`, `train_all_retok.sh` / `eval_retok.sh` /
 `relabel_retrain_retok.sh` (the matched-tokenisation arms), the `*_new.sh` drivers that brought in
 fa/ar/la/sa/lzh/ja, `both_scripts_release.sh`, and `rebuild_sa_csl_rev.sh` (+ `hyphen_to_pipe_sa.py`,
@@ -99,16 +100,17 @@ evidence**. Which release figures are stale, and on which single field:
 | `docs/sanskrit.md` | the raw-sandhied-text front end, the CSLiser, the sandhi machinery, the joint multi-task arm | an **unset** MORPH and an **empty** one are different inputs (cost 6.8 LAS) |
 | `docs/chinese-family.md` | zh traditional-only + `zh_script`, lzh's restored punctuation and `clause_parser`, yue | `_looks_simplified` cannot be "would `s2t` change it?"; `keep_marks` is coupled to the arm underneath |
 | `docs/lzh-tokenisation.md` | lzh's multi-character tokens, the trained char segmenter, the Heart Sūtra gold set, and every lexicon/gazetteer route measured | the released lzh tokeniser splits 孔子, and **no standard metric can see it** — `gold_preproc` bypasses the tokeniser |
-| `docs/languages.md` | en's two arms and two licences; id's FEATS and lemma-casing fixes; ko's eojeol arm | an arm name is not a language — the two places that confused them both failed silently |
+| `docs/korean.md` | the eojeol tokenisation, the mecab-ko analyser channel, the sentenciser, the constrained scrambler | 34.5 % of test tokens are unseen STRINGS and parse 29.6 LAS below the rest; the headline never said so |
+| `docs/languages.md` | en's two arms and two licences; id's FEATS and lemma-casing fixes | an arm name is not a language — the two places that confused them both failed silently |
 | `docs/dravidian.md` | ta's two treebanks and its akṣara-decomposition tokeniser; te's missing multiword tokens and missing morphology; the head-final order augmenter | Telugu's lemma column is `_` on EVERY token and spaCy keeps that as a literal string; and MTG ships **no** multiword tokens, which is an annotation policy, not a fact about Telugu |
 
 ## The fourteen wheels
 
-**ja, la and sa are at v0.3.0** and **ta and te are new at 0.1.0**, all five on the `v0.3.0`
-release; the other nine are at v0.2.0 on `v0.2.0`. Published on the GitHub Release, not in git.
+**ja, ko, la and sa are at v0.3.0** and **ta and te are new at 0.1.0**, all six on the `v0.3.0`
+release; the other eight are at v0.2.0 on `v0.2.0`. Published on the GitHub Release, not in git.
 
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
-which is why the three above took a version bump instead. Most recently clobbered: **lzh and yue,
+which is why the four above took a version bump instead. Most recently clobbered: **lzh and yue,
 both on 2026-08-19**, holding new bytes under an unchanged 0.2.0. **This paragraph goes stale
 faster than anything else in this file** (sa shipped 0.3.0 within a day of it last being written),
 so re-derive it rather than trusting it — the asset list, with the upload times that reveal a
@@ -130,7 +132,7 @@ gh release view v0.3.0 --json assets -q '.assets[] | "\(.name)  \(.updatedAt)"'
 | yue | `yue_sud_hk` | CC BY-SA 4.0 | pkuseg trained on yue | test-only treebank → deterministic 80/10/10 split |
 | lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) | custom `lzh` language; `clause_parser`; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825) |
 | ja | `ja_sud_gsd` | CC BY-SA 4.0 | SudachiPy | |
-| ko | `ko_sud_gsd` | CC BY-SA 4.0 | eojeol, spaCy's rule tokeniser | no SUD MISC layer — nothing cleared the precision floor |
+| ko | `ko_sud_gsd` | CC BY-SA 4.0 | eojeol, spaCy's rule tokeniser | requires `python-mecab-ko`: the parser reads the morphemes an eojeol hides (`docs/korean.md`, raw LAS 55.81 → 73.16). Ships a `senter`; no SUD MISC layer |
 | id | `id_sud_gsd` | CC BY-SA 4.0 | char tagger, enclitics SPLIT | `id_lemma_case_fix` after the lemmatiser |
 | ta | `ta_sud_ttb_mwtt` | CC BY-NC-SA 3.0 | `sud.TamilSandhiTokenizer.v1` (trained) | TTB + test-only MWTT split 80/10/10; parser reads LEMMA + per-feature morphology (+1.34 LAS over its capacity control); akṣara decomposition makes sandhi splitting ordinary segmentation, token F 0.8389 → 0.9420 |
 | te | `te_sud_mtg` | CC BY-NC-SA 3.0 | `sud.TeluguSplitTokenizer.v1` (lookup) | no lemmas and no FEATS in the treebank, so no lemma/morphology channel; MTG ships NO multiword tokens and 20 were added from its own evidence |

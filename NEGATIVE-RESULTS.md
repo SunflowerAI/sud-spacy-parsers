@@ -1043,3 +1043,41 @@ is correct roughly a third of the time, and the unconstrained decoder was alread
 probability on those same correct arcs. **Consistency with gold at 80 % is not a licence to
 constrain** — the bar is the error rate of what you are overriding, not the accuracy of your rule.
 Same shape as the decode-time lexicon result above.
+
+## Word-order augmentation for Korean — buys robustness, costs accuracy (2026-08-20)
+
+Latin's word-order augmenter collapsed its LAS spread across editions from 17.44 to 8.38 and bought
++0.13 on natural order; Sanskrit's bought +1.70 over three seeds. Korean is the third language asked,
+and the answer is the clearest of the three: **it works exactly as designed and is not worth
+shipping.**
+
+Three seeds, on top of the analyser-channel arm (`docs/korean.md`), test, `--gold-preproc`:
+
+    arm                    natural order    resampled order    uniform shuffle
+    analyser channel           74.45            71.26              70.86
+    + order augmentation       73.97            72.47              72.25
+
+Order-sensitivity halves (−3.19 → −1.50 LAS) and natural order loses **0.48 LAS** — per seed +0.05,
+−0.90, −0.60. The order arm's seeds spread 1.00 LAS against the channel's 0.37, so the cost is at
+the edge of the noise; the gain on scrambled input (+1.21 resampled, +1.39 uniform) is not.
+
+**Why the ceiling is low here, and it was predictable.** The measurement to take BEFORE building an
+order augmenter is how much of the arm's accuracy rests on order at all, and for Korean that is
+−3.19 LAS against Latin's −17.44. Korean is rigidly head-final (`subj` 98.4 %, `comp:obj` 97.1 %
+pre-head), so the only free dimension is sibling order in the preverbal field, and even that is
+sharply skewed (`subj` before `comp:obj` 96.1 %). There was never 17 points of brittleness to
+recover, and an augmenter cannot return more than the sensitivity it removes.
+
+⚠ **Measure the sensitivity with a transform that changes ONLY what you mean.** The first prototype
+put Korean's figure at −5.1 LAS, which would have made this look twice as promising as it is. It was
+also moving punctuation (a subtree swap of unequal lengths shifts every mark between them) and
+re-linearising non-projective sentences (which projectivises them, silently rewriting the
+`||`-suffixed labels pseudo-projective encoding derives from crossing arcs). Constrained to sibling
+order alone, the figure is −3.19. Same species of error as the two-harness comparisons above: the
+number was real, it just measured something other than the thing named.
+
+The remaining case for it is regularisation on a small treebank — ko trains on 56 687 tokens, the
+smallest in the set — and that case is refuted here rather than merely unsupported: if the augmenter
+were acting as a regulariser the natural-order column would rise, and it falls.
+`configs/config_ko_order.cfg` is kept for input that actually is scrambled, where the trade runs the
+other way.

@@ -58,6 +58,13 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            "sud_analyser_embed.py",
            # registers sud.LemmaVecEmbed.v1 (distributional lemma vectors as a block)
            "sud_lemmavec_embed.py",
+           # registers sud.KoAnalyserEmbed.v1 (the morphemes an eojeol hides — first/last morpheme
+           # hash columns plus a tagset multi-hot, from mecab-ko at runtime). Importing it must not
+           # need the analyser: `ko_analyser` loads its backend lazily, so a machine without
+           # mecab-ko still registers the architecture and fails only if an arm actually uses it.
+           "sud_ko_embed.py",
+           # registers sud.ko_order_variants.v1 (pre-head sibling permutation for ko)
+           "ko_order.py",
            # registers sud.WarmStartTagger.v1 (start a conditioned tagger AS the released one)
            "warm_start_tagger.py",
            # registers sud.CharSegTokenizer.v1 — the treebank-trained character segmenter used as

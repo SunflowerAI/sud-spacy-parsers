@@ -77,7 +77,11 @@ hyphenated reduplications (`Argumen-argumen` → 3 tokens) that lowercase forms 
 
 ## Korean
 
+**Korean has its own file now: `docs/korean.md`.** The eojeol tokenisation, the 34.5 % of test
+tokens that are unseen strings, the analyser channel that reaches their stems, and the word-order
+augmenter all live there. What stays here is the one thing that reads as a metric and is not:
+
 The eojeol arm reads the original `assets_ko/SUD_Korean-GSD`, whose FEATS is 4.7 % populated — so its
-`morph_acc` 95.36 is ~the base rate for predicting empty and says nothing. POS 83.05 / lemma 78.30
-are real.
+`morph_acc` 95.36 is ~the base rate for predicting empty and says nothing (`morph_micro_r` 0.15 is
+the honest figure). POS 83.05 / lemma 78.30 are real.
 

@@ -29,6 +29,21 @@ from spacy.training.example import Example
 from spacy.util import registry
 
 
+@registry.readers("sud.ShuffledCorpus.v1")
+def create_shuffled_reader(path, gold_preproc: bool = False, max_length: int = 0, limit: int = 0,
+                           augmenter=None, shuffle: bool = False):
+    """``spacy.Corpus`` exactly, with ``shuffle`` exposed — which ``spacy.Corpus.v1`` does not.
+
+    Only an augmented run needs it, and it needs it for a reason that does not announce itself:
+    ``create_train_batches`` shuffles the example list ONLY when ``max_epochs >= 0``, and an
+    augmenter that must resample every epoch requires ``max_epochs = -1`` (CLAUDE.md hazard 9). So
+    on the branch an augmented arm takes, the training loop stops shuffling, and the reader has to
+    do it. `spacy.Corpus` has always supported this; only its registry wrapper omits the argument.
+    """
+    return Corpus(path, gold_preproc=gold_preproc, max_length=max_length, limit=limit,
+                  augmenter=augmenter, shuffle=shuffle)
+
+
 @registry.readers("sud.GoldTokCorpus.v1")
 def create_gold_tok_reader(path, max_length: int = 0, limit: int = 0, augmenter=None,
                            shuffle: bool = False):
