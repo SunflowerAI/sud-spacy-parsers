@@ -243,6 +243,37 @@ first group but is predicting the morphologiser's labels — sa's XPOS is a copy
 tokens in both halves. So quote the DCS size against `pos_acc`/`morph_acc`/`lemma_acc` and the
 syntax size against UAS/LAS; a dataset figure for this arm is meaningless without saying which.
 
+**BUILD PROVENANCE — read this before rebuilding anything.** sa has more derived corpora than any
+other arm (35 `corpus_sa_*` directories) and several look interchangeable and are not. What actually
+feeds what:
+
+| corpus | built by | feeds |
+|---|---|---|
+| `corpus_sa_csl_mwt` | `rebuild_sa_csl_mwt.sh` → `restructure_sa_csl.py` **`--forms dcs`** | the base/dev arms |
+| `corpus_sa_unsandhi` | `restructure_sa_csl.py` **`--forms csl`** → `*.cslforms.conllu` → `make_unsandhi_corpus.py` | `sud_unsandhi` |
+| `corpus_sa_mwt_rl2_norm_new` | the rl2 subtype relabel + `make_norm_corpus.py` | **the RELEASED parser** |
+
+The **two `--forms` modes are the trap**. `dcs` writes an MWT-internal member unsandhied and strips
+the CSL marks; `csl` keeps the verbatim de-CSLized piece, marks and sandhi included. So the same
+sentence is `kṛśānām` in one and `kṛśānāṃ` in the other, `upadadhīta` versus `ôpadadhīta`. Rebuilding
+`corpus_sa_unsandhi` from the `csl_mwt` files looks right, runs clean, and silently produces a corpus
+31 107 lines different from the one the released transducer was trained on. The tell is the CSL
+notation in the FORM column; the check is that the `.spacy` files are authoritative and can be
+compared against directly (`DocBin.get_docs` → token texts), which is how this was settled.
+
+**Two stages are hand-run and recorded nowhere**, so budget for reverse-engineering: the `_new`
+regeneration of `corpus_sa_mwt_rl2_new` (19 Aug, the UFAL-leak-fixed split — Vedic train 161 959 +
+UFAL **train half** 1 349 = 163 308 tokens, UFAL test held out), and the construction of
+`data_samhita/train_ortho.jsonl`. The CSLiser's *invocation* IS recorded, in
+`train_samhita_ortho.log`: 386 260 train rows, `dev_ortho.jsonl` 6 000, width 128 depth 8, best at
+epoch 10. Its *training set* is not.
+
+The released parser is `training_sa_mp2_sub_s1/model-best` (`SA_BASE` in `package_sud.sh`), from
+`configs/config_sa_morphparse2.cfg` at **seed 1** of the three-seed sweep in `queue_sa_subtype.sh`.
+That config **freezes tok2vec/tagger/morphologizer/lemmatizer** and sources them from
+`training_sa_mt2_analyser_s1/model-best`, so a corpus change reaches only the parser unless those
+are retrained too.
+
 **The released arm is JOINT MULTI-TASK**, breaking the freeze recipe every other arm uses:
 
     metric      3 encoders   1 encoder      metric      3 encoders   1 encoder
