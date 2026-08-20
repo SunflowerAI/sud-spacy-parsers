@@ -25,6 +25,14 @@ done
 $PY scripts/restructure_sa_csl.py "$UFAL/sa_ufal-sud-test.csl.conllu" \
                                   "$UFAL/sa_ufal-sud-test.csl_mwt.conllu"
 
+# XPOS is the UPOS on every sa token, in all three sources — with one cell in UFAL that arrives
+# holding a FEATS value shifted one field left. It has to be fixed HERE, before the convert:
+# `spacy convert` reads XPOS into `token.tag_`, so leaving it makes `Compound=Yes` a tagger LABEL,
+# which is how it reached the released tagger the first time. Idempotent, XPOS column only; a
+# comment telling the next person to run it by hand is not the fix, so the driver runs it.
+$PY scripts/normalise_sa_xpos.py "$VED"/sa_vedic-sud-{train,dev,test}.csl_mwt.conllu \
+                                 "$UFAL/sa_ufal-sud-test.csl_mwt.conllu"
+
 mkdir -p "$CORP"
 # UFAL goes wholly into TRAINING (it is the only classical prose available and is tiny beside
 # Vedic); Vedic dev/test stay held out.
