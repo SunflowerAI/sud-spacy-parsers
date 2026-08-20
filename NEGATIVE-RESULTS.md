@@ -1081,3 +1081,41 @@ smallest in the set — and that case is refuted here rather than merely unsuppo
 were acting as a regulariser the natural-order column would rise, and it falls.
 `configs/config_ko_order.cfg` is kept for input that actually is scrambled, where the trade runs the
 other way.
+
+
+## Retraining sa for a six-token annotation fix: no effect, and one seed says otherwise by 3 LAS
+
+`sa_compound_rule.py` recovers six compound members the treebanks left unmarked (see
+`docs/sanskrit.md`). Exactly ONE of them lands in the released parser's training corpus — 1 token in
+163 308 — and the dev and test corpora come out **byte-identical**, so there is no mechanism by which
+the fix can move any parser metric. It was retrained anyway, three seeds, to find out what a
+provably-null change measures as.
+
+    UFAL eval LAS    released 39.31 / 41.48 / 40.67  mean 40.49
+                     fixed    42.53 / 38.48 / 39.59  mean 40.20     Δ -0.29
+    Vedic test LAS   released 45.53 / 45.31 / 45.56  mean 45.47
+                     fixed    45.39 / 45.40 / 45.84  mean 45.54     Δ +0.07
+    UFAL holdout LAS released 28.09 / 32.81 / 35.79  mean 32.23
+                     fixed    31.71 / 31.97 / 31.48  mean 31.72     Δ -0.51
+
+The means say what the arithmetic already said: nothing. **The seeds do not.** On the 1 843-token
+UFAL eval the released sweep spans 2.17 LAS and the fixed sweep 4.05; seed 1 alone reads
+41.48 → 38.48, a 3.00-LAS "regression" from a one-token change. Had this shipped on seed 1 — which
+is what matching the released procedure and selecting on the 494-token holdout both indicate — the
+README's headline would have fallen three points for a reason that does not exist. Same shape as the
+yue rebuild that looked 2.5 LAS down on one seed and spanned 6.89 across four.
+
+**So the fix was NOT released.** It lives in the corpora and the build scripts and lands at the next
+genuine sa rebuild, the same disposition `normalise_sa_xpos.py` records for the XPOS cell — which is
+the same token, `dharma` in `dharmopārjitabhūrivibhavo`. The arms are kept as
+`training_sa_mp2_sub_s{0,1,2}_fix/` on `corpus_sa_mwt_rl2_norm_new_fix/` so nobody re-runs this.
+
+**The general lesson: a corpus delta small enough to reason about exactly is still not small enough
+to retrain on one seed.** Where the change is provably null, the honest report is the seed SPREAD,
+not the draw — and where a released arm was itself one draw, comparing a new single seed against it
+is comparing against an unknown position in that spread. sa's UFAL sets are 494 and 1 843 tokens, so
+they are the wrong instrument for anything under a couple of LAS.
+
+The MISC layer was re-measured on the candidate base per standing hazard 5: Idiom F 56.25 → 55.50,
+InIdiom 61.17 → 59.80, `sud_reported_rule` unchanged at 68.79. All still above their ship bars, none
+improved — more of the same noise, and another reason the release bought nothing.
