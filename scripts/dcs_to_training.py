@@ -30,6 +30,10 @@ import argparse
 import collections
 import glob
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sa_compound_rule  # noqa: E402
 
 DROP_FEATS = ("Formation",)
 UPOS_FIX = {"CONJ": "CCONJ"}
@@ -54,6 +58,7 @@ def fix_feats(feats):
 
 def convert(files, out_path):
     stat = collections.Counter()
+    suspects = []
     with open(out_path, "w", encoding="utf-8") as out:
         for path in files:
             comments, rows = [], []
@@ -61,31 +66,66 @@ def convert(files, out_path):
                 line = line.rstrip("\n")
                 if not line.strip():
                     if rows:
-                        emit(out, comments, rows, stat)
+                        emit(out, comments, rows, stat, suspects)
                     comments, rows = [], []
                 elif line.startswith("#"):
                     comments.append(line)
                 else:
                     rows.append(line.split("\t"))
             if rows:
-                emit(out, comments, rows, stat)
+                emit(out, comments, rows, stat, suspects)
     print(f"-> {out_path}")
     for k, v in stat.most_common():
-        print(f"  {k:14s} {v}")
+        print(f"  {k:16s} {v}")
+    for sid, tid, form, upos, why in suspects:
+        print(f"  \u26a0 {sid} token {tid}: {form} ({upos}) stamped Compound=Yes, but {why}")
 
 
-def emit(out, comments, rows, stat):
-    toks = [c for c in rows if not ("-" in c[0] and c[0].split("-")[0].isdigit())]
+def is_range(tid):
+    return "-" in tid and tid.split("-")[0].isdigit()
+
+
+def stamp_implicit_compounds(rows, stat, suspects, sid):
+    """Add `Compound=Yes` to every non-final MWT member that is a bare nominal. Mutates `rows`.
+
+    DCS marks a compound member with the pseudo-case `Case=Cpd` on 780 176 of them, which
+    `fix_feats` has already renamed by the time this runs — so what is left here are the members
+    it did not mark at all. The rule, and why "no morphological features" is not the same test as
+    "is a bare stem", are in `sa_compound_rule.py`. What that buys here is one nāmāvalī passage
+    whose FEATS were never filled in: three real members (`svasti-daḥ`, `bhāga-karaḥ`,
+    `sarva-dehinām`) recovered, and the four `X-aḥ + ca` sandhi joins beside them left alone,
+    because `ca` cannot end a compound.
+    """
+    by_id = {int(c[0]): c for c in rows if not is_range(c[0]) and "." not in c[0]}
+    for c in rows:
+        if not is_range(c[0]):
+            continue
+        a, b = (int(x) for x in c[0].split("-"))
+        last = by_id.get(b)
+        if last is None or not sa_compound_rule.can_end_compound(last[3], last[5]):
+            continue
+        for i in range(a, b):
+            t = by_id.get(i)
+            if t is None or not sa_compound_rule.is_implicit_member(t[3], t[5]):
+                continue
+            t[5] = sa_compound_rule.add_compound(t[5])
+            stat["compound_added"] += 1
+            if sa_compound_rule.looks_inflected(t[1]):     # tripwire; expected never to fire
+                stat["compound_suspect"] += 1
+                suspects.append((sid, t[0], t[1], t[3], "the FORM still shows a case ending"))
+
+
+def emit(out, comments, rows, stat, suspects):
+    toks = [c for c in rows if not is_range(c[0])]
     if not toks or any(c[1] in ("_", "") for c in toks):
         stat["skipped"] += 1
         return
     stat["sentences"] += 1
-    for c in comments:
-        out.write(c + "\n")
+    fixed = []
     for c in rows:
         c = list(c)
-        if "-" in c[0] and c[0].split("-")[0].isdigit():
-            out.write("\t".join(c) + "\n")      # MWT range line: passes through
+        if is_range(c[0]):
+            fixed.append(c)                     # MWT range line: passes through
             continue
         c[3] = UPOS_FIX.get(c[3], c[3])
         c[5] = fix_feats(c[5])
@@ -94,6 +134,14 @@ def emit(out, comments, rows, stat):
         c[7] = "root" if c[0] == "1" else "dep"
         c[8] = "_"
         stat["tokens"] += 1
+        fixed.append(c)
+    # after `fix_feats`, so the test sees the project's own `Compound=Yes` spelling on the members
+    # DCS did mark, and only the unmarked ones reach the rule
+    sid = next((c.split("=", 1)[1].strip() for c in comments if c.startswith("# sent_id")), "?")
+    stamp_implicit_compounds(fixed, stat, suspects, sid)
+    for c in comments:
+        out.write(c + "\n")
+    for c in fixed:
         out.write("\t".join(c) + "\n")
     out.write("\n")
 

@@ -35,32 +35,43 @@ import unicodedata
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from apply_vedic_sandhi import generate                      # noqa: E402
+from conllu_misc import misc_dict                            # noqa: E402
+import sa_compound_rule                                      # noqa: E402
 from make_samhita_pairs import csl_to_pairs, expand          # noqa: E402
+
+
+def _toks(rows):
+    """(word, feats) per surface token, after recovering unmarked compound members.
+
+    The MWT range lines are kept in `rows` and dropped only here, because `sa_compound_rule` needs
+    them: the rule is about a token's POSITION inside a multiword token. Skipping them at read time
+    is what let this derivation and `dcs_to_training.py` disagree about five DCS members — the
+    CSLiser would have learned a word break exactly where the parser's corpus says compound.
+    """
+    sa_compound_rule.stamp_rows(rows)
+    return [(misc_dict(c[9]).get("Unsandhied") or c[1], c[5])
+            for c in rows if not sa_compound_rule.is_range(c[0]) and "." not in c[0]]
 
 
 def sentences(path):
     """Yield (sent_id, dcs_text, words, feats, bound) per sentence."""
     sid = text = None
-    toks = []
+    rows = []
     for line in open(path, encoding="utf-8"):
         line = line.rstrip("\n")
         if not line.strip():
-            if text is not None and toks:
-                yield sid, text, toks
+            if text is not None and rows:
+                yield sid, text, _toks(rows)
             sid = text = None
-            toks = []
+            rows = []
         elif line.startswith("# text = "):
             text = line.split("= ", 1)[1].strip()
         elif line.startswith("# sent_id"):
             sid = line.split("=", 1)[1].strip()
         elif not line.startswith("#"):
-            c = line.split("\t")
-            if "-" in c[0] and c[0].split("-")[0].isdigit():
-                continue
-            misc = dict(kv.split("=", 1) for kv in c[9].split("|") if "=" in kv)
-            toks.append((misc.get("Unsandhied") or c[1], c[5]))
-    if text is not None and toks:
-        yield sid, text, toks
+            rows.append(line.split("\t"))
+    if text is not None and rows:
+        yield sid, text, _toks(rows)
 
 
 def build(toks):
@@ -68,8 +79,10 @@ def build(toks):
     words = [unicodedata.normalize("NFC", w) for w, _ in toks]
     feats = [f for _, f in toks]
     # DCS marks a non-final compound member with Case=Cpd — the same role Vedic's Compound=Yes
-    # plays, and what `generate` wants as its `internal` mask.
-    bound = ["Case=Cpd" in (feats[k] or "") for k in range(len(words) - 1)]
+    # plays, and what `generate` wants as its `internal` mask. Tested through `has_compound`, which
+    # accepts BOTH spellings: the members `sa_compound_rule` recovers are stamped `Compound=Yes`,
+    # and a `Case=Cpd`-only test would silently leave them as word boundaries here.
+    bound = [sa_compound_rule.has_compound(feats[k]) for k in range(len(words) - 1)]
     pieces = generate(words, feats, bound)
     dividers = ["-" if bound[k] else " " for k in range(len(words) - 1)]
     csl = "".join(p + (dividers[i] if i < len(dividers) else "")

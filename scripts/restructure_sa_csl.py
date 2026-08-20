@@ -42,6 +42,7 @@ import sys
 import unicodedata
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from conllu_misc import misc_get, misc_set                        # noqa: E402
 from external_sandhi import COALESCE_MARKS, COALESCE_SURFACE      # noqa: E402
 
 MARKERS = ("'", '"')
@@ -61,23 +62,6 @@ def blocks(path):
             tk.append(line.split("\t"))
     if cm or tk:
         yield cm, tk
-
-
-def misc_get(misc, key):
-    if misc == "_":
-        return None
-    for kv in misc.split("|"):
-        if kv.startswith(key + "="):
-            return kv.split("=", 1)[1]
-    return None
-
-
-def misc_set(misc, key, value):
-    """Set/remove a MISC key, keeping the rest and CoNLL-U's `_` convention."""
-    parts = [kv for kv in (misc.split("|") if misc != "_" else []) if not kv.startswith(key + "=")]
-    if value is not None:
-        parts.append(f"{key}={value}")
-    return "|".join(parts) if parts else "_"
 
 
 def lead_mark(word):

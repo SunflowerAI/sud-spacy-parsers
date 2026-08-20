@@ -22,15 +22,11 @@ but not where the value is.
 """
 import argparse
 import collections
+import os
+import sys
 
-
-def misc_get(misc, key):
-    if misc == "_":
-        return None
-    for kv in misc.split("|"):
-        if kv.startswith(key + "="):
-            return kv.split("=", 1)[1]
-    return None
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from conllu_misc import misc_get  # noqa: E402
 
 
 def process(in_path, out_path):
@@ -46,13 +42,17 @@ def process(in_path, out_path):
                 out.write(line + "\n")                       # MWT range line: untouched
                 continue
             gold = misc_get(c[9], "Unsandhied")
-            if gold is None or gold == "_" or c[1] == "_":
+            if not gold or gold == "_" or c[1] == "_":
                 # No usable supervision. `_` must NOT be written through: spaCy's CoNLL-U converter
                 # keeps it as a LITERAL lemma rather than treating it as missing, so the transducer
                 # would be taught `FORM -> "_"` and duly predicts it (measured: 5 043 tokens
                 # poisoned this way, and a literal `_` turning up in tokeniser output). Fall back to
                 # identity, which is correct for the elided `_` tokens and harmless elsewhere —
                 # and keep genuinely unsupervised treebanks out of the corpus entirely.
+                # An EMPTY `gold` is caught by the same branch, and must be: writing it would leave
+                # column 3 empty, which is a malformed row rather than an absent lemma. Before
+                # `conllu_misc` that was the daṇḍa's fate on every line — `Unsandhied=|` split on
+                # the separator and came back as `""`.
                 c[2] = c[1]
                 stat["no_gold"] += 1  # target = FORM (identity), not a literal `_`
             else:

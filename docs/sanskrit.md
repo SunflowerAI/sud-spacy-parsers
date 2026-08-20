@@ -111,6 +111,39 @@ pass pre-tokenised input — exact on real text (19 584/19 584, precision 1.0000
 pipeline that already gets the feat from the reference (it overwrites 1 019 gold values with its own
 737).
 
+**Compound membership the annotator left implicit (`sa_compound_rule.py`).** A samāsa member is in
+STEM form — the final member carries the compound's case, number and gender and every member before
+it is morphologically bare — so inside a multiword token, a non-final member of a nominal-capable
+word class (NOUN/PROPN/DET/NUM/ADJ/PRON, **or a participle**) carrying **no morphological features
+proper** is a compound member whether or not the treebank says so. Six tokens across UFAL and DCS:
+`dharma` in `dharmopārjitabhūrivibhavo`; `svasti-daḥ`, `bhāga-karaḥ` and `sarva-dehinām` in one DCS
+nāmāvalī whose FEATS were never filled in; and the two participles `vṛkta-barhiṣam` (the Rigvedic
+bahuvrīhi) and `svayaṃvara-āgatā-tyāgāt`. `dharma` is the one that proves the rule rather than
+assuming it — the treebank DID record its membership, in the **XPOS** column, one field left of
+where it belongs; `normalise_sa_xpos.py` cleaned that cell and deliberately left FEATS alone, so the
+only record of it was deleted and the compound has been a member short ever since, rendered
+`dharm' ôpārjita-…` (a separate coalesced word) instead of hyphen-joined. The two scripts now
+compose: the rule puts the fact in FEATS, `normalise_sa_xpos.py` clears the stale XPOS copy.
+
+Three things about it are load-bearing. **`VerbForm` is a POS SUBTYPE, not a morphological feature.**
+It says which kind of word this is — participle, converb, finite verb — not how the word is
+inflected, so a participle whose only FEATS is `VerbForm=Part` is morphologically bare and the rule
+admits it; it is also the only thing identifying a participle at all, since UFAL and DCS both write
+one as `VERB` + `VerbForm=Part` rather than giving it a UPOS. Counting it as morphology silently
+costs both participles above — and `add_compound` has to KEEP it when it stamps, or the membership
+is recorded by throwing the participle away.
+**"No morphological features" is not the same test as "is a bare stem"** where morphology is
+unannotated, so the rule also requires the multiword token's FINAL member to be able to END a
+compound — a nominal or a participle, never a conjunction, a particle or a finite verb. That is the
+same premise read from the other end, and it is what the numbers turn on: without it the rule fires
+on 11 tokens of which only 6 are right, the other 5 being four `X-aḥ + ca` sandhi joins
+(visarga-final nominatives with empty FEATS) and UFAL's `dūra` in `dūrādevāśṛṇot`, where the
+orthographic word is `dūrāt eva aśṛṇot`. With it: 6 fired, 6 right.
+**And it belongs on the SOURCE treebanks' own multiword tokens, never on the orthographic groups
+`restructure_sa_csl.py` builds** — those group anything external sandhi fused, and a fused group can
+perfectly well end in a nominal, so the guard does not save it: run downstream it stamps `kiṃca`
+45 times over, in `kiṃc' âtr' ânnam` and friends.
+
 **Per-component affix windows (`sud.MultiHashEmbedAffix.v1`, `sud_affix_embed.py`).** `MultiHashEmbed`
 plus one hash-embedded table per configured affix length, computed from the token string in the
 forward pass — **exactly equivalent to the stock layer when no affix is configured** (verified
@@ -140,6 +173,21 @@ edit-tree components coexist. 28.9 % of training tokens need a genuine edit, so 
 majority-class win. **Known limit:** it predicts from the FORM the tokeniser produced, so it cannot
 repair a token already de-sandhied wrongly (the ~4 % MWT-internal residue); standalone tokens, 77 %
 of the total, are exact by construction, so the compounding is bounded.
+
+**The daṇḍa IS the MISC separator, so its own gold cannot be read with `split("|")`
+(`scripts/conllu_misc.py`).** `Unsandhied` lives in MISC, CoNLL-U separates MISC attributes with
+`|`, and the Sanskrit daṇḍa is that same character — so a daṇḍa token's padapāṭha form is written
+`Unsandhied=|`, and every naive reader in the sa chain returned the EMPTY STRING for it. Because
+`Unsandhied` sorts last, the pipe that swallowed the value was the one immediately before the
+newline. The failure was not symmetric with a missing value: `make_unsandhi_corpus.py` parks the
+value in the LEMMA column, so an empty read wrote an **empty column 3** — a malformed row, not an
+absent lemma — and scored the daṇḍa as a token "needing an edit", i.e. supervision to DELETE it.
+`sa_csl_prep.set_misc` was worse in the other direction: it dropped the empty item on rewrite, so a
+pass that only meant to set `SpaceAfter` turned `Unsandhied=|` into `Unsandhied=` permanently. An
+empty MISC item is not legal UD, so it can only have come from a literal `|` ending the previous
+value; `conllu_misc` folds it back and every sa reader and rewriter now goes through it. Verified
+byte-identical on every sa/UFAL/DCS corpus in the repo — none of which carries a daṇḍa
+`Unsandhied` today, which is exactly why nothing complained.
 
 **The CSLiser (`sa_presegment.py`, `train_samhita.py`).** A character tagger turning continuous or
 spaced sandhied text into CSL. Gold data is synthesised, not annotated: CSL and the true sandhied

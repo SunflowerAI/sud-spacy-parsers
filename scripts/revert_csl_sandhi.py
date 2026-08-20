@@ -17,6 +17,9 @@ import os
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _HERE)
+from conllu_misc import misc_has  # noqa: E402
+
 _spec = importlib.util.spec_from_file_location("sa_tokenizer", os.path.join(_HERE, "sa_tokenizer.py"))
 sa_tokenizer = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(sa_tokenizer)
@@ -27,8 +30,7 @@ def _rebuild_text(tok_cols):
     parts = []
     for cols in tok_cols:
         parts.append(cols[1])
-        misc = cols[9].split("|") if len(cols) > 9 else []
-        if "SpaceAfter=No" not in misc:
+        if not (len(cols) > 9 and misc_has(cols[9], "SpaceAfter=No")):
             parts.append(" ")
     return "".join(parts).strip()
 

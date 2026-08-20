@@ -74,6 +74,7 @@ import re
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from conllu_misc import misc_dict  # noqa: E402
 import seg_code  # noqa: E402,F401
 import spacy  # noqa: E402
 from spacy.tokens import Doc  # noqa: E402
@@ -123,7 +124,7 @@ def _insert_danda(rows, roots, spans, linked):
             unit_of[i] = ui
     marks = {}                      # 0-based index of the row a mark FOLLOWS -> (form, root idx)
     for i, t in enumerate(real):
-        misc = dict(kv.split("=", 1) for kv in t[9].split("|") if "=" in kv)
+        misc = misc_dict(t[9])
         kind = misc.get("Punctuation")
         if not kind:
             continue
@@ -233,7 +234,7 @@ def main():
                 doc = Doc(nlp.vocab, words=[t[1] for t in real_out],
                           spaces=[True] * (len(real_out) - 1) + [False])
                 for tok, t in zip(doc, real_out):
-                    misc = dict(kv.split("=", 1) for kv in t[9].split("|") if "=" in kv)
+                    misc = misc_dict(t[9])
                     tok.norm_ = misc.get("Unsandhied") or t[1]
                     if misc.get("Compound") or "Compound=Yes" in t[5]:
                         tok.set_morph("Compound=Yes")

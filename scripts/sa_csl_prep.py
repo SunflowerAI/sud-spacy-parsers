@@ -49,6 +49,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
+import sa_compound_rule  # noqa: E402
+from conllu_misc import misc_items, misc_join  # noqa: E402
 from retokenize import read_conllu  # noqa: E402
 from sa_tokenizer import normalise  # same Devanagari->IAST + accent handling as runtime
 
@@ -195,21 +197,54 @@ def carve(kids, S):
 
 
 # --------------------------------------------------------------------------- #
+# Compound membership the annotation left implicit
+# --------------------------------------------------------------------------- #
+def stamp_implicit_compounds(toks, mwts, sid, stamped, suspect):
+    """Add `Compound=Yes` to every non-final MWT member that is a bare nominal. Mutates `toks`.
+
+    The rule and the reasoning behind it live in `sa_compound_rule.py`. This runs BEFORE
+    `rewrite_sentence`, so the recovered membership reaches both the FEATS column that is written
+    out and the hyphen-vs-coalescence decision that renders the CSL surface — which is the half
+    that matters, since everything downstream reads the hyphen rather than the feature.
+
+    Whole multiword tokens are skipped when their final member could not end a compound (clause
+    (c)); anything still stamped that trips `looks_inflected` goes on `suspect`, which is a
+    tripwire for the next annotation gap rather than an expected outcome.
+    """
+    by_id = {int(t.id): t for t in toks}
+    for start, (end, _form, _misc) in mwts.items():
+        last = by_id.get(end)
+        if last is None or not sa_compound_rule.can_end_compound(last.upos, last.feats):
+            continue
+        for i in range(start, end):
+            t = by_id.get(i)
+            if t is None or not sa_compound_rule.is_implicit_member(t.upos, t.feats):
+                continue
+            t.feats = sa_compound_rule.add_compound(t.feats)
+            stamped.append((sid, t.id, t.form, t.upos))
+            if sa_compound_rule.looks_inflected(t.form):
+                suspect.append((sid, t.id, t.form, "the FORM still shows a case ending"))
+
+
+# --------------------------------------------------------------------------- #
 # CoNLL-U rewriting
 # --------------------------------------------------------------------------- #
 def set_misc(misc, drop=("Translit", "LTranslit"), space_after=None):
-    """Return MISC with stale translit fields dropped and SpaceAfter forced if given."""
+    """Return MISC with stale translit fields dropped and SpaceAfter forced if given.
+
+    Attributes come through `conllu_misc.misc_items`, not `split("|")`: a daṇḍa's `Unsandhied=|`
+    ends in the separator, so the naive split leaves an empty item that this function would drop —
+    silently deleting a value it was never asked to touch.
+    """
     keep = []
-    for f in misc.split("|"):
-        if f in ("", "_"):
-            continue
+    for f in misc_items(misc):
         k = f.split("=", 1)[0]
         if k in drop or k == "SpaceAfter":
             continue
         keep.append(f)
     if space_after is False:
         keep.append("SpaceAfter=No")
-    return "|".join(keep) if keep else "_"
+    return misc_join(keep)
 
 
 def rewrite_sentence(comments, toks, mwts, combined, overrides, review, sid):
@@ -337,6 +372,7 @@ def rebuild_text(toks):
 
 def process(in_path, out_path, review_path, overrides):
     review = []
+    stamped, suspect = [], []
     n_sent = n_mwt = 0
     with open(out_path, "w", encoding="utf-8") as out:
         for comments, toks, mwts in read_conllu(in_path):
@@ -344,6 +380,7 @@ def process(in_path, out_path, review_path, overrides):
             n_mwt += len(mwts)
             sid = next((c.split("=", 1)[1].strip()
                         for c in comments if c.startswith("# sent_id")), "?")
+            stamp_implicit_compounds(toks, mwts, sid, stamped, suspect)
             combined = {st: to_iast(f) for st, (e, f, m) in mwts.items()}
             ranges = rewrite_sentence(comments, toks, mwts, combined, overrides, review, sid)
             # write: comments (with rebuilt # text), then interleaved range + token rows
@@ -373,6 +410,13 @@ def process(in_path, out_path, review_path, overrides):
                 r.write("\t".join(row) + "\n")
     print(f"{in_path}: {n_sent} sentences, {n_mwt} MWTs -> {out_path}"
           f"  ({len(review)} flagged for review)", file=sys.stderr)
+    print(f"  Compound=Yes recovered on {len(stamped)} bare-nominal non-final MWT member(s)",
+          file=sys.stderr)
+    for sid, tid, form, upos in stamped:
+        print(f"    {sid} token {tid}: {form} ({upos})", file=sys.stderr)
+    for sid, tid, form, why in suspect:
+        print(f"  ⚠ {sid} token {tid}: {form} — {why}, so this is not a samāsa member; "
+              f"the rule fires anyway", file=sys.stderr)
 
 
 def load_overrides(path):

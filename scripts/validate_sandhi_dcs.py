@@ -27,6 +27,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import external_sandhi as ES          # noqa: E402
+from conllu_misc import misc_dict     # noqa: E402
 from apply_vedic_sandhi import generate  # noqa: E402
 
 
@@ -82,7 +83,7 @@ def read(path, limit=0):
                 p = line.split("\t")
                 if "-" in p[0] or "." in p[0]:
                     continue
-                misc = dict(kv.split("=", 1) for kv in p[9].split("|") if "=" in kv)
+                misc = misc_dict(p[9])
                 sent.append((misc.get("Unsandhied") or p[1], p[5]))
     if sent and text:
         yield text, sent
