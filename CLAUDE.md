@@ -110,8 +110,13 @@ evidence**. Which release figures are stale, and on which single field:
 release; the other eight are at v0.2.0 on `v0.2.0`. Published on the GitHub Release, not in git.
 
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
-which is why the four above took a version bump instead. Most recently clobbered: **lzh and yue,
-both on 2026-08-19**, holding new bytes under an unchanged 0.2.0. **This paragraph goes stale
+which is why the four above took a version bump instead. Most recently clobbered: **zh, id and lzh
+at 0.2.0 and ta at 0.1.0, all on 2026-08-22 at 19:47 UTC** — the `SEG_BATCH` memory cap in
+`char_seg_tokenizer.py` (and `ta_tokenizer.py`), a SOURCE-ONLY change in which every model byte is
+unchanged: each wheel was rebuilt by unpacking the released asset, editing the bundled file and
+repacking, so RECORD and those two files are the ONLY entries that differ, and all four reproduce
+their previous token stream and full-pipeline parse digest exactly. Earlier the same day, zh alone
+took the traditional jieba dictionary (tokeniser only); before that lzh and yue on 2026-08-19. **This paragraph goes stale
 faster than anything else in this file** (sa shipped 0.3.0 within a day of it last being written),
 so re-derive it rather than trusting it — the asset list, with the upload times that reveal a
 clobber, is one command:
@@ -143,7 +148,9 @@ with a native-Japanese prompt**. zh and ko ship **no** SUD MISC layer at all.
 ## Tamil and Telugu (`docs/dravidian.md`)
 
 **RELEASED 2026-08-19 on the `v0.3.0` release, both at 0.1.0**: `ta_sud_ttb_mwtt` (TTB + the
-test-only MWTT, split 80/10/10) and `te_sud_mtg`. Both **CC BY-NC-SA 3.0**. Verified after upload by
+test-only MWTT, split 80/10/10) and `te_sud_mtg`. ta was **re-clobbered at 0.1.0 on 2026-08-22**
+for the `SEG_BATCH` cap — source only, every model byte unchanged; te was not touched, since its
+lookup splitter runs no segmenter. Both **CC BY-NC-SA 3.0**. Verified after upload by
 hashing `parser/model` and `tok2vec/model` out of the DOWNLOADED assets, then installing from the
 public release URL into a clean target with `scripts/` off `sys.path`.
 
@@ -254,7 +261,13 @@ value**, not as missing — writing `_` for tokens with no gold taught the sandh
    one style is sampled per document for the whole run and the run looks normal. Use `-1`, add
    `shuffle = true` to the reader (the loop stops shuffling), and collect labels with
    `init_aug_labels.py` — a missing edit-tree label does not raise, it teaches label 0.
-10. **Ask the model rather than assuming its input regime.** A CSLiser trained on spaced text was
+10. **A per-sentence metric cannot see a cost that is linear in the length of the CALL.** Every
+    number in this repo is computed sentence by sentence, so a tokeniser that batched its whole
+    input into one `predict` looked healthy for four languages while costing 10-14 kB per character
+    of the calling string — invisible until someone handed it a book. Peak memory, like `TOK` under
+    `gold_preproc`, is a dimension the scoreboard does not have. Ask what the largest single call a
+    user can make looks like, not what the test set looks like.
+11. **Ask the model rather than assuming its input regime.** A CSLiser trained on spaced text was
     fed space-split chunks for a whole generation (−4.83 F), and a jieba channel asked a different
     question at inference than at training would do the same. Record the regime in the artefact
     (`reads_spaces`, `jieba_t2s` / `jieba_dict` in `vocab.json`) and read it back — and where the

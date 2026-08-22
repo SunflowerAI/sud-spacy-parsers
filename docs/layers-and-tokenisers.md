@@ -40,9 +40,27 @@ keep `--gold-preproc` for fair parser comparison. Relabel decisions are tokenisa
 through transforms rather than re-querying.
 
 **Treebank-trained character segmenters** (`sud.CharSegTokenizer.v1`, `char_seg_tokenizer.py`,
-`make_seg_pairs.py`) now serve zh and id: `sa_presegment`'s character tagger reused verbatim, one
+`make_seg_pairs.py`) now serve zh, id, lzh and ta (the last through `ta_tokenizer.py`, a subclass): `sa_presegment`'s character tagger reused verbatim, one
 rewrite label per character (`=` keep, `= ` word break, `=-` compound break), greedy argmax. The
 wrapper serialises the segmenter and its lexicon beside the weights, so a wheel is self-contained.
+
+⚠ **`__call__` caps its batch at `SEG_BATCH`, and that cap is a correctness fix, not a tuning
+knob.** It used to hand every whitespace chunk of the input to ONE `predict`, and `with_array`
+flattens a batch into a single array, so peak memory was linear in the length of the calling string
+at 10–14 kB per character. Nothing in the treebanks is long enough to show it: a test set arrives
+sentence by sentence. A book does. 320 k characters of the Chinese Union Version peaked at 4,338 MB
+through the released zh wheel and 619 MB through the batched one, and a whole Bible in one call
+wants order 10 GB — which is a segfault natively and a fatal `Maximum call stack size exceeded`
+under Pyodide, where it is reported as a stack overflow and is nothing of the kind. The cap costs
+NO accuracy, and that is a property of the architecture rather than a hope: `build_lex_model` and
+`sa_presegment.build_model` both pad by `window_size * depth`, the full receptive field, so no
+character can read across a row boundary and rows are independent. Verified rather than argued —
+zh, id, lzh and ta each reproduce their released wheel's token stream exactly, and the full-pipeline
+parse digest is unchanged on all four. `ta_tokenizer.py` carries the same loop, since it overrides
+`__call__` to run the segmenter in decomposed space.
+
+⚠ Batching the CHUNK LIST is not the same as slicing the TEXT. Slicing text cuts chunks in half and
+does move the tokenisation — 158,712 tokens becomes 158,726 at an 8 k-character step.
 
 | lang | tokeniser | note |
 |---|---|---|

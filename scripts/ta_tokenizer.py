@@ -44,7 +44,7 @@ from spacy.tokens import Doc
 from spacy.util import registry
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from char_seg_tokenizer import BREAK, CharSegTokenizer  # noqa: E402
+from char_seg_tokenizer import BREAK, SEG_BATCH, CharSegTokenizer  # noqa: E402
 from ta_sandhi import decompose, recompose  # noqa: E402
 
 MARKER = "ta_tokenizer.json"
@@ -90,11 +90,15 @@ class TamilSandhiTokenizer(CharSegTokenizer):
         if self.seg is None:                       # no model: whitespace only, never raise
             return Doc(self.vocab, words=chunks, spaces=trailing)
 
-        # One `predict` per input string, as `CharSegTokenizer.__call__` does and for the same
-        # reason: `with_array` concatenates a batch, so the first character of each row would see
-        # its neighbour instead of zero padding.
+        # Batched at `SEG_BATCH`, exactly as `CharSegTokenizer.__call__` does it, and for the
+        # memory reason recorded there: an unbatched `predict` is linear in the length of the
+        # CALLING STRING at 10-14 kB per character, which is fatal under Pyodide on a book-sized
+        # input. Rows cannot see each other -- `build_lex_model` pads by the full receptive field
+        # -- so the batch size does not touch the output.
         decomposed = [decompose(c) for c in chunks]
-        preds = self.seg.predict(decomposed)
+        preds = []
+        for i in range(0, len(decomposed), SEG_BATCH):
+            preds.extend(self.seg.predict(decomposed[i:i + SEG_BATCH]))
 
         words, spaces = [], []
         for chunk, labels, space in zip(decomposed, preds, trailing):

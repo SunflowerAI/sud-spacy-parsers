@@ -9,13 +9,15 @@ trained tagger is only worth what its tokenisation is worth:
          jieba's own segmentation decision as a second channel (`zh_jieba_feature.py`)
     id   the enclitic split `coarsen_id.py` merges away: 0.9985, 99.91 % of words segmented exactly
 
-All strict whole-token F, scored PER TEXT — which is what `__call__` does, one `predict` per input
-string. Scoring a whole test set in ONE `predict` is not the same thing: `with_array` concatenates
-the batch, so the first character of each row sees its neighbour instead of zero padding. The effect
-is confined to that character (|Δ| 0.81 at position 0, ~0 by position 2), so it is worth 0.27 F on
-zh, where the sentence-initial split is genuinely uncertain, and exactly 0.00 on id/yue/sa. Since
-training batches 32 rows, the ZERO-PADDED path here is the out-of-distribution one; prepending a
-throwaway `。` chunk recovers the 0.27 on zh. Not done — it would change every language's output.
+All strict whole-token F, scored PER TEXT. Which rows share a `predict` call USED to matter:
+`with_array` concatenates the batch, so before `build_lex_model` passed `pad`, the first character
+of each row saw its neighbour instead of zero padding (|Δ| 0.81 at position 0, ~0 by position 2 —
+worth 0.27 F on zh, where the sentence-initial split is genuinely uncertain, and 0.00 on id/yue/sa).
+Both builders now pad by `window_size * depth`, the full receptive field, so no character can read
+across a row boundary and rows are INDEPENDENT. That is what lets `__call__` cap its batch at
+`SEG_BATCH` below without touching a single output token — verified, not assumed: 320 k characters
+of Chinese Union Version give the same 158,712 tokens at batch 64, 512 and unbatched, and the id,
+lzh and ta segmenters agree with themselves the same way.
 
 Boundaries come from the same two-label scheme `make_seg_pairs.py` writes (`=` keep, `= ` break),
 and inference runs per WHITESPACE CHUNK — the model never saw a space, so feeding it one hands the
@@ -32,6 +34,26 @@ from spacy.tokens import Doc
 from spacy.util import registry
 
 KEEP, BREAK = "=", "= "
+
+# How many whitespace chunks go into ONE `predict` call. Not a speed knob -- a MEMORY cap.
+# `__call__` used to hand the whole input to a single `predict`, and `with_array` flattens that
+# batch into one array, so peak memory was linear in the length of the CALLING STRING with a
+# constant of 10-14 kB per character: 320 k characters of the Chinese Union Version peaked between
+# 3,457 and 4,626 MB across runs, so a whole Bible in one call wants order 10 GB and needs more
+# address space than a browser tab has. Under Pyodide that is fatal before it is slow.
+#
+# Batching is output-IDENTICAL rather than an approximation, and that is a property of the
+# architecture, not a hope: both `build_lex_model` and `sa_presegment.build_model` pass
+# `pad=window_size * depth`, which is exactly the receptive field, so `with_array` separates rows
+# by enough zero padding that no character can see across a row boundary. Rows are therefore
+# independent and it cannot matter which call they arrive in. Verified on 320 k characters of CUV:
+# batch 512 and batch 64 both reproduce the unbatched 158,712 tokens byte for byte, at 1,050 MB
+# and 371 MB peak -- and both are FASTER than the single call (9.6 s / 8.9 s against 11.4 s).
+#
+# ⚠ Batching the chunk list is not the same as slicing the TEXT. Slicing text cuts chunks in half
+# and does change the tokenisation (158,712 -> 158,726 at an 8 k-character step). Only the chunk
+# list may be batched.
+SEG_BATCH = 256
 
 
 @registry.tokenizers("sud.CharSegTokenizer.v1")
@@ -126,7 +148,9 @@ class CharSegTokenizer:
         if self.seg is None:                      # no model: whitespace only, never raise
             return Doc(self.vocab, words=chunks, spaces=spaces)
 
-        preds = self.seg.predict(chunks)
+        preds = []
+        for i in range(0, len(chunks), SEG_BATCH):
+            preds.extend(self.seg.predict(chunks[i:i + SEG_BATCH]))
         words, sp = [], []
         for chunk, labels, trailing in zip(chunks, preds, spaces):
             parts = self._split_chunk(chunk, labels)
