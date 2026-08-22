@@ -13,16 +13,28 @@
 #     and never develops a fallback. Per-fold coverage lands at 86.9 % here, matching the simplified
 #     arm's ~87.0 %.
 #
-#  2. jieba IS ASKED ABOUT THE t2s RENDERING (--jieba-t2s). jieba's dictionary is simplified: its
-#     boundary decisions score F 0.8920 on traditional text and 0.9223 on the t2s conversion, which
-#     is what the simplified arm was built on (P 0.9730 / R 0.8793) -- so the whole gap is
-#     vocabulary, not the language. Codes are per character and t2s preserves length (500/500 test
-#     sentences), so the answer transfers by position. The flag is written into the segmenter's
-#     vocab.json and read back at load time, because a channel asked a different question at
-#     inference than at training is the `reads_spaces` trap again.
+#  2. jieba READS A TRADITIONAL DICTIONARY (--jieba-dict), not a converted rendering of the text.
+#     jieba's own dict.txt is simplified, so a traditional arm that asks it directly gets boundary
+#     F 0.8931 -- the defect. The first fix converted the whole chunk (--jieba-t2s, F 0.9236) and
+#     kept the per-character answer, which recovered the vocabulary but left the channel answering
+#     about a DIFFERENT STRING: t2s is many-to-one, so 乾/幹/干 all reach jieba as 干.
+#     build_jieba_trad_dict.py converts jieba's DICTIONARY instead (s2tw -- the same conversion
+#     zh_script applies to incoming simplified input, and GSD's own orthography), so the lookup
+#     reads the traditional text itself. Only the OOV HMM still consults the t2s rendering, because
+#     its emission probabilities are per character and were estimated on simplified text: that one
+#     component is the entire remaining gap (F 0.9203 without it, 0.9237 with). The regime is
+#     written into the segmenter's vocab.json and the dictionary is copied in beside the weights,
+#     because a channel asked a different question at inference than at training is the
+#     `reads_spaces` trap again -- and this one would come back on the wrong VOCABULARY silently.
 #
-# Result: strict whole-token F 0.9242 on the traditional test, against 0.9210 for the simplified
-# segmenter on its own. NB model init is unseeded, so expect a spread of a couple of tenths.
+# Result: the two jieba regimes are a WASH end to end -- ten runs each, mean strict whole-token F
+# 0.9209 (traditional dictionary) against 0.9203 (t2s), sd 0.003, 6/10 seeds favouring the
+# dictionary -- so it is chosen for reading the script the model works in, not for its score.
+# ⚠ MODEL INIT IS UNSEEDED AND THE SPREAD IS WIDER THAN THE EFFECT: 0.9167-0.9268 over twenty
+# traditional-dictionary runs. Select on DEV and quote the mean, never the best test draw. The
+# dev-selected run (dev strict token F 0.9253, unchanged when the pool went from 10 candidates to
+# 20) scores 0.9196 on test; the SUPERSEDED t2s arm the wheel shipped at 0.2.0 scored 0.9242, which
+# is the top of the same spread rather than a better arm.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 PY=.venv/bin/python
@@ -31,7 +43,8 @@ SRC=zh_gsd-sud
 SUF=relabeled_ext
 D=data_seg_zh_trad
 LEX=models/zh_lex_corpus_trad.txt
-OUT=models/zh_seg_jbdec_trad
+OUT=models/zh_seg_jbdict_trad
+JBDICT=models/jieba_dict_trad.txt
 
 mkdir -p "$D"
 for s in train dev test; do
@@ -55,16 +68,23 @@ pathlib.Path(out).write_text("\n".join(sorted(forms)), encoding="utf-8")
 print(f"  lexicon {out}: {len(forms)} types")
 PYEOF
 
+# jieba's dictionary in the script the model works in. Derived from jieba's own, so the channel
+# stays EXTERNAL and needs no jackknifing -- a traditional word list harvested from GSD train would
+# reintroduce exactly the leak --jackknife exists to remove.
+[ -f "$JBDICT" ] || $PY scripts/build_jieba_trad_dict.py -o "$JBDICT"
+
 # Source 0 = the corpus word list, source 1 = jieba's BMES decision. Both channels are 4-valued, so
 # the architecture is the same size as the simplified arm's and the two are comparable.
 $PY -u scripts/sa_presegment_lex.py "$D/train.jsonl" "$D/dev.jsonl" "$OUT" \
     --lexicon "$LEX" "$LEX" --min-lens 1 1 \
-    --jieba-source 1 --jieba-t2s --jackknife 5 \
+    --jieba-source 1 --jieba-dict "$JBDICT" --jackknife 5 \
     --width 64 --depth 6 --epochs 30 2>&1 | grep -vE "prefix dict|Loading model|Prefix dict|pkg_resources|UserWarning|import pkg" | tail -12
 
 # STRICT WHOLE-TOKEN F is the metric, not character accuracy or split-location F: a chunk with one
 # wrong boundary loses two tokens here and one boundary there. eval_zh_seg reads the jieba settings
-# off the model, so it cannot score it with a different channel than it was trained with.
+# off the model -- regime and dictionary both -- so it cannot score it with a different channel
+# than it was trained with, and the `jieba alone` line is that same channel rather than a stock
+# jieba on the raw text (which under-read it by 5 token F).
 $PY scripts/eval_zh_seg.py "$OUT" "$D/test.jsonl" --lexicon "$LEX" "$LEX" --min-lens 1 1 \
     --compare-jieba 2>&1 | grep -E "strict token|jieba alone|chunks"
 

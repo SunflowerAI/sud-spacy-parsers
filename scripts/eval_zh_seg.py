@@ -86,7 +86,13 @@ def main():
     meta = json.loads((pathlib.Path(a.model) / "vocab.json").read_text(encoding="utf-8"))
     src = a.jieba_source if a.jieba_source is not None else meta.get("jieba_source")
     if src is not None:
-        spl.enable_jieba(src, a.jieba_userdict, t2s=meta.get("jieba_t2s", False))
+        import zh_jieba_feature as jf
+        dict_path = pathlib.Path(a.model) / jf.TRAD_DICT_FILE if meta.get("jieba_dict") else None
+        if dict_path is not None and not dict_path.is_file():
+            raise SystemExit(f"{a.model} was trained against the {meta['jieba_dict']} jieba "
+                             f"dictionary but {jf.TRAD_DICT_FILE} is not beside its weights")
+        spl.enable_jieba(src, a.jieba_userdict, t2s=meta.get("jieba_t2s", False),
+                         dict_path=dict_path)
     mins = a.min_lens or [3] * len(a.lexicon)
     lex = [{w for w in pathlib.Path(p).read_text(encoding="utf-8").split("\n") if len(w) >= ml}
            for p, ml in zip(a.lexicon, mins)]
@@ -108,9 +114,20 @@ def main():
     print(f"  strict token   P {p:.4f}   R {r:.4f}   F {f:.4f}")
 
     if a.compare_jieba:
+        # THE MODEL'S OWN CHANNEL, not some other jieba. This line used to cut the raw text with a
+        # stock tokenizer, which on a traditional arm answered a question the model was never
+        # asked: it reported F 0.7452 for a channel worth 0.7984, because `--jieba-t2s` converts
+        # inside the CODE function and leaves the tokenizer alone. Reading the codes back into
+        # words is regime-proof — t2s, a traditional dictionary or neither, it scores what the
+        # model was actually fed.
         import zh_jieba_feature as jf
-        tok = jf.get_tokenizer(a.jieba_userdict)
-        jb = [list(tok.cut(c, HMM=True)) for c in chunks]
+        fn, tok = spl._JIEBA["fn"], spl._JIEBA["tok"]
+        if fn is None:
+            tok = jf.get_tokenizer(a.jieba_userdict)
+            jb = [list(tok.cut(c, HMM=True)) for c in chunks]
+        else:
+            jb = [words_from_labels(c, [BREAK if k in (jf.E, jf.S) else "=" for k in fn(c, tok)])
+                  for c in chunks]
         p, r, f = token_prf(jb, gold)
         print(f"  jieba alone    P {p:.4f}   R {r:.4f}   F {f:.4f}")
 

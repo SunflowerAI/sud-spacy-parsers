@@ -70,11 +70,24 @@ class CharSegTokenizer:
                 # One channel is jieba's own segmentation of the chunk, not a word list. It must be
                 # switched on BEFORE the model is built, since `multi_codes` reads the module state.
                 ud = path / "jieba_force_split.txt"
-                # `jieba_t2s` travels with the weights for the same reason `jieba_source` does:
-                # a traditional segmenter trained on jieba's view of the SIMPLIFIED rendering
-                # must be asked the same question here, and nothing would raise if it were not.
+                # `jieba_t2s` and `jieba_dict` travel with the weights for the same reason
+                # `jieba_source` does: a traditional segmenter trained on jieba's view of the
+                # SIMPLIFIED rendering, or on a traditional dictionary, must be asked the same
+                # question here, and nothing would raise if it were not.
+                dict_path = None
+                if meta.get("jieba_dict"):
+                    import zh_jieba_feature as jf
+                    dict_path = path / jf.TRAD_DICT_FILE
+                    if not dict_path.is_file():
+                        # Refuse rather than fall back on jieba's simplified dictionary. Falling
+                        # back is precisely how a wheel ships one input quietly deleted: the model
+                        # would load, segment, and be wrong only where the vocabulary differs.
+                        raise FileNotFoundError(
+                            f"{path} was trained against the {meta['jieba_dict']} jieba dictionary "
+                            f"but {dict_path.name} is not beside its weights — refusing to segment "
+                            f"with a dictionary the model was not trained on")
                 spl.enable_jieba(meta["jieba_source"], str(ud) if ud.exists() else None,
-                                 t2s=meta.get("jieba_t2s", False))
+                                 t2s=meta.get("jieba_t2s", False), dict_path=dict_path)
             entries = {w for w in lex_file.read_text(encoding="utf-8").split("\n") if w}
             self.lexicon = entries
             self.seg = spl.LexPresegmenter.from_disk(path, [entries] * meta["n_sources"])

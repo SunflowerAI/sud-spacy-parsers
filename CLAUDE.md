@@ -128,7 +128,7 @@ gh release view v0.3.0 --json assets -q '.assets[] | "\(.name)  \(.updatedAt)"'
 | fa | `fa_sud_perdt` | CC BY-SA 4.0 | rule + `sud.FaNormTokenizer.v1` | normalises Arabic letterforms **in**; ships ezāfe rules without the GPL lexicon |
 | la | `la_sud_ittb_proiel_perseus` | CC BY-NC-SA 4.0 | rule + `-que` split | orthography-augmented; parser reads predicted lemma vectors + per-feature morphology (LAS 71.72 → 73.23), table **sealed** into the bytes; `la_macronise` ships without its data |
 | sa | `sa_sud_vedic_ufal_dcs` | CC BY-SA 4.0 | `sa.SanskritInputTokenizer.v3` | accepts **raw sandhied** IAST or Devanagari; joint multi-task arm |
-| zh | `zh_sud_gsd` | CC BY-SA 4.0 | char tagger + jackknifed lexicon + jieba BMES | traditional-only; vendors a pruned jieba |
+| zh | `zh_sud_gsd` | CC BY-SA 4.0 | char tagger + jackknifed lexicon + jieba BMES off a TRADITIONAL jieba dictionary | traditional-only; vendors a pruned jieba, now without its simplified `dict.txt` (`build_jieba_trad_dict.py` supersedes the `t2s`-the-text channel; **re-clobbered at 0.2.0 on 2026-08-22**, every non-tokeniser weight byte-identical) |
 | yue | `yue_sud_hk` | CC BY-SA 4.0 | pkuseg trained on yue | test-only treebank → deterministic 80/10/10 split |
 | lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) | custom `lzh` language; `clause_parser`; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825) |
 | ja | `ja_sud_gsd` | CC BY-SA 4.0 | SudachiPy | |
@@ -257,7 +257,10 @@ value**, not as missing — writing `_` for tokens with no gold taught the sandh
 10. **Ask the model rather than assuming its input regime.** A CSLiser trained on spaced text was
     fed space-split chunks for a whole generation (−4.83 F), and a jieba channel asked a different
     question at inference than at training would do the same. Record the regime in the artefact
-    (`reads_spaces`, `jieba_t2s` in `vocab.json`) and read it back.
+    (`reads_spaces`, `jieba_t2s` / `jieba_dict` in `vocab.json`) and read it back — and where the
+    regime needs a FILE, ship the file beside the weights and refuse to load without it, because
+    zh's traditional jieba dictionary silently replaced by jieba's own simplified one is a model
+    that loads, segments and is wrong only on the vocabulary the two disagree about.
 
 ## Operational notes
 

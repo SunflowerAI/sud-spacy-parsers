@@ -222,6 +222,22 @@ GUARD
   $PY scripts/stamp_model_meta.py "$src" --lang "$lang" --arm "$arm" \
     ${DESCRIPTION:+--description "$DESCRIPTION"} \
     >/dev/null || { echo "  $arm: meta stamp FAILED"; return; }
+  # `spacy package` appends its OWN `spacy>=x,<y` pin. An arm rebuilt FROM A RELEASED WHEEL is
+  # already carrying one (the released meta has it), so the packaged wheel comes out declaring
+  # spacy twice -- harmless to pip, but a gratuitous diff against the asset the rebuild is meant to
+  # reproduce, and the rebuild-from-release path is the only way to repackage zh, ar, en_gum or ko
+  # while their post-graft arms are missing. Drop it and let packaging add exactly one.
+  $PY - "$src" <<'PIN'
+import json, pathlib, sys
+p = pathlib.Path(sys.argv[1]) / "meta.json"
+m = json.loads(p.read_text(encoding="utf-8"))
+was = m.get("requirements") or []
+now = [r for r in was if r.split(">=")[0].split("==")[0].split("[")[0].strip() != "spacy"]
+if now != was:
+    m["requirements"] = now
+    p.write_text(json.dumps(m, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"    dropped spacy pin from meta (packaging re-adds it): {was} -> {now}")
+PIN
   rm -rf build_sud/$arm && mkdir -p build_sud/$arm
   $PY -m spacy package "$src" build_sud/$arm --name "$name" --version "$VERSION" $code \
     --build wheel --force >build_sud/$arm.log 2>&1
@@ -553,13 +569,29 @@ case $lang in
        # cannot segment. It used to carry the segmenter over from the input tokenizer by guessing
        # attribute names and missed `seg`, so zh_sud_gsd 0.2.0 shipped returning each input string
        # as ONE TOKEN -- it loaded, it parsed, and only the wheel's file list said otherwise.
-       # The segmenter is the TRADITIONAL one (models/zh_seg_jbdec_trad, strict token F 0.9242
-       # against the simplified arm's 0.9210 on its own test); its jieba channel is asked about the
-       # t2s rendering, since jieba's dictionary is simplified and asking it directly costs the
-       # channel F 0.9223 -> 0.8920. `bundle_zh_charseg.py` builds the superseded both-scripts
-       # CharSegTokenizer wheel and is kept for that.
+       # The segmenter is the TRADITIONAL one (models/zh_seg_jbdict_trad), and so is the jieba
+       # dictionary its second channel reads: jieba's own is simplified, which costs that channel
+       # boundary F 0.9237 -> 0.8931 if it is asked about traditional text directly.
+       # ⚠ THIS DEFAULT NAMED models/zh_seg_jbdec_trad, the arm that instead converted the TEXT
+       # (--jieba-t2s) -- equivalent in score (ten runs each, mean token F 0.9203 vs 0.9209) but
+       # asking jieba about a string t2s had already collapsed (乾/幹/干 -> 干). The dictionary
+       # travels inside the segmenter directory and add_zh_script refuses a model without it.
+       # `bundle_zh_charseg.py` builds the superseded both-scripts CharSegTokenizer wheel and is
+       # kept for that.
+       # ⚠ ZH_BASE IS PRE-GRAFT AND THIS BLOCK CANNOT REBUILD THE RELEASED WHEEL FROM IT.
+       # `training_zh_trad_lemma/model-best` runs [tok2vec, tagger, parser, morphologizer,
+       # lemmatizer] while zh_sud_gsd-0.2.0 ships [tok2vec, parser, morphologizer, lemmatizer,
+       # tagger] -- the v0.2.0 graft again, kept in no directory (same shape as ar, en_gum, la and
+       # ko). The XPOS guard above refuses it, which is correct and is how this was found.
+       # Until a post-graft zh arm exists, swap the tokeniser into the RELEASED model instead --
+       # sound because training reads through sud.GoldTokCorpus.v1 and the parser is therefore
+       # segmenter-agnostic, and verifiable because every other weight must come back byte-
+       # identical (cmp on tok2vec/parser/morphologizer/lemmatizer/tagger `model`):
+       #   gh release download v0.2.0 -R SunflowerAI/sud-spacy-parsers -p 'zh_sud_gsd-*.whl'
+       #   unzip -q zh_sud_gsd-0.2.0-py3-none-any.whl -d rel
+       #   ZH_BASE=rel/zh_sud_gsd/zh_sud_gsd-0.2.0 bash scripts/package_sud.sh zh
   zh)  $PY scripts/add_zh_script.py "$base" "$work" \
-            --seg models/zh_seg_jbdec_trad --lexicon models/zh_lex_corpus_trad.txt \
+            --seg models/zh_seg_jbdict_trad --lexicon models/zh_lex_corpus_trad.txt \
             || { echo "  zh: script/segmenter wiring FAILED — skip"; continue; }
        # Vendor the ~6 MB of jieba the BMES channel actually loads and drop the pip requirement.
        # `spacy package` copies the model dir wholesale and setup.py's list_files walks it, so a

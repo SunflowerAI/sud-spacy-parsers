@@ -42,7 +42,13 @@ import sys
 B, M, E, S = 0, 1, 2, 3
 N_JIEBA = 4
 
-_STATE = {"tok": None}
+# The name the traditional dictionary travels under, beside the segmenter's own weights. It has to
+# travel: a channel trained against a traditional dictionary and loaded against jieba's simplified
+# one is the `reads_spaces` trap again -- a quietly different input regime, with nothing raising.
+TRAD_DICT_FILE = "jieba_dict.txt"
+
+_STATE = {"tok": None, "dict": None, "hmm_t2s": False}
+_FINALSEG_CUT = None
 
 
 
@@ -85,6 +91,74 @@ def _import_jieba():
         "jieba is required for the zh segmenter's BMES channel and no vendored copy was found. "
         "Install it with `pip install jieba>=0.42.1`.")
 
+def _hmm_via_t2s(finalseg):
+    """jieba's OOV HMM, asked about the SIMPLIFIED rendering of each unknown run.
+
+    A traditional dictionary fixes the LOOKUP but not this: `finalseg`'s emission probabilities are
+    per CHARACTER and were estimated on simplified text, so on traditional input every unknown run
+    is scored against characters the model never met. Measured on the traditional GSD test, that
+    one component is the ENTIRE remaining gap — jieba's boundary decisions score F 0.9203 with the
+    traditional dictionary and the raw text, and **F 0.9237** with the same dictionary and this
+    wrapper, against 0.9236 for converting the whole chunk (`_jieba_via_t2s`).
+
+    The HMM segments; the characters handed back are the ORIGINAL ones, sliced by the lengths it
+    returned. That is sound only while the conversion preserves length, which is checked per run
+    rather than assumed — where it does not, the run goes through untouched and the channel
+    degrades to its raw-traditional quality for that run alone.
+    """
+    global _FINALSEG_CUT
+    if _FINALSEG_CUT is None:
+        _FINALSEG_CUT = finalseg.cut
+    base = _FINALSEG_CUT
+    import opencc
+    conv = opencc.OpenCC("t2s")
+
+    def cut(sentence):
+        simp = conv.convert(sentence)
+        if len(simp) != len(sentence):
+            yield from base(sentence)
+            return
+        i = 0
+        for w in base(simp):
+            yield sentence[i:i + len(w)]
+            i += len(w)
+
+    return cut
+
+
+def set_dictionary(path=None, hmm_t2s=False, words=()):
+    """Reset jieba onto dictionary `path` (None = its own), then force-split every word in `words`.
+
+    `path` is how the TRADITIONAL channel is selected: `build_jieba_trad_dict.py` writes the s2tw
+    conversion of jieba's own dictionary, and pointing jieba at it makes the lookup read the
+    traditional text itself instead of a `t2s` rendering of it that collapses 乾/幹/干 into one
+    string. `hmm_t2s` keeps the OOV HMM on simplified, which is where its probabilities came from.
+
+    Resetting FIRST matters for the same reason it does in `set_userdict`: jieba's `dt` is a global,
+    and a dictionary or a force-split left over from a previous call would silently join this one.
+    """
+    jieba = _import_jieba()
+    import jieba.finalseg
+    jieba.dt.FREQ.clear()
+    jieba.dt.initialized = False
+    jieba.finalseg.Force_Split_Words.clear()
+    if path:
+        jieba.dt.set_dictionary(str(path))
+    else:
+        jieba.dt.__init__()                       # back to jieba's own dict.txt
+    # Patch the module attribute, not a local: jieba's `__cut_DAG` reads `finalseg.cut` at CALL
+    # time (`from . import finalseg`), so this reaches the tokenizer without touching jieba's code.
+    jieba.finalseg.cut = _hmm_via_t2s(jieba.finalseg) if hmm_t2s else (
+        _FINALSEG_CUT or jieba.finalseg.cut)
+    jieba.initialize()
+    for w in words:
+        jieba.del_word(w)
+    _STATE["tok"] = jieba.dt
+    _STATE["dict"] = str(path) if path else None
+    _STATE["hmm_t2s"] = bool(hmm_t2s)
+    return jieba.dt
+
+
 def set_userdict(words=()):
     """Reset jieba to its stock dictionary, then force-split every word in `words`.
 
@@ -97,26 +171,26 @@ def set_userdict(words=()):
     force-splits would accumulate on top of the previous fold's, so fold 4 would be segmenting with
     a dictionary derived from all five folds including its own.
     """
-    jieba = _import_jieba()
-    import jieba.finalseg
-    jieba.dt.FREQ.clear()
-    jieba.dt.initialized = False
-    jieba.finalseg.Force_Split_Words.clear()
-    jieba.initialize()
-    for w in words:
-        jieba.del_word(w)
-    _STATE["tok"] = jieba.dt
-    return jieba.dt
+    return set_dictionary(_STATE["dict"], _STATE["hmm_t2s"], words)
 
 
-def get_tokenizer(userdict=None):
-    """jieba's global Tokenizer, optionally with a force-split userdict file applied."""
-    if _STATE["tok"] is not None and not userdict:
+def get_tokenizer(userdict=None, dictionary=None, hmm_t2s=None):
+    """jieba's global Tokenizer, on the requested dictionary regime and userdict.
+
+    The cached tokenizer is returned only when it is already on the regime asked for. Asking for a
+    dictionary jieba is not currently loaded with REBUILDS it rather than quietly handing back the
+    other one — a loaded segmenter must not be able to run against a dictionary it was not trained
+    against, which is the whole reason `jieba_dict` travels in `vocab.json`.
+    """
+    want_dict = _STATE["dict"] if dictionary is None else (str(dictionary) if dictionary else None)
+    want_hmm = _STATE["hmm_t2s"] if hmm_t2s is None else bool(hmm_t2s)
+    if (_STATE["tok"] is not None and not userdict
+            and want_dict == _STATE["dict"] and want_hmm == _STATE["hmm_t2s"]):
         return _STATE["tok"]
     words = ()
     if userdict and userdict != "auto":
         words = [w for w in pathlib.Path(userdict).read_text(encoding="utf-8").split("\n") if w]
-    return set_userdict(words)
+    return set_dictionary(want_dict, want_hmm, words)
 
 
 def jieba_codes(text, tok=None):
@@ -143,7 +217,7 @@ def force_split_dict(train_rows, min_wrong=2):
     model is right (1369 -> 958) while keeping every position where jieba rescues the model.
     """
     from collections import Counter
-    tok = set_userdict()                      # harvest against STOCK jieba, never a primed one
+    tok = set_userdict()                      # harvest against UNPRIMED jieba, same dictionary
     hit, miss = Counter(), Counter()
     for r in train_rows:
         gold, i = set(), 0

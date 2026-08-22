@@ -23,14 +23,17 @@ sentence and refuses a model that does not. Copying state between objects by gue
 names is what failed; asking for it explicitly is the fix.
 
     add_zh_script.py training_zh_trad_lemma/model-best build_zh_trad \
-        --seg models/zh_seg_jbdec_trad --lexicon models/zh_lex_corpus_trad.txt
+        --seg models/zh_seg_jbdict_trad --lexicon models/zh_lex_corpus_trad.txt
 """
 import argparse, json, pathlib, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import seg_code                                    # noqa: E402,F401
 import spacy                                       # noqa: E402
 
-SEG = "models/zh_seg_jbdec_trad"
+# ⚠ The default names the arm the wheel actually ships, because a comment telling the next person
+# is not the fix. `zh_seg_jbdec_trad` is the SUPERSEDED one: its jieba channel reads a t2s rendering
+# of the text rather than a traditional dictionary (`train_zh_trad_charseg.sh`).
+SEG = "models/zh_seg_jbdict_trad"
 LEX = "models/zh_lex_corpus_trad.txt"
 
 
@@ -74,12 +77,21 @@ def main():
     if meta.get("jieba_source") is None:
         raise SystemExit("REFUSING: the saved segmenter has no jieba_source marker, so the wheel "
                          "would load without the channel it was trained with")
+    # The dictionary is the channel's VOCABULARY, and a wheel missing it comes back on jieba's
+    # simplified one: it loads, it segments, and it is wrong only where the two disagree -- which
+    # is the whole reason the traditional dictionary exists. Same refusal as the marker above,
+    # one level down.
+    import zh_jieba_feature as jf
+    if meta.get("jieba_dict") and not (sd / jf.TRAD_DICT_FILE).is_file():
+        raise SystemExit(f"REFUSING: the segmenter records jieba_dict={meta['jieba_dict']!r} but "
+                         f"{jf.TRAD_DICT_FILE} was not written beside its weights")
 
     rl = spacy.load(args.out_model)
     kind = type(rl.tokenizer).__name__
     print(f"  reloaded tokenizer: {kind}   pipeline: {rl.pipe_names}")
     print(f"  segmenter: n_sources={meta.get('n_sources')} jieba_source={meta.get('jieba_source')} "
-          f"jieba_t2s={meta.get('jieba_t2s')}   requirements={m['requirements']}")
+          f"jieba_t2s={meta.get('jieba_t2s')} jieba_dict={meta.get('jieba_dict')}   "
+          f"requirements={m['requirements']}")
     if kind != "ZhTradTokenizer":
         raise SystemExit(f"REFUSING: reloaded model rebuilt a {kind}")
 

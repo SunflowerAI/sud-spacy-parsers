@@ -77,6 +77,16 @@ def main():
     if meta.get("jieba_source") is None:
         raise SystemExit("REFUSING: the saved segmenter has no jieba_source marker, so the wheel "
                          "would load without the channel it was trained with")
+    # Same refusal for the channel's VOCABULARY: a segmenter trained against a traditional jieba
+    # dictionary and shipped without it comes back on jieba's simplified one, which loads, segments
+    # and is wrong only where the two disagree.
+    import sys as _s
+    _s.path.insert(0, str(_pl.Path(__file__).resolve().parent))
+    import zh_jieba_feature as jf
+    sd = _pl.Path(args.out) / "tokenizer" / "segmenter"
+    if meta.get("jieba_dict") and not (sd / jf.TRAD_DICT_FILE).is_file():
+        raise SystemExit(f"REFUSING: the segmenter records jieba_dict={meta['jieba_dict']!r} but "
+                         f"{jf.TRAD_DICT_FILE} was not written beside its weights")
 
 
 if __name__ == "__main__":

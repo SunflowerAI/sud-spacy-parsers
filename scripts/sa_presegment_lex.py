@@ -132,7 +132,8 @@ def enable_inflect(stems_path, endings_path):
     _INFLECT["fn"] = inf.inflect_codes
 
 
-_JIEBA = {"index": None, "fn": None, "tok": None, "t2s": False}
+_JIEBA = {"index": None, "fn": None, "tok": None, "t2s": False, "dict": None,
+          "dict_path": None}
 
 
 def _jieba_via_t2s(base_fn):
@@ -159,7 +160,7 @@ def _jieba_via_t2s(base_fn):
     return codes
 
 
-def enable_jieba(index, userdict=None, t2s=False):
+def enable_jieba(index, userdict=None, t2s=False, dict_path=None):
     """Route lexicon source `index` through jieba's SEGMENTATION DECISION (BMES) instead.
 
     Imported lazily, and from a separate module, because `sa_presegment_lex` is bundled into every
@@ -167,15 +168,34 @@ def enable_jieba(index, userdict=None, t2s=False):
     dictionary at import time, and the sa model has no reason to carry jieba at all. Same rule that
     kept `eval_samhita` out of module scope here.
 
-    `t2s` asks jieba about the simplified rendering (see `_jieba_via_t2s`); it is what a
-    TRADITIONAL segmenter wants, and it is recorded in `vocab.json` so a loaded model cannot ask
-    the question differently from the way it was trained.
+    THREE SCRIPT REGIMES, and which one was used is recorded in `vocab.json` so a loaded model
+    cannot ask the question differently from the way it was trained:
+
+      neither flag   jieba's own simplified dictionary on the raw text. Right for a SIMPLIFIED
+                     segmenter; on a traditional one it is the defect, boundary F 0.8931.
+      `t2s`          the whole chunk converted and the per-character answer kept for the original
+                     (`_jieba_via_t2s`). F 0.9236, and what zh_sud_gsd 0.2.0 ships.
+      `dict_path`    a TRADITIONAL dictionary (`build_jieba_trad_dict.py`), so the lookup reads the
+                     traditional text itself, with only the OOV HMM still asked about the
+                     simplified rendering. F 0.9237, and it is the regime that stops the channel
+                     answering about a string `t2s` has already collapsed (乾/幹/干 → 干).
+
+    The two are alternatives, not a stack, and asking for both is a bug rather than a preference.
     """
     import zh_jieba_feature as jf
+    if t2s and dict_path:
+        raise ValueError("--jieba-t2s converts the CHUNK and --jieba-dict converts the DICTIONARY; "
+                         "asking for both would hand a traditional dictionary simplified text")
     _JIEBA["index"] = index
     _JIEBA["t2s"] = bool(t2s)
+    _JIEBA["dict"] = "trad" if dict_path else None
+    _JIEBA["dict_path"] = str(dict_path) if dict_path else None
     _JIEBA["fn"] = _jieba_via_t2s(jf.jieba_codes) if t2s else jf.jieba_codes
-    _JIEBA["tok"] = jf.get_tokenizer(userdict)
+    # `hmm_t2s` rides with the traditional dictionary rather than being separately selectable:
+    # measured, the dictionary without it is worth F 0.9203 and with it 0.9237, and a regime nobody
+    # would choose is a regime that should not be reachable.
+    _JIEBA["tok"] = jf.get_tokenizer(userdict, dictionary=dict_path,
+                                     hmm_t2s=bool(dict_path))
 
 
 def multi_codes(text, lexes, min_lens, max_len=24):
@@ -294,8 +314,18 @@ class LexPresegmenter:
              # and whether that channel was asked about the SIMPLIFIED rendering. A traditional
              # segmenter trained with it and loaded without it is the reads_spaces trap again:
              # a quietly different input regime, nothing raising.
-             "jieba_t2s": _JIEBA["t2s"]},
+             "jieba_t2s": _JIEBA["t2s"],
+             # ...or against a traditional DICTIONARY, which is the same hazard one level down:
+             # the channel would come back on jieba's simplified vocabulary and nothing would say
+             # so. The name is a REGIME, not a path — a path recorded here would point at this
+             # machine's checkout and mean nothing inside a wheel — and the dictionary itself is
+             # copied in beside the weights below so the loader has it to resolve the name with.
+             "jieba_dict": _JIEBA["dict"]},
             ensure_ascii=False), encoding="utf-8")
+        if _JIEBA["dict_path"]:
+            import shutil
+            import zh_jieba_feature as jf
+            shutil.copyfile(_JIEBA["dict_path"], p / jf.TRAD_DICT_FILE)
 
     @classmethod
     def from_disk(cls, path, lex):
@@ -353,6 +383,13 @@ def main():
                          "the per-character answer for the original text. For a TRADITIONAL "
                          "segmenter: jieba's dictionary is simplified, and this is worth "
                          "F 0.8920 -> 0.9223 on its boundary decisions.")
+    ap.add_argument("--jieba-dict", default=None, metavar="PATH",
+                    help="segment with a TRADITIONAL jieba dictionary (build it with "
+                         "build_jieba_trad_dict.py) instead of converting the text: the lookup "
+                         "then reads the traditional string itself, and only jieba's OOV HMM is "
+                         "asked about the simplified rendering. Boundary F 0.9237 against 0.9236 "
+                         "for --jieba-t2s and 0.8931 for neither. The file is copied in beside "
+                         "the weights, so the arm carries the vocabulary it was trained on.")
     ap.add_argument("--jieba-userdict", default=None,
                     help="word list to force-split (`del_word`) before segmenting. Harvest it with "
                          "zh_jieba_feature.force_split_dict — but note it is derived from GOLD, so "
@@ -375,9 +412,10 @@ def main():
     a = ap.parse_args()
 
     if a.jieba_source is not None and not a.no_lex:
-        enable_jieba(a.jieba_source, a.jieba_userdict, t2s=a.jieba_t2s)
+        enable_jieba(a.jieba_source, a.jieba_userdict, t2s=a.jieba_t2s, dict_path=a.jieba_dict)
         print(f"  source {a.jieba_source} = jieba segmentation decision (BMES)"
               + (" via t2s" if a.jieba_t2s else "")
+              + (f", traditional dictionary {a.jieba_dict}" if a.jieba_dict else "")
               + (f", force-split userdict {a.jieba_userdict}" if a.jieba_userdict else ""))
     if a.inflect_endings and not a.no_lex:
         enable_inflect(a.lexicon[0], a.inflect_endings)

@@ -57,15 +57,33 @@ gitignored). Rebuild a custom-code wheel with
   ⚠ jieba ships **no LICENSE file** (only `License: MIT` in its METADATA), so vendoring means writing
   the notice: `vendor/jieba/NOTICE` records version, upstream, author and that the files are
   unmodified copies. Redistribution without it would not satisfy MIT.
-- **Do NOT prune `dict.txt`.** It is 4.8 MB of the surviving 6.4 MB and it IS the feature — the
-  channel's value is vocabulary (the traditional-vs-`t2s` gap is entirely vocabulary), worth +4.42
-  token F. Baking the channel into the weights was considered and rejected for the same reason.
+- **A dictionary is pruned only when the MODEL brings its own.** jieba's `dict.txt` is 4.8 MB of the
+  vendored 6.1 MB and it IS the feature — the channel's value is vocabulary, worth +4.42 token F,
+  which is why baking the channel into the weights was also rejected. But the traditional arm now
+  reads a TRADITIONAL dictionary shipped beside its own weights
+  (`tokenizer/segmenter/jieba_dict.txt`, `build_jieba_trad_dict.py`) and never opens jieba's, so
+  `vendor_jieba.py` drops it — deciding by looking at the artefact for that file, not by a flag
+  someone passes. The vendored tree falls 6.1 → 1.3 MB and the wheel moves 15 088 470 → 15 111 212
+  bytes, i.e. the traditional dictionary costs 22 KB rather than 5 MB. `slim_jieba.py --drop-dict`
+  is the same decision for a deployment tree, and a model still on the `jieba_t2s` regime must keep
+  `dict.txt`: it has no dictionary of its own and jieba cannot initialise without one.
 - **Training-only imports must not be module-scope in a bundled file.** `sa_presegment` importing
   `sa_tokenizer`, and `sa_presegment_lex` importing `eval_samhita`, both broke the zh wheel.
-- **A component that silently loses an input must refuse to load.** `bundle_zh_charseg.py` REFUSES
-  to write a model whose saved `vocab.json` lacks the `jieba_source` marker — without it the wheel
-  would load, run with one input deleted, and say nothing (the same silent degradation as sa's
-  `Compound` on token input).
+- **A component that silently loses an input must refuse to load.** `bundle_zh_charseg.py` and
+  `add_zh_script.py` REFUSE to write a model whose saved `vocab.json` lacks the `jieba_source`
+  marker — without it the wheel would load, run with one input deleted, and say nothing (the same
+  silent degradation as sa's `Compound` on token input) — and equally one that records
+  `jieba_dict` without the dictionary file beside the weights, which would come back on jieba's
+  simplified vocabulary and be wrong only where the two disagree. `char_seg_tokenizer` and
+  `eval_zh_seg` raise on the same condition at LOAD time rather than falling back.
+- **An arm with no post-graft directory is rebuilt FROM THE RELEASED WHEEL.** zh's `ZH_BASE`
+  default (`training_zh_trad_lemma`) is pre-graft — tagger before morphologiser — so the XPOS guard
+  refuses it and this repo cannot rebuild the live zh wheel from a training directory, exactly as
+  with ar, en_gum and ko. Downloading the asset and pointing `ZH_BASE` at the model directory
+  inside it works, and is sound for a TOKENISER change specifically: training reads through
+  `sud.GoldTokCorpus.v1`, so the parser is segmenter-agnostic. The check that it stayed a
+  tokeniser-only change is `cmp` on every `*/model` against the downloaded asset — all twelve came
+  back byte-identical for the traditional-jieba rebuild.
 - **Verify in a clean `--target`/venv install**, not just the loose training directory.
 - For a **code-only** re-release, diff the wheel against the previous asset file by file: the sa
   code-only wheels differed in exactly 2 and 3 of 29 files, proving the weights were untouched.
@@ -208,3 +226,19 @@ other component is byte-identical:
 - `metrics_release_la*.json` — holds the pre-normalisation TAG.
 - `metrics_release_la_{ittbproiel,perseus}.json` — the per-slice TAG was not re-measured after the
   conditioned tagger was grafted.
+
+**⚠ THE RELEASE SET IS NOT CROSS-LANGUAGE COMPARABLE, because `metrics_release_sa.json` is measured
+on a DIFFERENT TEST SET from every other file in it.** Twelve of the thirteen report their own
+treebank's test split; sa reports the **1843-token `corpus_sa_ufal_eval`** (classical prose), because
+the arm was chosen for classical prose and the README quotes it that way — see `docs/sanskrit.md`,
+"The README reports Sanskrit on UFAL, not Vedic". So sa's `dep_las` of **0.3735** sits in a column of
+own-treebank test scores without being one, and differencing it against any other row is meaningless.
+On the **Vedic** test set the same arm scores **LAS 49.73** under `spacy evaluate --gold-preproc`.
+
+This is a live trap rather than a hypothetical one. A cross-lingual comparison harness was validated
+in 2026-08 by checking its sa output (37.23, on Vedic) against this file (37.35, on UFAL); the two
+matched to within 0.12 **by coincidence**, the harness was declared sound, and a 12.5-LAS defect in
+it went undetected until a reader questioned the number on sight. **Before treating any agreement
+between two metrics as validation, establish that both are on the same DATA** — closeness is not
+evidence, and a coincidental match is worse than no check, because it converts doubt into
+confidence.

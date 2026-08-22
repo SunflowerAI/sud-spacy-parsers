@@ -216,14 +216,41 @@ The counter is kept and prints a LOUD failure if the argument ever breaks.
   simplified read as traditional, 0.120 % overall. The twelve residuals are genuine — GSD's own
   traditional text writes 酒吧里 and 何家干, and the simplified side carries the era name 乾德.
 
-  ⚠ **jieba's channel must be asked about the `t2s` rendering on a traditional arm.** jieba's
-  dictionary is simplified: its boundary decisions score F 0.8920 on traditional text and **0.9223**
-  on the `t2s` conversion — the latter matching what the simplified arm was built on (P 0.9730 /
-  R 0.8793), so the entire gap is vocabulary. Codes are per character and `t2s` preserves length
-  (500/500 test sentences), so the answer transfers by position, with a length check falling back to
-  the raw text. `--jieba-t2s` trains it; **`jieba_t2s` is written into the segmenter's `vocab.json`**
-  and read back by `char_seg_tokenizer.load_segmenter` and `eval_zh_seg.py`, because a channel asked
-  a different question at inference than at training is the `reads_spaces` trap again.
+  ⚠ **jieba is SIMPLIFIED and the arm is traditional, so the channel has to be made traditional
+  somewhere.** Asking jieba about the traditional text directly scores boundary F 0.8931 against
+  0.9237 — the whole gap is vocabulary, not the language. There are two places to fix it, and this
+  repo has now built both:
+
+      convert the TEXT       `--jieba-t2s`, superseded 2026-08-22   F 0.9236
+      convert the DICTIONARY `--jieba-dict`, what 0.2.0 now ships   F 0.9237
+
+  They score the same, and the second is the one that answers about the string being segmented.
+  `t2s` is many-to-one, so converting the text hands jieba 干 for 乾, 幹 and 干 alike and every
+  distinction the traditional orthography draws is invisible to the lookup; converting the
+  dictionary (`build_jieba_trad_dict.py`, OpenCC **`s2tw`** — the same conversion `ZhTradTokenizer`
+  applies to incoming simplified input, and GSD's own orthography, where plain `s2t` would write
+  爲什麼 for 為什麼) leaves the text alone. ⚠ **The dictionary is only half of jieba.** Unknown runs
+  go to `finalseg`, an HMM with per-CHARACTER emission probabilities estimated on simplified text,
+  and leaving it on traditional characters costs 0.9237 → 0.9203 — as much as the dictionary
+  itself is worth. It is asked about the `t2s` rendering and handed back the original characters,
+  which is sound because the codes are per character and `t2s` preserves length (500/500 test
+  sentences), with a length check per run falling back to the raw text.
+
+  End to end the two regimes are a **wash**: ten training runs each, mean strict token F 0.9209
+  (dictionary) against 0.9203 (text), sd ~0.003, 6/10 seeds favouring the dictionary — and the
+  dev-selected run that shipped scores **0.9196**, below the 0.9242 the superseded arm was quoted
+  at, which is a redraw within a 0.9167–0.9268 spread rather than a regression. It was swapped in
+  for reading the script the model works in, not for its score — and, unlike the text
+  conversion, it also holds up on Hong Kong-variant traditional input (F 0.9240 against 0.9233),
+  which an s2tw dictionary was the obvious risk to.
+
+  **`jieba_dict` is written into the segmenter's `vocab.json` and the dictionary itself is copied in
+  beside the weights**, read back by `char_seg_tokenizer.load_segmenter` and `eval_zh_seg.py`, which
+  REFUSE to load a model whose dictionary is missing rather than fall back on jieba's simplified one
+  — a channel asked a different question at inference than at training is the `reads_spaces` trap,
+  and this variant of it would come back on the wrong VOCABULARY with nothing raising. It costs the
+  wheel nothing: `vendor_jieba.py` sees the model carrying its own dictionary and vendors jieba
+  without `dict.txt`, 5.06 MB in against 5.07 MB out (wheel 15 088 470 → 15 111 219 bytes).
 - **Cantonese** (`yue_sud_hk`; `split_yue.py`, `yue_tokenizer.py`, `train_yue.py`,
   `train_pkuseg_yue.py`, `bundle_yue_pkuseg.py`). Coverb/prepositional like zh/lzh; ext adds
   associative 嘅 (PART → mod, like zh 的 / lzh 之 / ja の) and the annotators' `udep@tmod` (而家/今日 →

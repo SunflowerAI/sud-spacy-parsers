@@ -101,15 +101,26 @@ predate the shipped generation, so read the `metrics_release_*` set when you wan
 model's own scores.
 
 ⚑ Chinese segments with a **treebank-trained character segmenter**, retrained on traditional GSD
-for this arm: strict whole-token F **0.9242** on the traditional test, against 0.9210 for the
+for this arm: strict whole-token F **0.9196** on the traditional test, against 0.9210 for the
 simplified segmenter on its own. Its second input channel is jieba's segmentation decision, and
-jieba is asked about the **`t2s` rendering** of each chunk rather than the traditional text
-directly — jieba's dictionary is simplified, so asking it directly costs that channel F 0.9223 →
-0.8920. The codes are per character and `t2s` preserves length (500/500 test sentences), so the
-answer transfers by position; where it ever would not, the original text is used instead. The
-setting travels in the segmenter's own `vocab.json`, so a loaded model cannot ask the question
-differently from the way it was trained. Raw end-to-end on the traditional test
-(`metrics_release_zh_raw.json`): TOK 96.9 lenient / 92.4 strict, LAS 58.4.
+because jieba's own dictionary is simplified while this arm is traditional throughout, that channel
+reads a **traditional jieba dictionary** — jieba's own converted with OpenCC `s2tw`, the same
+conversion applied to incoming simplified input (`scripts/build_jieba_trad_dict.py`). Asking jieba
+about traditional text with its own simplified dictionary would cost that channel boundary F 0.9237
+→ 0.8931. Only jieba's OOV HMM still consults the `t2s` rendering, since its emission probabilities
+are per character and were estimated on simplified text; that alone is worth 0.9203 → 0.9237. Until
+2026-08-22 the wheel instead converted the whole chunk to simplified before asking, which scores the
+same (0.9236) but asked jieba about a string `t2s` had already collapsed — 乾, 幹 and 干 all reach it
+as 干. The regime and the dictionary both travel inside the segmenter, so a loaded model cannot ask
+the question differently from the way it was trained, and the wheel does not grow: the vendored
+jieba drops the simplified `dict.txt` it no longer opens. Raw end-to-end on the traditional test
+(`metrics_release_zh_raw.json`): TOK 96.8 lenient / 92.0 strict, LAS 62.3.
+
+⚠ **zh was re-uploaded on 2026-08-22 at the same version 0.2.0**, with the traditional jieba
+dictionary above replacing the `t2s`-the-text channel. Only the tokeniser changed — every model
+weight is byte-identical to the previous asset, verified by hashing them out of the downloaded
+wheel — so the gold-preproc table above is untouched and only the raw figures moved. `pip install
+-U` will NOT replace an older copy, since the version is unchanged; `--force-reinstall` will.
 
 ⚠ **The wheel published on 2026-08-08 could not segment at all** — it shipped with no
 `tokenizer/segmenter/` directory and returned each input string as a single token. It has been
@@ -467,7 +478,7 @@ tokeniser is trained. Strict token F against the treebank's own test set:
 | la   | rule tokeniser + the enclitic `-que` split (bundled) | 0.9944 † |
 | en   | default rule tokeniser — already matches EWT | 0.991 |
 | yue  | pkuseg trained from scratch on Cantonese | 0.95 ‡ |
-| zh   | character segmenter: jackknifed corpus lexicon + jieba's BMES decision | 0.9210 |
+| zh   | character segmenter: jackknifed corpus lexicon + jieba's BMES decision off a traditional jieba dictionary | 0.9196 |
 | ar   | CAMeL ATB tokeniser, splitting PADT's clitics | 0.91 |
 | sa   | CSLiser + de-sandhi front end, from raw sandhied text | 0.8699 |
 | fa, ja | rule tokeniser; SudachiPy | — |

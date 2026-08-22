@@ -46,7 +46,7 @@ wrapper serialises the segmenter and its lexicon beside the weights, so a wheel 
 
 | lang | tokeniser | note |
 |---|---|---|
-| **zh** | char tagger + jackknifed corpus lexicon + **jieba's BMES decision**, on TRADITIONAL | strict token F 0.8385 (pkuseg) → 0.9210 (simplified) → **0.9242** (`zh_seg_jbdec_trad`) |
+| **zh** | char tagger + jackknifed corpus lexicon + **jieba's BMES decision** off a TRADITIONAL jieba dictionary | strict token F 0.8385 (pkuseg) → 0.9210 (simplified) → **0.9196** shipped (`zh_seg_jbdict_trad`; mean 0.9209 over ten runs, and the spread is wider than any of these gaps) |
 | **id** | char tagger, enclitics SPLIT | replaced `coarsen_id.py`'s merge; `-nya` now gets its own `mod@poss` |
 | **ko** | eojeol, spaCy's RULE tokeniser | 0.3070 → **99.77** against the ORIGINAL SUD_Korean-GSD |
 | **yue** | pkuseg trained from scratch on yue | word-F1 0.95 vs char 0.63 |
@@ -116,7 +116,15 @@ unseeded, so the spread is real):
 | **corpus lexicon + jieba decision** (`n_sources` 2) | **0.9203** | 0.9188–0.9210 |
 
 Going 1 → 2 sources COSTS 1.37 on its own (char embed 56 → 48), so the feature is worth **+4.42
-against its own architecture**. Raw end-to-end (`scripts/eval_zh_raw.py`, `training_zh_lemma`, same
+against its own architecture**.
+
+⚠ **On the traditional arm the channel reads a TRADITIONAL jieba dictionary** — jieba's own is
+simplified, worth boundary F 0.8931 against 0.9237 if it is asked about traditional text directly.
+The dictionary is converted rather than the text (`build_jieba_trad_dict.py`, superseding
+`--jieba-t2s`, which scored the same 0.9236 but asked jieba about a rendering that had already
+collapsed 乾/幹/干 into 干), the OOV HMM still consults the simplified rendering, and the regime
+travels in `vocab.json` with the dictionary beside the weights. `docs/chinese-family.md` has the
+measurements and `NEGATIVE-RESULTS.md` the two dictionary constructions that lost. Raw end-to-end (`scripts/eval_zh_raw.py`, `training_zh_lemma`, same
 100 docs): control 0.4673 LAS (0.4361–0.4945) vs **0.5269** (0.4979–0.5608). **Never quote zh raw
 LAS from a single segmenter run** — a 0.22-point token-F spread produces a 6.3-point LAS spread,
 because a few misplaced boundaries misalign whole spans in the scorer. An earlier draft claimed

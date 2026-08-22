@@ -17,6 +17,13 @@ the tree. The zh wheel itself stays CC BY-SA.
 The allowlist is imported from `slim_jieba` rather than restated, so the vendored tree and the
 deployment-pruning path can never disagree about what is reachable.
 
+WHICH allowlist is decided by the MODEL, not by a flag. A segmenter that records `jieba_dict` in
+its `vocab.json` ships the traditional dictionary it was trained against beside its own weights and
+calls `jieba.set_dictionary` with it, so jieba's simplified `dict.txt` is never opened and is
+dropped from the vendored tree (`KEEP_MODEL_DICT`). That is what keeps the traditional dictionary
+free: 5.06 MB in, 5.07 MB out. On the older `jieba_t2s` regime the model has no dictionary of its
+own, jieba's is the one it reads, and it stays.
+
     python scripts/vendor_jieba.py <built-model-dir>
 """
 import argparse
@@ -48,7 +55,8 @@ def _sibling(name):
     return mod
 
 
-KEEP = _sibling("slim_jieba").KEEP
+_SLIM = _sibling("slim_jieba")
+KEEP = _SLIM.KEEP
 
 
 def vendor(model_dir: pathlib.Path) -> None:
@@ -59,10 +67,18 @@ def vendor(model_dir: pathlib.Path) -> None:
         shutil.rmtree(dst)
     dst.mkdir(parents=True)
 
-    missing = [rel for rel in KEEP if not (src / rel).is_file()]
+    # Ask the artefact which dictionary it reads rather than assuming, the same way the segmenter
+    # itself reads `jieba_dict` back out of vocab.json instead of trusting a remembered flag.
+    own = next(iter(sorted(model_dir.rglob(_sibling("zh_jieba_feature").TRAD_DICT_FILE))), None)
+    keep = _SLIM.KEEP_MODEL_DICT if own else KEEP
+    if own:
+        print(f"  model carries its own jieba dictionary ({own.relative_to(model_dir)}, "
+              f"{own.stat().st_size / 1e6:.1f} MB) — vendoring jieba WITHOUT dict.txt")
+
+    missing = [rel for rel in keep if not (src / rel).is_file()]
     if missing:
         sys.exit(f"installed jieba at {src} is missing {missing} — refusing to vendor a partial copy")
-    for rel in sorted(KEEP):
+    for rel in sorted(keep):
         out = dst / rel
         out.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src / rel, out)

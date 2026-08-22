@@ -69,6 +69,29 @@ confidently merged this" and "jieba split it", which is what the model was learn
 GSD word types its dictionary lacks *costs* 0.8 F (0.7989 → 0.7911). The words needing forced
 separation are pronoun+classifier and light-noun compounds — 这个 这次 有人 因此 为什么 一名 那个 企业家.
 
+**More traditional SPELLINGS in jieba's dictionary is not more coverage.** Making the channel
+traditional (`build_jieba_trad_dict.py`) is a real fix, but only in the narrow form that shipped —
+one conversion, `s2tw`, the same one `zh_script` applies to incoming simplified input. On jieba's
+boundary decisions over the traditional GSD test:
+
+    jieba's own extra_dict/dict.txt.big     F 0.9176   its traditional half is OpenCC `s2t`, which
+                                                       writes 爲什麼/臺灣 where GSD writes 為什麼/台灣
+    s2t ∪ s2tw ∪ s2hk, every variant        F 0.8990   WORSE than one conversion, and worse than the
+                                                       simplified dictionary via t2s
+    s2tw alone                              F 0.9237   ships
+
+The union loses because jieba scores a DAG over the dictionary: a spelling nobody wrote is still a
+long match competing with the right short ones, and the spurious merges cost more than the variants
+recover. Hedging across orthographies is not free the way adding a lexicon entry is.
+
+**A traditional dictionary alone leaves the defect half-fixed (F 0.9203, not 0.9237).** jieba is two
+models, and only one of them is the dictionary: unknown runs go to `finalseg`, an HMM whose emission
+probabilities are per CHARACTER and were estimated on simplified text. Converting the dictionary and
+leaving the HMM reading traditional characters recovers about half the gap; the rest needs the HMM
+asked about the `t2s` rendering (`zh_jieba_feature._hmm_via_t2s`). Worth stating because the obvious
+reading — "the dictionary was the problem, so fix the dictionary" — measures as only partly right,
+and the residue would have been read as noise at this spread.
+
 **Apte's stems do not transfer to spaced input (−3.50 F).** As a CSLiser input feature the 128 872-stem
 Apte lexicon (`build_apte_lexicon.py`, extracted from CDSL `csl-orig` AP90 + AP; Apte cites
 NOMINATIVE SINGULARS, so the SLP1 visarga/anusvara endings are stripped to recover the stem a
