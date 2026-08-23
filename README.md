@@ -31,7 +31,7 @@ does not.
 | Model | Language | Version | Treebank | Licence | Extra dependency |
 |-------|----------|:-------:|----------|---------|------------------|
 | `en_sud_ewt` | English | 0.2.0 | SUD_English-EWT | CC BY-SA 4.0 | — |
-| `en_sud_ewt_gum` | English | 0.2.0 | + GUM's ten non-NC genres | CC BY-SA 4.0 ‽ | — |
+| `en_sud_ewt_gum` | English | 0.2.0 | + GUM's ten non-NC genres | CC BY-SA 4.0 | — |
 | `zh_sud_gsd` | Chinese | 0.2.0 | SUD_Chinese-GSD | CC BY-SA 4.0 | `opencc` |
 | `ja_sud_gsd` | Japanese | **0.3.0** | SUD_Japanese-GSD | CC BY-SA 4.0 | `sudachipy` + `sudachidict-core` |
 | `ko_sud_gsd` | Korean | **0.3.0** | SUD_Korean-GSD | CC BY-SA 4.0 | `python-mecab-ko` § |
@@ -49,6 +49,14 @@ Every model is matched to its treebank's tokenisation, so it runs on **raw text*
 version sits on, and which wheels have been re-uploaded in place, is in
 [`docs/release-notes.md`](docs/release-notes.md) — read it before assuming `pip install -U` will
 fetch a fix.
+
+**English ships twice.** `en_sud_ewt_gum` adds the ten GUM genres whose sources are not
+NonCommercial: +66 % training tokens, and it outscores the EWT-only wheel. Both are **CC BY-SA
+4.0** — GUM's maintainer has confirmed the annotations are Georgetown's under CC BY, with the
+NonCommercial term belonging only to the individual underlying documents. What the GUM wheel adds is
+an **attribution obligation**: cite GUM, link <https://gucorpling.org/gum/>, and credit the
+annotators and the text sources ([`NOTICE.md`](NOTICE.md)). Prefer it unless you want an EWT-only
+provenance and the narrower attribution that comes with it.
 
 ## Results (test split)
 
@@ -71,19 +79,24 @@ the tokeniser is measured instead.
 | `la_sud_ittb_proiel_perseus` | Latin | 80.0 | 73.2 | 64.9 | 100.0 ¶ |
 | `yue_sud_hk` | Cantonese | 75.2 | 67.3 | 52.2 | 94.7 ◊ |
 | `zh_sud_gsd` | Chinese | 73.8 | 69.0 | 31.1 | 96.8 ⚑ |
-| `ta_sud_ttb_mwtt` | Tamil | 72.9 | 59.7 | 29.9 | 94.2 ◊◊ |
+| `ta_sud_ttb_mwtt` | Tamil | 72.9 | 59.7 | 29.9 | 94.2 ※ |
 | `sa_sud_vedic_ufal_dcs` | Sanskrit (classical prose) | 68.6 | 48.5 | 24.4 | 100.0 † ∴ |
 
-**Read the footnote before comparing any two rows.** Several of these numbers do not mean what the
-column heading implies, and the differences are large:
+**Read a row's note before comparing it with another.** Several of these numbers do not mean what
+the column heading implies, and the differences are large:
 
 | | |
-|---|---|
-| ∴ | **Sanskrit is measured on a different test set** from every other row — held-out UFAL classical prose, not its own treebank's test — so differencing it against anything here is meaningless. |
-| ◊◊ | **Two Telugu columns are traps.** Its treebank carries no lemmas and almost no FEATS, so `lemma_acc` 100.0 measures an identity copy and `morph_acc` 98.2 is the base rate for predicting empty. Tamil has no raw `TOK` row at all — its tokeniser rewrites its input, so `spacy evaluate` cannot align; 94.2 is strict token F from `scripts/eval_ta_tokenizer.py`. |
-| § | **Korean's `morph_acc` says nothing** — FEATS is populated on 4.7 % of tokens. And 34.5 % of test tokens are unseen strings, which parse 29.6 LAS below the rest. |
-| ¶ | The Latin headline spans two registers: ITTB+PROIEL scores LAS 77.7, Perseus's classical poetry 53.9. |
-| ‖ ⚑ ‡ ◊ † ‽ | Restored punctuation, a jieba dictionary channel, a clitic tokeniser, a carved test-only treebank, clause units rather than sentences, and English's two licences. |
+|:--:|---|
+| **∴** | **Sanskrit is measured on a different test set** from every other row — held-out UFAL classical prose, not its own treebank's test. Differencing it against anything here is meaningless. |
+| **◊◊** | **Two Telugu columns are traps.** Its treebank carries no lemmas and almost no FEATS, so `lemma_acc` 100.0 is measuring an identity copy and `morph_acc` 98.2 is the base rate for predicting empty. |
+| **§** | **Korean's `morph_acc` says nothing** — FEATS is populated on 4.7 % of tokens. And 34.5 % of test tokens are unseen strings, which parse 29.6 LAS below the rest. |
+| **¶** | **The Latin headline spans two registers**: ITTB+PROIEL scores LAS 77.7, Perseus's classical poetry 53.9. |
+| **※** | Tamil has no raw `TOK` row: its tokeniser rewrites its input, so `spacy evaluate` cannot align the two texts. 94.2 is strict token F from `scripts/eval_ta_tokenizer.py`. |
+| **†** | Sanskrit and Classical Chinese segment into clause units, not sentences; both bundle a `clause_parser` for punctuated running text. |
+| **‖** | Classical Chinese trains on a punctuation-restored Kyoto, traditional-only, keeping the annotators' own subtypes — so it is not comparable with earlier lzh figures. |
+| **⚑** | Chinese segments with a trained character segmenter whose second channel is jieba's decision, read off a traditional jieba dictionary. |
+| **‡** | Arabic ships a CAMeL-Tools ATB tokeniser for PADT's clitics, and needs the CAMeL data (GPL v2, not bundled). |
+| **◊** | Cantonese has a test-only treebank, carved 80/10/10, so its figures are the noisiest here. |
 
 Every one of these is written out in **[`docs/results-notes.md`](docs/results-notes.md)**, with the
 measurements behind it. Full per-relation breakdowns are in `metrics/release/*.json`; every other

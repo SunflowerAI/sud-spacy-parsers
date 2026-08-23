@@ -95,7 +95,7 @@ Augmentation costs are **not uniform across labels** — the rare ones pay first
 
 ## Sanskrit — reported on classical prose, not Vedic
 
-◊◊ *Full detail: [`sanskrit.md`](sanskrit.md).*
+∴ *Full detail: [`sanskrit.md`](sanskrit.md).*
 
 **Sanskrit is reported on held-out UFAL (classical prose), not Vedic.** The shipped arm is a joint
 multi-task model — one shared encoder for tagger/parser/morphologizer/lemmatizer instead of the
@@ -221,7 +221,7 @@ The table is sealed into the model's own bytes.
 
 ## Tamil and Telugu — small treebanks, and two traps
 
-*Full detail: [`dravidian.md`](dravidian.md).*
+※ ◊◊ *Full detail: [`dravidian.md`](dravidian.md).*
 
 Both are **CC BY-NC-SA 3.0** and both are new at 0.1.0. Neither ships a SUD MISC layer, and that is
 measured rather than skipped: ta `Subject` reaches P 75.0 % over EIGHT predictions, a 95 % interval
@@ -256,7 +256,7 @@ combined arm's 33, and 14 of te's 29. `scripts/make_dravidian_config.py` sets it
 
 ## English — two wheels, one licence
 
-‽ *Full detail: [`languages.md`](languages.md).*
+*Full detail: [`languages.md`](languages.md).*
 
 `en_sud_ewt_gum` is the second English wheel: it adds the ten GUM genres whose sources are not
 NonCommercial, which is +66 % training tokens and ~+0.6 LAS on EWT's own test.
