@@ -56,9 +56,11 @@ de-sandhis internally. Persian, by contrast, runs fine on raw text (raw LAS 85.3
 a punctuation-restored Kyoto — the treebank deliberately carries no punctuation, so the marks are
 aligned in from the Kanseki Repository editions it was built from (CC BY-SA 4.0; see `NOTICE.md`) —
 and its 句讀 units are merged into punctuation-delimited sentences wherever a derived rule licenses
-it. The test set therefore contains punctuation tokens and longer sentences, so 82.9 / 77.2 / 66.5
+it. The test set therefore contains punctuation tokens and longer sentences, so 82.0 / 76.5 / 67.1
 is a *different measurement* from the pre-punctuation 84.1 / 79.0 / 73.1, not a regression against
-it.
+it. Since 2026-08-19 the arm also keeps the annotators' own `@tmod`/`@lmod` subtypes, which changes
+the label inventory the metric is computed over — another reason not to difference it against an
+earlier lzh figure.
 
 At 0.2.0 the arm is also **traditional-only** — the simplified half was an OpenCC conversion of the
 same text, and dropping it costs the parser ~2.4 LAS but stops 遠 and 远 splitting one character's

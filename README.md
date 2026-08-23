@@ -60,18 +60,18 @@ the tokeniser is measured instead.
 | Model | Language | UAS | LAS | `comp:obl` F | TOK (raw) |
 |-------|----------|----:|----:|-------------:|----------:|
 | `ja_sud_gsd` | Japanese | 92.0 | 90.0 | 72.9 | 99.4 |
-| `fa_sud_perdt` | Persian | 90.6 | 87.2 | 79.2 | 99.1 |
-| `en_sud_ewt_gum` | English (EWT+GUM) | 86.8 | 81.9 | 70.8 | 99.7 |
+| `fa_sud_perdt` | Persian | 91.0 | 86.3 | 79.8 | 99.1 |
+| `en_sud_ewt_gum` | English (EWT+GUM) | 86.8 | 81.9 | 70.7 | 99.7 |
 | `en_sud_ewt` | English | 86.3 | 81.3 | 70.9 | 99.6 |
 | `te_sud_mtg` | Telugu | 85.3 | 69.1 | 14.3 | — ◊◊ |
-| `ar_sud_padt` | Arabic | 83.7 | 77.3 | 62.9 | 91.4 ‡ |
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 68.2 | 99.9 |
-| `lzh_sud_kyoto` | Classical Chinese | 82.9 | 77.2 | 66.5 | 100.0 † ‖ |
-| `ko_sud_gsd` | Korean | 80.1 | 74.6 | 48.7 | 99.8 § |
+| `ar_sud_padt` | Arabic | 83.0 | 76.8 | 62.8 | 91.4 ‡ |
+| `lzh_sud_kyoto` | Classical Chinese | 82.0 | 76.5 | 67.1 | 100.0 † ‖ |
+| `ko_sud_gsd` | Korean | 80.1 | 74.6 | 48.6 | 99.8 § |
 | `la_sud_ittb_proiel_perseus` | Latin | 80.0 | 73.2 | 64.9 | 100.0 ¶ |
+| `yue_sud_hk` | Cantonese | 75.2 | 67.3 | 52.2 | 94.7 ◊ |
 | `zh_sud_gsd` | Chinese | 73.8 | 69.0 | 31.1 | 96.8 ⚑ |
 | `ta_sud_ttb_mwtt` | Tamil | 72.9 | 59.7 | 29.9 | 94.2 ◊◊ |
-| `yue_sud_hk` | Cantonese | 72.4 | 64.5 | 46.2 | 94.7 ◊ |
 | `sa_sud_vedic_ufal_dcs` | Sanskrit (classical prose) | 68.6 | 48.5 | 24.4 | 100.0 † ∴ |
 
 **Read the footnote before comparing any two rows.** Several of these numbers do not mean what the

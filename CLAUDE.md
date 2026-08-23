@@ -91,8 +91,12 @@ hashing `parser/model` out of the DOWNLOADED wheel — **a training directory of
 evidence**. Re-measured against the downloaded v0.3.0 assets on 2026-08-23: **la was stale by a
 whole arm** (the wheel ships the lemma-vector parser, LAS 71.72 → **73.23**), **sa by two
 generations** (37.35 → **48.54**), and **ta and te had no release file at all**. en/en_gum/id/zh/ja/ko
-reproduce exactly; **ar, fa, lzh and yue do not re-derive from any local corpus** and nobody has
-explained why — `docs/release-notes.md` has the table. ja cannot be scored with the stock reader at
+reproduce exactly. **ar, fa, lzh and yue were stale too**, and for the standing reason: each was
+re-released onto a different arm (ar/fa the vocalisation-augmented ones, `ea1886f`; lzh/yue after the
+subtype restorations, `0d49e18`/`05539b9`) and nobody re-measured. All four wheels hash byte-identical
+to the arm `package_sud.sh` names, so **nothing needed retraining** — and the corpus to score on is
+the one the arm's OWN `config.cfg` names, not the one whose name looks right (`fa` on `corpus_fa_ext`
+rather than `corpus_fa_sud` is a full LAS point). `docs/release-notes.md` has the table. ja cannot be scored with the stock reader at
 all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a model that does 90.04.
 
 ## Where the details live

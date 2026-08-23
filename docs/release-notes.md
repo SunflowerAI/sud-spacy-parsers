@@ -83,7 +83,8 @@ in-memory one.
 
 `metrics/release/*.json` is measured on the arm each wheel ships, identified by hashing
 `parser/model` out of the **downloaded** wheel. A training directory of the right name is not
-evidence. Re-measured 2026-08-23 against the downloaded v0.3.0 assets:
+evidence. Re-measured 2026-08-23 against the downloaded assets. **Ten of the fourteen wheels were
+quoting a figure from an arm they no longer ship.**
 
 | file | was | is | why |
 |---|---|---|---|
@@ -97,23 +98,28 @@ evidence. Re-measured 2026-08-23 against the downloaded v0.3.0 assets:
 `en`, `en_gum`, `id`, `zh`, `ja` and `ko` were re-verified and reproduce their files **exactly**,
 which is what validates the method for the six re-measured above.
 
-⚠ **`ar`, `fa`, `lzh` and `yue` could not be re-derived exactly**, and the gap is not explained. Each
-released parser was found byte-identical to an arm still in the training tree, so none of them is a
-newer generation than the file describes — but no local test corpus reproduces the published figure:
+**`ar`, `fa`, `lzh` and `yue` were stale for the same reason, and it is the one this repo keeps
+paying for: the arm was re-released and the metric was not re-measured.** Every one of the four
+release files was written by `7191f11` on 2026-08-12, and every one of the four wheels was rebuilt
+after that date on a *different arm*:
 
-| | published | best local re-derivation | on |
+| | published (08-12) | the arm actually shipping | re-measured |
 |---|---|---|---|
-| `ar` | 83.67 / 77.34 / 62.90 | 83.05 / 76.76 / 62.78 | `corpus_ar_sud/test.spacy` |
-| `fa` | 90.61 / 87.18 / 79.20 | 90.98 / 87.28 / 79.81 | `corpus_fa_ext/…relabeled_ext.spacy` |
-| `lzh` | 82.92 / 77.20 / 66.47 | 81.98 / 76.46 / 67.11 | `corpus_lzh_trad/…rulemerged.spacy` |
-| `yue` | 72.37 / 64.51 / 46.15 | 75.22 / 67.29 / 52.17 | `corpus_yue_sud/test.spacy` |
+| `ar` | 83.67 / 77.34 / 62.90 | `training_ar_vocal_sud_idiom` — the vocalisation-augmented arm adopted by `ea1886f` (08-14) | **83.05 / 76.76 / 62.78** |
+| `fa` | 90.61 / 87.18 / 79.20 | `training_fa_vocal_sud_xpos` — same commit | **90.98 / 86.29 / 79.81** |
+| `lzh` | 82.92 / 77.20 / 66.47 | `training_lzh_seg_sud_xw` — the sentence-segmenting arm, after `0d49e18` (08-19) restored the annotators' `@tmod`/`@lmod` | **81.98 / 76.46 / 67.11** |
+| `yue` | 72.37 / 64.51 / 46.15 | `training_yue_sud_xpos` — after `05539b9` (08-19) kept yue's subtypes and fixed three packaging defaults that named the wrong arm | **75.22 / 67.29 / 52.17** |
 
-The deltas run in both directions and are ≤3 points, which is the signature of a **regenerated test
-corpus** rather than a changed model — these four have all been through relabel or normalisation
-passes (`reparandum` → `conj:dicto`, the `udep`-ruled residue commits) that rewrite gold. The four
-release files are left as published, since they were measured on the arm at release time; the README
-quotes them. Resolving this means finding which corpus generation each was measured on, and it is
-the obvious next job for anyone touching these four.
+Each wheel's `parser/model` was hashed out of the downloaded asset and found **byte-identical to the
+arm `package_sud.sh` names**, so no model is stale and nothing needed retraining — only the numbers
+were wrong. Each was then re-evaluated on the test split of the corpus its own `config.cfg` names
+for train and dev, which is what the earlier attempt got wrong: `fa` on `corpus_fa_ext` rather than
+`corpus_fa_sud` reads LAS 87.28 instead of 86.29, and picking the corpus by name rather than by
+asking the arm is how a one-point error gets into a table.
+
+The two subtype restorations move `comp:obl` F most (`yue` +6.0, `lzh` +0.6), which is expected:
+they change the label inventory the metric is computed over. **Rare labels pay first, and they are
+also the first to move when the gold moves.**
 
 ⚠ **`ja` must be scored through `scripts/eval_ja_infl.py --reader infltag`.** It reads a tokeniser-supplied input channel that
 `spacy evaluate --gold-preproc` does not build, and scoring it with the stock reader reports LAS
