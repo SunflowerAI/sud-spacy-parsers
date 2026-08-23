@@ -66,8 +66,14 @@ FILES = {
     # fires identically and the cache keys (sent_id|comp_id) match exactly -- it costs no queries.
     "la": ["assets_la/la_ittbproiel-sud-%s.relabeled_ext.conllu" % s for s in ("train", "dev", "test")]
           + ["assets_la/la_ittbproiel-sud-%s.relabeled_ext.macron.conllu" % s for s in ("train", "dev", "test")],
-    "sa": ["corpus_sa_csl_rev/train.csl_rev.conllu"]
-          + ["assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-%s.csl_rev.conllu" % s for s in ("dev", "test")],
+    # ⚠ csl_mwt, not csl_rev. `corpus_sa_csl_rev` is the SUPERSEDED pausa-normalised
+    # representation (CLAUDE.md, "Superseded but kept") -- unrelabelled and on a tokenisation the
+    # released sa arm does not share. THE `.reported.` GOLD MUST BE REGENERATED: only
+    # `*.csl_rev.reported.conllu` exists on disk, so re-run this script for sa before
+    # `eval_sud_reported.py sa` will find its input.
+    "sa": ["corpus_sa_mwt_rl2/train.csl_mwt.conllu"]
+          + ["assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-%s.relabeled_ext.csl_mwt.conllu"
+             % s for s in ("dev", "test")],
 }
 
 # Lexicons and character classes live in sud_reported_data.py, shared with the runtime
@@ -79,6 +85,7 @@ _dspec.loader.exec_module(_data)
 
 base_lang = _data.base_lang
 SPEECH_VERBS = _data.SPEECH_VERBS
+is_speech_lemma = _data.is_speech_lemma
 COMPLEMENTISERS = _data.COMPLEMENTISERS
 LA_INTERROGATIVE = _data.LA_INTERROGATIVE
 QUOTES = _data.QUOTES
@@ -163,7 +170,7 @@ def indirect_evidence(lang, by_id, ids, comp):
 def candidates(lang, path):
     """Speech-verb complements, with whatever direct/indirect evidence each carries."""
     out = []
-    verbs = SPEECH_VERBS[base_lang(lang)]
+    verbs = SPEECH_VERBS[base_lang(lang)]          # kept: some call sites want the set
     for sent_id, tokens in d.parse_conllu(path):
         by_id = {t["id"]: t for t in tokens}
         for t in tokens:
@@ -180,7 +187,10 @@ def candidates(lang, path):
             head = by_id.get(t["head"])
             if head is None or head["upos"] not in ("VERB", "AUX"):
                 continue
-            if head["lemma"] not in verbs:
+            # is_speech_lemma, not `in verbs`: the runtime rule asks exactly this
+            # question and the two must never drift (see the module docstring). On gold
+            # lemmas the stem fallback is a near no-op -- one token in the whole treebank.
+            if not is_speech_lemma(lang, head["lemma"]):
                 continue
             ids = subtree(tokens, t["id"])
             out.append({

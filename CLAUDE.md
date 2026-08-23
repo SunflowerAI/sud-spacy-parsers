@@ -110,7 +110,10 @@ evidence**. Which release figures are stale, and on which single field:
 release; the other eight are at v0.2.0 on `v0.2.0`. Published on the GitHub Release, not in git.
 
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
-which is why the four above took a version bump instead. Most recently clobbered: **zh, id and lzh
+which is why the four above took a version bump instead. Most recently clobbered: **sa at 0.3.0 on 2026-08-23** — the
+re-tuned `Reported` rule (test F 48.76 → 53.05 as the wheel runs), a CODE-ONLY change in which
+all six weight files are byte-identical to the previous asset, verified out of the DOWNLOADED
+wheel (`docs/sud-misc-layer.md`). Before that, **zh, id and lzh
 at 0.2.0 and ta at 0.1.0, all on 2026-08-22 at 19:47 UTC** — the `SEG_BATCH` memory cap in
 `char_seg_tokenizer.py` (and `ta_tokenizer.py`), a SOURCE-ONLY change in which every model byte is
 unchanged: each wheel was rebuilt by unpacking the released asset, editing the bundled file and
@@ -231,7 +234,14 @@ value**, not as missing — writing `_` for tokens with no gold taught the sandh
    users have; `build_sud/` has held two wheels of the same name at different generations. Verify
    against `gh release view`, the asset size, and weight hashes taken **out of the downloaded
    wheel**. Upload by NAME — `find build_sud -name '*.whl'` is still the wrong command.
-2. **A default that names the right arm is the fix; a comment telling the next person is not.**
+2. **A default that names the right arm — or the right CORPUS — is the fix; a comment telling the
+   next person is not.** Extended to corpora on 2026-08-23: `train_sud.sh`'s `src_conllu()` still
+   named `corpus_sa_csl_rev`, the superseded pausa-normalised generation, long after
+   `rebuild_sa_csl_rev.sh` was listed below as superseded. Anything copying that map got Sanskrit
+   **unrelabelled** (`udep` on 7.89 % of tokens against 0.00 % in the current generation) and on a
+   tokenisation the released arm does not share — and a superseded corpus loads, converts and
+   trains exactly like a current one, so nothing raised. Fixed, and every other `csl_rev` reference
+   in `scripts/` and `configs/` is now either repointed or carries a SUPERSEDED banner.
    This has been paid for four times over — lzh nearly shipped a generation backwards three times
    through `package_sud.sh` defaults, then ar did. The durable fix is a default plus a refusal:
    `pkg()` will not package an arm whose pipeline has `tagger` before `morphologizer`.

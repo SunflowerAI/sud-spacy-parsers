@@ -36,9 +36,20 @@ TEST = {
     "ar": "assets_ar/SUD_Arabic-PADT/ar_padt-sud-{split}.relabeled_ext.reported.conllu",
     "fa": "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-{split}.relabeled_ext.reported.conllu",
     "la": "assets_la/la_ittbproiel-sud-{split}.relabeled_ext.reported.conllu",
-    "sa": "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{split}.csl_rev.reported.conllu",
+    # ⚠ csl_mwt, not csl_rev (the superseded pausa representation). THIS FILE DOES NOT EXIST YET:
+    # regenerate it with `sud_reported_gold.py sa`, which now reads the csl_mwt source. Pointed here
+    # deliberately rather than left on the stale file -- a missing input is an error, and a
+    # superseded one is a plausible wrong number.
+    "sa": "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{split}.relabeled_ext.csl_mwt.reported.conllu",
 }
-LEMMA_ARM = {"sa": "training_sa_lemma3_noannot/model-best"}
+# The arm the RULE is attached to. It must be the arm the rule actually ships on, because the rule
+# reads that arm's predicted deprels and VerbForm/Mood -- attach it to a different generation and
+# what is measured is the mismatch, not the rule.
+# ⚠ sa was `training_sa_lemma3_noannot/model-best` until 2026-08-23: an arm of the SUPERSEDED
+# csl_rev chain, scored against current-representation gold. The released sa arm is
+# `training_sa_mp2_sub_s1/model-best` (`SA_BASE` in package_sud.sh), which is where
+# `add_sud_reported_rule.py` puts the pipe at packaging time.
+LEMMA_ARM = {"sa": "training_sa_mp2_sub_s1/model-best"}
 
 
 def sentences(path):
@@ -115,11 +126,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lang", required=True, choices=sorted(TEST))
     ap.add_argument("--split", default="test")
+    ap.add_argument("--arm", default=None,
+                    help="override the arm the RULE is attached to (default: the released arm)")
+    ap.add_argument("--gold", default=None,
+                    help="override the gold path template, e.g. a superseded representation, "
+                         "for an explicitly like-for-like comparison")
     ap.add_argument("--trained", default=None,
                     help="override the trained arm dir (e.g. training_ar_sudrep/model-best)")
     args = ap.parse_args()
 
-    path = TEST[args.lang].format(split=args.split)
+    path = (args.gold or TEST[args.lang]).format(split=args.split)
     if not pathlib.Path(path).exists():
         sys.exit(f"missing {path}")
     rows = list(sentences(path))
@@ -136,7 +152,7 @@ def main():
     else:
         print(f"  sud_tagger (trained)  -- {trained} missing")
 
-    lemma = LEMMA_ARM.get(args.lang, f"training_{args.lang}_lemma/model-best")
+    lemma = args.arm or LEMMA_ARM.get(args.lang, f"training_{args.lang}_lemma/model-best")
     if pathlib.Path(lemma).exists():
         nlp = spacy.load(lemma)
         if "sud_reported_rule" in nlp.pipe_names:

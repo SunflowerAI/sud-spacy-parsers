@@ -339,3 +339,100 @@ of the idiom eval does not use the model and stays 100 %. What did NOT go stale:
 `sud_subject_frames.py` re-harvests byte-identically after the udep-residue commit (raising
 complements are `comp:obj`/`comp:obl`/`comp:pred`, never `udep`).
 
+
+## ⚠ sa `Reported`: the shipped rule was never re-measured after the base moved (found 2026-08-23)
+
+`add_sud_reported_rule.py` documents the sa rule at **F 68.8**. Re-measured through one harness, with
+the rule attached to the arm it actually ships on:
+
+| rule attached to | scored against | P | R | **F** |
+|---|---|---|---|---|
+| `training_sa_lemma3_noannot` (superseded csl_rev chain) | csl_rev gold | 72.93 | 65.10 | **68.79** |
+| `training_sa_mp2_sub_s1` (**released**, `SA_BASE`) | csl_mwt gold | 65.56 | 38.82 | **48.76** |
+
+The first row reproduces the documented 68.8 exactly, so the harness is sound. The second is the
+configuration that ships. **The rule loses 20 F on the generation it is actually packaged onto**,
+and the loss is almost entirely RECALL (65.10 → 38.82) while precision holds.
+
+**It is not the lexicon and not the inputs**, both of which were checked before concluding:
+
+- The lexicons in `sud_reported_data.py` are curated and LEMMA-keyed, compiled into the source
+  rather than harvested at build time. The head-lemma distribution that seeded them is the same in
+  both representations — **top-40 VERB lemmas 40/40 shared**, and per-lemma counts differ by 1–6 in
+  the hundreds-to-thousands, tracking the 494-token difference in corpus size.
+- The quotative test reads `token.lemma_`, not the form. `iti` has 627 gold lemmas in both
+  representations (though only 523 surface FORMs in `csl_mwt`, which keeps the sandhied surface),
+  and **both arms' lemmatisers recover all 627 at 100 %**.
+
+So the rule's inputs are intact and what changed is the TREE it reads. This is standing hazard 5 in
+CLAUDE.md — *"re-measure the MISC layer after any base retrain; every pipe there reads the base's own
+predictions"* — arriving through a base **replacement** rather than a retrain: sa moved from the
+freeze-recipe csl_rev chain to the joint multi-task `mp2` arm, and the rule went with it unmeasured.
+
+**RE-TUNED 2026-08-23: F 48.76 -> 52.33 on test.** Tuned on dev, and test was consulted three times
+(baseline, stem, final) -- stated because that is three chances for a dev-fitted gain to look real.
+
+| step | dev F | test F |
+|---|---|---|
+| baseline, released base | 54.04 | **48.76** |
+| + speech-verb stem fallback | 57.07 | 48.85 |
+| + **`iti` quotative anchor** | **58.72** | **52.33** |
+
+Final: P 57.48 / R 48.03 against the baseline's P 65.56 / R 38.82 — the tune buys **+9.2 recall for
+−8.1 precision**, which is a real F gain and a genuine trade, not a free one.
+
+**1. The stem fallback** recovers `brū` from the augmented forms the base leaves unlemmatised
+(`abravīt`, `abruvan`, `'bravīd`): 42 distinct surface forms over 275 tokens against exactly ONE
+gold lemma the same test matches, so it recovers a verb already in `SPEECH_VERBS` rather than
+widening the lexicon. `is_speech_lemma()` in `sud_reported_data.py`, shared by the gold builder and
+the runtime rule so they cannot drift; on gold lemmas it is a **byte-identical no-op**, verified by
+regenerating all three gold files and diffing. **On its own it bought +0.09 on test** (dev said
++3.03 — do not cite the dev figure). Kept because it is correct in kind and the anchor below needs
+it, not because it earned its place empirically.
+
+**2. The `iti` quotative anchor** is what actually paid. The main loop is COMPLEMENT-anchored, and
+that anchor fails whenever the parser attaches the quote as something other than
+`comp:*`/`parataxis` — 42.8 % of gold positives under `mp2` (`flat` 25, `mod` 22, `conj:coord` 4).
+The second pass anchors on `iti` instead and climbs at most one step to the speech verb's dependent.
+
+**THE CEILING IS MEASURED, AND IT IS WHY NOTHING BIGGER WORKS.** Under `mp2`'s trees, on dev
+gold positives:
+
+| reachable under the predicted tree | share |
+|---|---|
+| any speech verb in the sentence | 98.7 % |
+| dominated at ANY depth by a speech verb | 89.0 % |
+| **direct dependent of a speech verb + evidence in subtree** | **57.9 %** |
+| dominated at any depth + evidence in subtree | 72.8 % |
+
+The main loop already reached R 52.19 against that **57.9 % ceiling — 90 % of the most any
+complement-anchored rule can get**. The extra 15 points live only in the any-depth band, and taking
+them costs precision: a full evidence-anchored rewrite scored dev F 46.64 against the main loop's
+57.07, and unrestricted climbing 45.99. One step up, keyed on `iti` alone, is the only slice of that
+headroom that pays.
+
+**Three levers measured and declined**, each on mechanism rather than on F alone:
+
+- **`discourse` as evidence for the anchor** — admits 115 dev candidates and gets **0** right.
+  sa uses no quotation characters either, so the anchor is `iti`-only.
+- **Widening the accepted deprel set** — `mod` runs at 33 % precision; `subj`/`orphan` move F under
+  a point on n = 3 and n = 1.
+- **Requiring `clausal`** — which the code computes and never enforces, since
+  `direct and not indirect and (clausal or direct)` reduces to `direct and not indirect`. Enforcing
+  it collapses dev F to 18.91: sa's quoted clauses are mostly not tagged VERB/AUX, and a verbatim
+  quote may be verbless. The existing design is right.
+
+**Still open.** 52.33 is a real improvement on 48.76 but remains far below the 68.79 the rule scored
+on the chain it was built for, and the residue is attachment, not lexicon — the rule's inputs are
+provably intact (both arms recover all 627 `iti` lemmas at 100 %). Ship at 52.33 or drop sa's
+`Reported`: still a judgement call, now a better-informed one.
+
+**No collateral damage.** `en` 66.67 and `ar` 73.49 reproduce their documented 66.7 / 73.5 exactly;
+neither has `SPEECH_STEMS` and the second pass is `sa`-only.
+
+Reproduce (`--arm` and `--gold` were added for this):
+
+    python scripts/eval_sud_reported.py --lang sa
+    python scripts/eval_sud_reported.py --lang sa \
+        --arm training_sa_lemma3_noannot/model-best \
+        --gold 'assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{split}.csl_rev.reported.conllu'

@@ -70,7 +70,7 @@ class SudReportedRule:
         # English's. `.get(lang, set())` on an unresolved name yields an empty set and a rule that
         # silently never fires.
         self.lang = data.base_lang(lang)
-        self.speech = data.SPEECH_VERBS[self.lang]
+        self.speech = data.SPEECH_VERBS[self.lang]   # kept for callers/tests
         self.marks = data.COMPLEMENTISERS.get(self.lang, set())
 
     def _is_complementiser(self, tok):
@@ -102,7 +102,10 @@ class SudReportedRule:
             head = tok.head
             if head.i == tok.i or head.pos_ not in ("VERB", "AUX"):
                 continue
-            if head.lemma_ not in self.speech:
+            # `is_speech_lemma`, not `in self.speech`: the head lemma here is the
+            # BASE's prediction, and sa's lemmatiser leaves brū's augmented forms
+            # unlemmatised (see SPEECH_STEMS in sud_reported_data.py).
+            if not data.is_speech_lemma(self.lang, head.lemma_):
                 continue
 
             subtree = list(tok.subtree)
@@ -126,7 +129,42 @@ class SudReportedRule:
 
             if direct and not indirect and (clausal or direct):
                 set_misc(tok, "Reported", "Yes")
+        if self.lang == "sa":
+            self._sa_quotative_anchor(doc)
         return doc
+
+    def _sa_quotative_anchor(self, doc):
+        """Second pass for sa: anchor on `iti` and climb ONE step to the speech verb's dependent.
+
+        WHY A SECOND ANCHOR AT ALL. The main loop is COMPLEMENT-anchored -- it iterates candidate
+        complements and asks whether their head is a speech verb -- and that anchor fails whenever
+        the parser attaches the quote as something other than `comp:*`/`parataxis`. Against the
+        released `mp2` base that is 42.8 % of gold positives (`flat` 25, `mod` 22, `conj:coord` 4).
+
+        ⚠ ITS CEILING IS MEASURED AND IT IS LOW, so do not expect much of it. Under `mp2`'s trees
+        only 57.9 % of dev gold positives are a DIRECT dependent of a predicted speech verb with
+        evidence in their subtree -- the most any complement-anchored rule can reach -- and the main
+        loop already gets 52.19, i.e. 90 % of its own ceiling. Loosening domination to any depth
+        raises the ceiling to 72.8 % but collapses precision (an evidence-anchored rewrite scored
+        F 46.64 against the main loop's 57.07). One step up, keyed on `iti` alone, is the only part
+        of that headroom that pays: dev F 57.07 -> 58.72.
+
+        `iti` ONLY, deliberately: `discourse` as evidence admits 115 dev candidates and gets 0 of
+        them right, and sa uses no quotation characters.
+        """
+        for q in doc:
+            if q.lemma_ not in data.SA_QUOTATIVE:
+                continue
+            a = q
+            for _ in range(2):                      # a == q, then one step up
+                head = a.head
+                if head.i == a.i:
+                    break
+                if head.pos_ in ("VERB", "AUX") and data.is_speech_lemma(self.lang, head.lemma_):
+                    if not self._is_complementiser(a):
+                        set_misc(a, "Reported", "Yes")
+                    break
+                a = head
 
 
 def make_sud_reported_rule(nlp, name, lang):

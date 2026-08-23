@@ -23,6 +23,44 @@ def base_lang(lang):
     return BASE_LANG.get(lang, lang)
 
 
+# Speech-verb STEMS, tried ONLY when the exact lemma lookup fails.
+#
+# WHY THIS EXISTS, AND WHY IT IS NOT A LEXICON GAP. The runtime rule reads the BASE ARM'S PREDICTED
+# lemma, and sa's lemmatiser leaves the augmented aorist/imperfect of `brū` unlemmatised:
+# `abravīt`, `abruvan`, `'bravīd`, `abravīn` -- 42 distinct surface forms over 275 tokens across the
+# sa treebank, against exactly ONE gold lemma (`bruva`, 1 token) that the same test matches. So this
+# recovers a verb ALREADY in SPEECH_VERBS from the form the base actually emits; it does not widen
+# the lexicon, and on correctly-lemmatised text it is a near no-op.
+#
+# ⚠ MEASURED, AND THE ALTERNATIVE WAS DECLINED. Re-tuning the sa rule against its released base
+# (`training_sa_mp2_sub_s1`) on DEV: this stem test takes F 54.04 -> 57.07 (R 46.93 -> 52.19) with
+# precision essentially unchanged (63.69 -> 62.96). Widening the accepted deprel set was measured at
+# the same time and rejected: `discourse` admits 115 candidates and gets 0 right, `mod` runs at
+# 33 % precision, and `subj`/`orphan` move F by under a point on n = 3 and n = 1 with no mechanism
+# behind them. Tuned on dev, measured once on test.
+SPEECH_STEMS = {"sa": ("brav", "bruv", "bruy")}
+
+
+def _fold_sa(w):
+    """Strip what stands between a predicted sa lemma and its root: avagraha, then the augment."""
+    w = w.lower().lstrip("'\u02bc\u2019")     # avagraha, in the encodings the corpora actually use
+    return w[1:] if w.startswith("a") else w
+
+
+def is_speech_lemma(lang, lemma):
+    """Exact lexicon hit, or -- where the language has stems -- a stem hit on the folded lemma.
+
+    Shared by `sud_reported_gold.py` and `sud_reported_rule.py` for the same reason the lexicons
+    are: the gold builder and the runtime component must ask the identical question. It is a no-op
+    for the gold builder, whose lemmas are gold, and that is the point -- the two cannot drift.
+    """
+    lang = base_lang(lang)
+    if lemma in SPEECH_VERBS.get(lang, ()):
+        return True
+    stems = SPEECH_STEMS.get(lang)
+    return bool(stems) and _fold_sa(lemma).startswith(stems)
+
+
 SPEECH_VERBS = {
     "en": {"say", "tell", "ask", "reply", "answer", "state", "write", "add", "explain",
            "declare", "announce", "note", "remark", "question", "complain", "conclude",
