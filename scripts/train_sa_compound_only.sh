@@ -17,6 +17,10 @@
 # so they are overridden on the command line to chain the new arms together.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE=scripts/seg_code.py                 # sa_tokenizer (lex attrs + tokenizer) + CompoundCorpus reader
 C=corpus_sa_csl_rev
@@ -44,5 +48,5 @@ $PY -m spacy train configs/config_sa_lemma.cfg --output training_sa_lemma3/ --co
   --components.morphologizer.source training_sa_morph3/model-best 2>&1 | tee train_sa_lemma3.log
 
 echo "=== [4/4] evaluate on the Vedic test set (gold-preproc, Compound supplied)"
-$PY scripts/eval_sa_compound.py training_sa_lemma3/model-best $TEST --out metrics_sa_compound_only.json
+$PY scripts/eval_sa_compound.py training_sa_lemma3/model-best $TEST --out metrics/sa/metrics_sa_compound_only.json
 echo "=== done"

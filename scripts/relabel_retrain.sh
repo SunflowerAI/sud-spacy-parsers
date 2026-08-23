@@ -1,6 +1,11 @@
 #!/bin/bash
 # Relabel udep -> comp:obl/mod, then convert + retrain + evaluate, per language.
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 declare -A DIR=( [zh]=assets_zh/SUD_Chinese-GSDSimp [ko]=assets_ko/SUD_Korean-GSD [id]=assets_id/SUD_Indonesian-GSD )
@@ -22,6 +27,6 @@ for lang in id zh ko; do
   if [ ! -d training_${lang}_rl/model-best ]; then echo "!! $lang retrain FAILED"; tail -5 train_${lang}_rl.log; continue; fi
   echo "############## EVAL $lang (relabeled) ##############"
   $PY -m spacy evaluate training_${lang}_rl/model-best corpus_${lang}_rl/$p-test.relabeled.spacy \
-    --gold-preproc --output metrics_${lang}_rl.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS' | head -4
+    --gold-preproc --output metrics/${lang}/metrics_${lang}_rl.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS' | head -4
 done
 echo "ALL RELABEL+RETRAIN DONE"

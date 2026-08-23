@@ -1,10 +1,15 @@
 #!/bin/bash
 # Retrain + evaluate on the EXTENDED-scope relabelling (scripts/relabel_ext.py output:
 # *.relabeled_ext.conllu). Plain tokenisation + gold-preproc eval for zh/ko/id (comparable to
-# metrics_<lang>_rl.json), plain for en. Assumes relabel_ext.py has already produced the
+# metrics/<lang>/metrics_<lang>_rl.json), plain for en. Assumes relabel_ext.py has already produced the
 # *.relabeled_ext.conllu files (run it first). Writes corpus_*_ext / training_*_ext /
-# metrics_*_ext.json and prints baseline vs verb-scope-rl vs extended comp:obl F + LAS.
+# metrics/<lang>/metrics_<lang>_ext.json and prints baseline vs verb-scope-rl vs extended comp:obl F + LAS.
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
@@ -15,10 +20,10 @@ declare -A PREF=( [zh]=zh_gsdsimp-sud [ko]=ko_gsd-sud [id]=id_gsd-sud [en]=en_su
 declare -A CFG=(  [zh]=configs/config_zh.cfg [ko]=configs/config_ko.cfg \
                   [id]=configs/config_id.cfg [en]=configs/config.cfg )
 declare -A GP=(   [zh]=--gold-preproc [ko]=--gold-preproc [id]=--gold-preproc [en]="" )
-declare -A RL=(   [zh]=metrics_zh_rl.json [ko]=metrics_ko_rl.json \
-                  [id]=metrics_id_rl.json [en]=metrics_relabeled.json )
-declare -A BASE=( [zh]=metrics_zh.json [ko]=metrics_ko.json \
-                  [id]=metrics_id.json [en]=metrics.json )
+declare -A RL=(   [zh]=metrics/zh/metrics_zh_rl.json [ko]=metrics/ko/metrics_ko_rl.json \
+                  [id]=metrics/id/metrics_id_rl.json [en]=metrics/en/metrics_relabeled.json )
+declare -A BASE=( [zh]=metrics/zh/metrics_zh.json [ko]=metrics/ko/metrics_ko.json \
+                  [id]=metrics/id/metrics_id.json [en]=metrics/en/metrics.json )
 
 for lang in en zh ko id; do
   p=${PREF[$lang]}; dir=${DIR[$lang]}
@@ -38,8 +43,8 @@ for lang in en zh ko id; do
   if [ ! -d training_${lang}_ext/model-best ]; then echo "!! $lang retrain FAILED"; tail -6 train_${lang}_ext.log; continue; fi
   echo "############## EVAL $lang (extended) ##############"
   $PY -m spacy evaluate training_${lang}_ext/model-best corpus_${lang}_ext/$p-test.relabeled_ext.spacy \
-    ${GP[$lang]} --output metrics_${lang}_ext.json >/dev/null 2>&1
-  $PY - "$lang" "metrics_${lang}_ext.json" "${RL[$lang]}" "${BASE[$lang]}" <<'EOF'
+    ${GP[$lang]} --output metrics/${lang}/metrics_${lang}_ext.json >/dev/null 2>&1
+  $PY - "$lang" "metrics/${lang}/metrics_${lang}_ext.json" "${RL[$lang]}" "${BASE[$lang]}" <<'EOF'
 import json, sys
 lang, ext_f, rl_f, base_f = sys.argv[1:5]
 def load(f):

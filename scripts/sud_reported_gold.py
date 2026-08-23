@@ -36,7 +36,7 @@ Everything else -- a speech-verb complement with neither kind of evidence -- goe
     scripts/sud_reported_gold.py --lang en --no-model     # rules only, for a quick look
 
 Writes `*.reported.conllu` next to the source (baselines untouched) and a resumable decision cache
-`relabel_cache_reported_<lang>.jsonl`, flushed per decision as in `lang_relabel.py`.
+`caches/relabel_cache_reported_<lang>.jsonl`, flushed per decision as in `lang_relabel.py`.
 """
 import argparse
 import importlib.util
@@ -245,7 +245,8 @@ def main():
     args = ap.parse_args()
 
     lang = args.lang
-    cachep = f"relabel_cache_reported_{base_lang(lang)}.jsonl"
+    pathlib.Path("caches").mkdir(exist_ok=True)
+    cachep = f"caches/relabel_cache_reported_{base_lang(lang)}.jsonl"
     cache = {}
     if os.path.exists(cachep):
         for line in open(cachep, encoding="utf-8"):

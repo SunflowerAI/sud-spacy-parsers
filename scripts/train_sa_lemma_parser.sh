@@ -29,6 +29,10 @@
 # block-MORPH control, ≥3 seeds, decided on the 18 161-token Vedic test with UFAL reported apart.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE=scripts/seg_code.py
 C=corpus_sa_csl_mwt
@@ -53,9 +57,9 @@ echo "=== [2] score on the Vedic test, each arm through the reader it was TRAINE
 # Scoring an arm through the wrong reader deletes one of its inputs — that is what eval_sa_compound
 # exists to prevent, and the --reader flag extends it to the two new channels.
 $PY scripts/eval_sa_compound.py training_sa_mwt/model-best        $TEST --reader compound \
-    --out metrics_sa_mwt_baseline.json
+    --out metrics/sa/metrics_sa_mwt_baseline.json
 $PY scripts/eval_sa_compound.py training_sa_mwt_norm/model-best   $N/sa_vedic-sud-test.csl_mwt.spacy \
-    --reader norm   --out metrics_sa_mwt_norm.json
+    --reader norm   --out metrics/sa/metrics_sa_mwt_norm.json
 $PY scripts/eval_sa_compound.py training_sa_mwt_oracle/model-best $TEST --reader oracle \
-    --out metrics_sa_mwt_oracle.json
+    --out metrics/sa/metrics_sa_mwt_oracle.json
 echo "=== done"

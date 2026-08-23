@@ -13,7 +13,12 @@
 #          170 sentences repeated 612 times is heavy overfitting risk; the point is to find out
 #          whether classical LAS moves, and the UFAL test set is held out from all of it.
 set -euo pipefail
+
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE=scripts/seg_code.py
 
@@ -35,7 +40,7 @@ $PY -m spacy train configs/config_ko_eojeol_lemma.cfg --output training_ko_eojeo
     --code $CODE 2>&1 | tail -2
 $PY -m spacy evaluate training_ko_eojeol_lemma/model-best \
     corpus_ko_eojeol/ko_gsd-sud-test.relabeled_ext.spacy --code $CODE \
-    --output metrics_ko_eojeol_v2_raw.json 2>&1 | grep -E "TOK|TAG|POS|LEMMA|UAS|LAS|SENT"
+    --output metrics/ko/metrics_ko_eojeol_v2_raw.json 2>&1 | grep -E "TOK|TAG|POS|LEMMA|UAS|LAS|SENT"
 
 echo "########## 2. Indonesian: retrain the segmenter, then the arm ##########"
 $PY scripts/train_samhita.py data_seg_id/train.jsonl data_seg_id/dev.jsonl \
@@ -75,19 +80,19 @@ print("  segmenter loaded into build_id_charseg")
 PY
 $PY -m spacy evaluate build_id_charseg \
     corpus_id_split/id_gsd-sud-test.relabeled_ext.spacy --code $CODE \
-    --output metrics_id_v2_raw.json 2>&1 | grep -E "TOK|TAG|POS|LEMMA|UAS|LAS|SENT"
+    --output metrics/id/metrics_id_v2_raw.json 2>&1 | grep -E "TOK|TAG|POS|LEMMA|UAS|LAS|SENT"
 
 echo "########## 3. Sanskrit: UFAL at parity with Vedic ##########"
 $PY -m spacy train configs/config_sa_ufal_up.cfg --output training_sa_ufal_up/ \
     --code $CODE 2>&1 | tail -2
 for c in vedic_test ufal_test; do
   $PY scripts/eval_sa_compound.py training_sa_ufal_up/model-best corpus_sa_split/$c.spacy \
-      --out metrics_sa_ufalup_$c.json >/dev/null 2>&1
+      --out metrics/sa/metrics_sa_ufalup_$c.json >/dev/null 2>&1
 done
 $PY - <<'PY'
 import json
-a = json.load(open("metrics_sa_ufalup_vedic_test.json"))
-b = json.load(open("metrics_sa_ufalup_ufal_test.json"))
+a = json.load(open("metrics/sa/metrics_sa_ufalup_vedic_test.json"))
+b = json.load(open("metrics/sa/metrics_sa_ufalup_ufal_test.json"))
 print(f"  Vedic  LAS {a['dep_las']:.4f}  UAS {a['dep_uas']:.4f}   (multitask 0.5140, +5x upsample 0.5415)")
 print(f"  UFAL   LAS {b['dep_las']:.4f}  UAS {b['dep_uas']:.4f}   (multitask 0.4163, +5x upsample 0.4032)")
 PY

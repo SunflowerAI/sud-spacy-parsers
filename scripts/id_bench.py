@@ -43,7 +43,7 @@ CONTRAST = [
 
 
 def test_split(seed=0, ns=8, per_class=120):
-    gold = [json.loads(l) for l in open("gold_id.jsonl") if l.strip()]
+    gold = [json.loads(l) for l in open("gold/gold_id.jsonl") if l.strip()]
     rng = random.Random(seed)
     comp = [x for x in gold if x["gold"] == "complement"]; rng.shuffle(comp)
     mod = [x for x in gold if x["gold"] == "modifier"]; rng.shuffle(mod)

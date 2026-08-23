@@ -18,6 +18,10 @@
 # their recall pinned to zero) and `tag_acc = 0.0` in score_weights. Read that docstring first.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE="--code scripts/seg_code.py"
 
@@ -120,7 +124,7 @@ do_eval() {
         [ -f "$t" ] || continue
         printf "   %-16s " "$slice"
         $PY -m spacy evaluate "$d" "$t" --gold-preproc $CODE \
-            --output "metrics_ta_${arm}_${kind}_${slice}.json" 2>/dev/null \
+            --output "metrics/ta/metrics_ta_${arm}_${kind}_${slice}.json" 2>/dev/null \
           | grep -E '^(TAG|UAS|LAS|POS|MORPH|LEMMA) ' | tr -s ' \n' ' '
         echo
       done

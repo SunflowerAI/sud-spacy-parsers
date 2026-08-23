@@ -100,7 +100,7 @@ worse.
 **ADOPTED, 2026-08-09 (user decision).** The released `la_sud_ittb_proiel_perseus-0.2.0` is now the
 augmented chain: `training_la_aug` → `_aug_morph` → `_aug_lemma` → `_aug_sud`, with `package_sud.sh`
 naming it and `LA_BASE` to get back the union. Measured on the released arm (gold-preproc, plain
-test, `metrics_release_la*.json`): combined LAS 72.26 → **71.72**, UAS 79.17 → 78.72, TAG 80.35 →
+test, `metrics/release/metrics_release_la*.json`): combined LAS 72.26 → **71.72**, UAS 79.17 → 78.72, TAG 80.35 →
 **77.61**, `comp:obl` F 64.80 → 64.75; ITTB+PROIEL 76.58 → **75.90**, Perseus 53.47 → **53.53**. That
 is the bill; the benefit is the orthography table above, where the LAS spread falls from 54.4 to 7.0.
 (Every TAG figure in this section is on the OLD mixed tagset. Since the XPOS normalisation the same

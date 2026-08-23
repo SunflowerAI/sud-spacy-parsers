@@ -3,7 +3,12 @@
 # transfer the relabels through the retokenise/coarsen transforms (which preserve
 # deprels), retrain the retokenised models, and evaluate. zh = GSDSimp+pkuseg
 # (word-level, no transform), id = coarsened, ko = morpheme functional-head.
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
@@ -58,8 +63,8 @@ for L in zh_simp id_coarse ko_retok; do
   eval "T=\$test_${L}"
   [ -d "training_${L}_rl/model-best" ] || { echo "!! $L retrain FAILED"; tail -4 train_${L}_rl.log; continue; }
   echo "######## $L (relabeled) ########"
-  $PY -m spacy evaluate "training_${L}_rl/model-best" "$T" --gold-preproc --output "metrics_${L}_rl_gp.json"  >/dev/null 2>&1
-  $PY -m spacy evaluate "training_${L}_rl/model-best" "$T"                 --output "metrics_${L}_rl_raw.json" >/dev/null 2>&1
+  $PY -m spacy evaluate "training_${L}_rl/model-best" "$T" --gold-preproc --output "metrics/${L}/metrics_${L}_rl_gp.json"  >/dev/null 2>&1
+  $PY -m spacy evaluate "training_${L}_rl/model-best" "$T"                 --output "metrics/${L}/metrics_${L}_rl_raw.json" >/dev/null 2>&1
   $PY - "$L" <<'EOF'
 import json, sys
 L = sys.argv[1]
@@ -68,8 +73,8 @@ def load(f):
     except Exception: return {}
 def comp(d):
     t=(d.get("dep_las_per_type") or {}).get("comp:obl"); return t.get("f",0) if t else 0
-gp, raw = load(f"metrics_{L}_rl_gp.json"), load(f"metrics_{L}_rl_raw.json")
-old = load(f"metrics_{L}_gp.json")
+gp, raw = load(f"metrics/{L}/metrics_{L}_rl_gp.json"), load(f"metrics/{L}/metrics_{L}_rl_raw.json")
+old = load(f"metrics/{L}/metrics_{L}_gp.json")
 print(f"  gold-preproc: LAS={gp.get('dep_las',0):.3f}  comp:obl F={comp(gp):.3f}   "
       f"(non-relabeled LAS={old.get('dep_las',0):.3f} comp:obl F={comp(old):.3f})")
 print(f"  raw (e2e)   : LAS={raw.get('dep_las',0):.3f}  tok={raw.get('token_acc',0):.3f}  comp:obl F={comp(raw):.3f}")

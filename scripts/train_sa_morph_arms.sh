@@ -20,6 +20,10 @@
 #
 # Usage: bash scripts/train_sa_morph_arms.sh [arm ...]      (default: base + every generated arm)
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE="--code scripts/seg_code.py"
 TRAIN=corpus_sa_csl_rev/train.csl_rev.spacy
@@ -41,10 +45,10 @@ for arm in "${ARMS[@]}"; do
       --paths.train "$TRAIN" --paths.dev "$DEV" > "train_sa_morph_${arm}.log" 2>&1
   if [ -d "$out/model-best" ]; then
     $PY scripts/eval_sa_compound.py "$out/model-best" "$TEST" \
-        --out "metrics_sa_morph_${arm}.json" > "eval_sa_morph_${arm}.log" 2>&1
+        --out "metrics/sa/metrics_sa_morph_${arm}.json" > "eval_sa_morph_${arm}.log" 2>&1
     $PY -c "
 import json
-m=json.load(open('metrics_sa_morph_${arm}.json'))
+m=json.load(open('metrics/sa/metrics_sa_morph_${arm}.json'))
 per=m.get('morph_per_feat') or {}
 f=lambda k: per.get(k,{}).get('f',0)
 print(f'  ${arm}: morph_acc {m[\"morph_acc\"]:.4f}  micro_f {m.get(\"morph_micro_f\",0):.4f}  pos {m[\"pos_acc\"]:.4f}  |  Voice {f(\"Voice\"):.3f}  VerbForm {f(\"VerbForm\"):.3f}  Tense {f(\"Tense\"):.3f}  Case {f(\"Case\"):.3f}')"

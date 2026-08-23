@@ -25,10 +25,11 @@ clausal noun complement is the harder set); only VERB heads drop the nominal fil
 Decision per target: deterministic rule first (zh-的, ko case-suffix, participial, and the
 lang_gold frame/temporal rules for zh/ko/id), else qwen3:8b with the SAME tuned per-language
 prompt and suffix as the baseline (the suffix already names the head word generically, so it
-reads naturally for noun and adjective heads). Resumable: relabel_cache_ext_<lang>.jsonl,
+reads naturally for noun and adjective heads). Resumable: caches/relabel_cache_ext_<lang>.jsonl,
 seeded from the baseline cache so decided verb targets are not re-queried. Writes
 *.relabeled_ext.conllu.
 """
+import pathlib
 import argparse, importlib.util, json, os, time
 from collections import Counter
 
@@ -44,11 +45,11 @@ lr = importlib.util.module_from_spec(_sl); _sl.loader.exec_module(lr)
 EN_FILES = ["assets/en_sud-train.conllu", "assets/en_sud-dev.conllu", "assets/en_sud-test.conllu"]
 FILES = {"en": EN_FILES, **g.FILES}
 # baseline caches to seed from (verb decisions already made), per language
-BASE_CACHE = {"en": "relabel_cache.jsonl", "zh": "relabel_cache_zh.jsonl",
-              "ko": "relabel_cache_ko.jsonl", "id": "relabel_cache_id.jsonl",
-              "fa": "relabel_cache_fa.jsonl", "ar": "relabel_cache_ar.jsonl",
-              "la": "relabel_cache_la.jsonl", "lzh": "relabel_cache_lzh.jsonl",
-              "ja": "relabel_cache_ja.jsonl", "yue": "relabel_cache_yue.jsonl"}
+BASE_CACHE = {"en": "caches/relabel_cache.jsonl", "zh": "caches/relabel_cache_zh.jsonl",
+              "ko": "caches/relabel_cache_ko.jsonl", "id": "caches/relabel_cache_id.jsonl",
+              "fa": "caches/relabel_cache_fa.jsonl", "ar": "caches/relabel_cache_ar.jsonl",
+              "la": "caches/relabel_cache_la.jsonl", "lzh": "caches/relabel_cache_lzh.jsonl",
+              "ja": "caches/relabel_cache_ja.jsonl", "yue": "caches/relabel_cache_yue.jsonl"}
 ADP_HEADS = ("VERB", "NOUN", "PROPN", "ADJ")
 
 # Sanskrit case-based relabel (parallel to Korean): Sanskrit `udep` sits on bare case-marked
@@ -293,7 +294,8 @@ def main():
     lang = args.lang
     prefix = prefix_for(lang)
 
-    extcache_p = f"relabel_cache_ext_{lang}.jsonl"
+    pathlib.Path("caches").mkdir(exist_ok=True)
+    extcache_p = f"caches/relabel_cache_ext_{lang}.jsonl"
     cache = seed_cache(BASE_CACHE.get(lang))          # reuse baseline verb decisions
     cache.update(seed_cache(extcache_p))              # then any prior ext decisions
     cfh = None if args.rules_only else open(extcache_p, "a")

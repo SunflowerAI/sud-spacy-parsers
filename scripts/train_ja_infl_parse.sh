@@ -23,6 +23,10 @@
 #
 #   bash scripts/train_ja_infl_parse.sh [seed ...]     (default seed 0)
 set -u
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CORPUS=corpus_ja_infl
 SEEDS=${*:-0}
@@ -63,7 +67,7 @@ for seed in $SEEDS; do
     [ -d "$arm/model-best" ] || { echo "  FAILED:"; tail -15 "train_ja_seg_${v}_s${seed}.log"; continue; }
     # Scored through the reader it was TRAINED through: gold-preproc alone would delete the channel.
     $PY scripts/eval_ja_infl.py "$arm/model-best" "$CORPUS/test.spacy" \
-        --label "seed $seed  $v" --out "metrics_ja_seg_${v}_s${seed}.json" \
+        --label "seed $seed  $v" --out "metrics/ja/metrics_ja_seg_${v}_s${seed}.json" \
       | grep -E 'seed|dep_|tag_acc'
   done
 done

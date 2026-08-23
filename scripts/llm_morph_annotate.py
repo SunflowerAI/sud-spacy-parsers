@@ -323,7 +323,8 @@ def main() -> int:
                     help="compare against the file's OWN gold LEMMA/FEATS (Tamil calibration)")
     args = ap.parse_args()
 
-    cache_path = args.cache or f"cache_llm_morph_{args.lang}.json"
+    pathlib.Path("caches").mkdir(exist_ok=True)
+    cache_path = args.cache or f"caches/cache_llm_morph_{args.lang}.json"
     cache = load_cache(cache_path)
     shots = load_shots(args.shots_from, args.shots) if args.shots else []
     if shots:

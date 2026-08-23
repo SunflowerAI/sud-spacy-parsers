@@ -137,7 +137,7 @@ echo "PROVISION OK $(date -Is)  $(git -C "$ROOT" log --oneline -1)" | tee "$LOGS
 cat <<'EOS'
 
   Still to come from the Mac (gitignored, so `git clone` cannot bring it):
-    rsync gold_udep.jsonl     -- the 400-item comp/mod benchmark; without it the 8b-vs-32b
+    rsync gold/gold_udep.jsonl     -- the 400-item comp/mod benchmark; without it the 8b-vs-32b
                                  comparison has no gold to score against.
 
   Then:

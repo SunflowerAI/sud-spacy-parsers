@@ -159,7 +159,7 @@ reversal is a *final-character* alternation (-ṃ/-m, -ḥ/-s, -o/-aḥ) already
 DCS-dominated test, where most tokens sit INSIDE an MWT and are already written unsandhied — an
 identity mapping, and the majority class. On the Vedic test, where the work actually is, `spacy
 evaluate --gold-preproc` gives the plain arm **LEMMA 96.41** and the sfx5 arm **83.30**: −13.1, not
-−0.4. `metrics_sa_mwt_unsandhi_sfx5_Vedic.json` was never taken, so the split that would have shown
+−0.4. `metrics/sa/metrics_sa_mwt_unsandhi_sfx5_Vedic.json` was never taken, so the split that would have shown
 this was the one split never measured — the entry above has `_DCS` and `_Vedic` files for the plain
 arm and only the mixed file for sfx5. The decision was right; the number behind it was not. **A
 mixed-domain average over a corpus that is 90 % one domain is not a measurement of the other 10 %**
@@ -753,7 +753,7 @@ vectors (informative, but empty where needed) and worth keeping distinct from it
 Two positive checks worth copying. The graft was confirmed against the donor BEFORE the sweep, by
 training both arms two steps and summing |Δ| over all 24 tok2vec tensors — graft−donor **797**,
 control−donor **117 065**. Verify the wiring, never assume it. And the CONTROL was reconciled
-against the shipped arm afterwards: seed 0 reproduces `metrics_release_zh.json` to every decimal on
+against the shipped arm afterwards: seed 0 reproduces `metrics/release/metrics_release_zh.json` to every decimal on
 UAS **73.8219**, LAS **69.0076** and SENTS_F **99.1027**, which proves the added `[pretraining]`
 block is inert and that the thing the graft was compared against really is the released recipe. Only
 TAG differs (90.81 against 91.12) — expected, because the wheel ships the later warm-started tagger
@@ -776,7 +776,7 @@ Kept: `extract_tok2vec.py` (blob dump, with the E150 rationale), `make_graft_con
 `[pretraining]` from a config proven to work, leaving `init_tok2vec` CLI-controlled so ONE config
 serves both arms), `train_zh_graft.sh`, `configs/config_zh_graft.cfg`, `lzh_trad_tok2vec.bin`.
 `eval_lex_slices.py` is language-agnostic and produced the slice table unchanged. Arms:
-`training_zh_{graft,ctl}_s{0,1,2}`, `metrics_zh_{graft,ctl}_s{0,1,2}.json`.
+`training_zh_{graft,ctl}_s{0,1,2}`, `metrics/zh/metrics_zh_{graft,ctl}_s{0,1,2}.json`.
 
 ---
 

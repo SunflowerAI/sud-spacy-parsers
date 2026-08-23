@@ -15,7 +15,7 @@ An arm must be scored through the SAME reader it was trained through. `--plain` 
 Inflection) is offered for one purpose: measuring how far an Inflection-conditioned arm falls when
 the channel is deleted, which is what an unwitting `spacy evaluate --gold-preproc` would report.
 
-Usage: eval_ja_infl.py <model-dir> <test.spacy> [--plain] [--out metrics.json] [--label NAME]
+Usage: eval_ja_infl.py <model-dir> <test.spacy> [--plain] [--out metrics/ja/metrics_ja.json] [--label NAME]
 """
 import json
 import pathlib

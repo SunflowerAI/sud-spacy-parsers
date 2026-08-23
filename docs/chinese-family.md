@@ -158,11 +158,11 @@ The counter is kept and prints a LOUD failure if the argument ever breaks.
   as of 0.2.0 and normalise at the boundary instead of training on two scripts: `ZhTradTokenizer`
   converts simplified in, the `zh_script`/`lzh_script` component converts FORM/LEMMA back out.
   Released figures: zh LAS 69.01 / UAS 73.82 / comp:obl F 31.09, lzh 77.20 / 82.92 / 66.47
-  (gold-preproc, `metrics_release_*.json`).
+  (gold-preproc, `metrics/release/*.json`).
 
   ⚠ **The traditional-only zh arm shipped with NO sentencising at all, and gold-preproc hid it
   completely.** `zh_sud_gsd-0.2.0` returned ONE sentence per document however many full stops the
-  input had (`metrics_release_zh_raw.json`: `sents_p/r/f = 0.0`), silently undoing the whole seg
+  input had (`metrics/release/metrics_release_zh_raw.json`: `sents_p/r/f = 0.0`), silently undoing the whole seg
   layer for this language; lzh was unaffected, since `clause_parser` splits it by rule. Cause:
   `retrain_zh_trad.sh` trained the base from `configs/config_zh.cfg` — the PRE-seg recipe
   (`spacy.Corpus.v1`, `gold_preproc = true`, `sents_f = 0.0`) — and its `for layer in seg morph
@@ -174,7 +174,7 @@ The counter is kept and prints a LOUD failure if the argument ever breaks.
   **`seg` is a BASE recipe, not a stackable frozen layer** — that is the lesson worth keeping. No
   layer above a `gold_preproc`-trained parser can teach it to START a sentence, and nothing in the
   ordinary metrics says so: under gold-preproc every dev example is already one sentence, so
-  `SENTS_F` reads a reassuring 100.00 in the training log and 1.0000 in `metrics_release_zh.json`.
+  `SENTS_F` reads a reassuring 100.00 in the training log and 1.0000 in `metrics/release/metrics_release_zh.json`.
   Only the raw eval, or two sentences typed at the model, tells the truth.
 
   Retrained through `configs/config_zh_seg.cfg` (`sud.GoldTokCorpus.v1`, `sents_f = 0.05`), morph and

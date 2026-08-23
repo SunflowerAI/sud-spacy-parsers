@@ -106,7 +106,7 @@ committed as indirect.
 `VerbForm`); a non-clausal residue case is dropped unannotated. Rule commits / model residue after
 all three refinements: sa 1321/39, ar 997/1350, la 285/346, en 204/394, fa 110/487 — 2616 queries,
 down from ~11 240. Residue goes to `disambiguate_pp.query` (resumable
-`relabel_cache_reported_<lang>.jsonl`).
+`caches/relabel_cache_reported_<lang>.jsonl`).
 
 **The `--structural` encoder: input features matter more than architecture.** The first arms used the
 standard added-layer encoder (±3 receptive field over NORM/PREFIX/SUFFIX/SHAPE) and scored F

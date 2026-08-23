@@ -65,7 +65,7 @@ def score(nlp, docs):
                            spaces=[bool(t.whitespace_) for t in sent]))
             for k, gt in enumerate(sent):
                 # Punctuation excluded, as `spacy.parser_scorer.v1` excludes it, so these figures
-                # sit on the same scale as every `metrics_ko_*.json` and as `eval_ko_oov.py`.
+                # sit on the same scale as every `metrics/ko/metrics_ko_*.json` and as `eval_ko_oov.py`.
                 if gt.dep_ in ("punct", "p"):
                     continue
                 n += 1

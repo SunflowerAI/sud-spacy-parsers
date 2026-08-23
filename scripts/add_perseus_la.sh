@@ -19,6 +19,10 @@
 # Phases (run all, or pass a phase name: merge | macron | relabel | train):
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 A=assets_la
@@ -95,7 +99,7 @@ do_relabel() {
 }
 
 do_train() {
-  echo "### TRAIN: ext model (+metrics_la_ext.json) then the ext+macron union release"
+  echo "### TRAIN: ext model (+metrics/la/metrics_la_ext.json) then the ext+macron union release"
   bash scripts/relabel_retrain_ext_new.sh la
   bash scripts/train_la_ext_macron.sh
 }

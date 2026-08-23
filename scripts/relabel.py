@@ -19,7 +19,7 @@ e = importlib.util.module_from_spec(_se); _se.loader.exec_module(e)
 
 PREFIX = e.PREFIXES["fewshot12_def"]          # static -> KV-cache reused across every call
 FILES = ["assets/en_sud-train.conllu", "assets/en_sud-dev.conllu", "assets/en_sud-test.conllu"]
-CACHE = "relabel_cache.jsonl"
+CACHE = "caches/relabel_cache.jsonl"
 
 
 def load_cache():

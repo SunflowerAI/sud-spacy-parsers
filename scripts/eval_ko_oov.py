@@ -19,7 +19,7 @@ conditioning on the form, EXCEPT where the form has no trained representation to
         --model analyser=training_ko_analyser_s0/model-best
 
 ⚠ GOLD SENTENCES, GOLD TOKENS. Each gold sentence is parsed as its own Doc, which is what
-`--gold-preproc` does, so these figures are comparable to the `metrics_ko_*_gp.json` set and NOT to
+`--gold-preproc` does, so these figures are comparable to the `metrics/ko/metrics_ko_*_gp.json` set and NOT to
 a raw end-to-end run. Sentence segmentation is deliberately out of scope here; it is a different
 defect with a different fix (CLAUDE.md hazard 4).
 """
@@ -113,7 +113,7 @@ def main() -> None:
                         c[(b, "tag")] += pt.tag_ == gt.tag_
                         # ⚠ PUNCTUATION IS EXCLUDED FROM UAS/LAS, because `spacy.parser_scorer.v1`
                         # excludes it (`ignore_labels = ("p", "punct")`). Scoring it here would put
-                        # this script on a different scale from every `metrics_ko_*.json`, and the
+                        # this script on a different scale from every `metrics/ko/metrics_ko_*.json`, and the
                         # two sets would be quoted side by side in the same table — the shape of
                         # error NEGATIVE-RESULTS.md records as "never compare numbers from two
                         # different harnesses", where both numbers were right and only the

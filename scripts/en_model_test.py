@@ -49,7 +49,7 @@ def main():
     ap.add_argument("--json-out", help="write the per-model table here as JSON")
     args = ap.parse_args()
 
-    gold = e.load_gold("gold_udep.jsonl")
+    gold = e.load_gold("gold/gold_udep.jsonl")
     test = e.balanced_sample(gold, args.per_class, args.seed)
     prefix = e.PREFIXES["fewshot12_def"]
     print(f"en test {len(test)} ({args.per_class}/class), prompt=fewshot12_def, "

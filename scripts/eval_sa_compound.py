@@ -9,7 +9,7 @@ measurement of the model, it is a measurement of the model with one of its input
 This scores the same gold-preproc setup but builds the examples with `sud.CompoundCorpus.v1`, which
 stamps Compound on the predicted doc exactly as `sa_tokenizer` does at inference.
 
-Usage: eval_sa_compound.py <model-dir> <test.spacy> [--plain|--reader NAME] [--out metrics.json]
+Usage: eval_sa_compound.py <model-dir> <test.spacy> [--plain|--reader NAME] [--out metrics/en/metrics.json]
        --plain      uses the stock reader (no Compound), i.e. reproduces `spacy evaluate`.
        --reader     compound (default) | norm | oracle — an arm must be scored through the SAME
                     reader it was trained through, or it runs with one of its inputs deleted, which

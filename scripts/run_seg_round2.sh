@@ -17,6 +17,10 @@
 #        current DETERMINISTIC 0.989, which is what the id block below measures.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 
 echo "=== yue: train the character segmenter ======================================"
@@ -83,8 +87,8 @@ for lang, model, pkuseg_model in (("zh", "models/zh_seg_char", "models/zh_gsdbot
               + ("   OURS WINS" if ours[2] > base[2] else "   incumbent wins"))
     results[lang] = {"ours": ours[2], "base": base[2] if base else None}
 
-json.dump(results, open("metrics_seg_round2.json", "w"), indent=2)
-print("\n  -> metrics_seg_round2.json")
+json.dump(results, open("metrics/misc/metrics_seg_round2.json", "w"), indent=2)
+print("\n  -> metrics/misc/metrics_seg_round2.json")
 PY
 
 echo "=== id: does splitting hold the token F that coarsening guarantees? ========="

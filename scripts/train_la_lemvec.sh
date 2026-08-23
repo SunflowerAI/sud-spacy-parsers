@@ -15,12 +15,17 @@
 #                   FEATS bundle, so `Case=Nom|Number=Sing` and `Case=Nom|Number=Plur` share a case.
 #
 # The bundle-hash version of the second channel HAS BEEN MEASURED AND WAS WORTHLESS: morphfirst LAS
-# 0.7256 against its capacity control's 0.7255 (metrics_la_morphfirst_all_plain.json). That is the
+# 0.7256 against its capacity control's 0.7255 (metrics/la/metrics_la_morphfirst_all_plain.json). That is the
 # result being revisited, and it is why the control here is tight rather than nominal.
 #
 # Phases (run all, or name one): vectors | labels | base | ctl | eval
 set -euo pipefail
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 CODE="--code scripts/seg_code.py"
@@ -99,7 +104,7 @@ do_eval() {
       [ -f "$t" ] || { printf "   %-8s MISSING\n" "$sl"; continue; }
       printf "   %-8s " "$sl"
       $PY -m spacy evaluate "$d" "$t" --gold-preproc $CODE \
-          --output metrics_la_${arm}_${sl}_${ck}.json 2>/dev/null \
+          --output metrics/la/metrics_la_${arm}_${sl}_${ck}.json 2>/dev/null \
         | grep -E '^(TAG|UAS|LAS) ' | tr -s ' \n' ' '
       echo
     done

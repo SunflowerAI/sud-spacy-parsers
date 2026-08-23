@@ -28,7 +28,12 @@
 # alignment); en's spacing matches, so it does not need it.
 #
 #   bash scripts/eval_xpos.sh ar en fa ja id ko la zh yue lzh sa
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 
@@ -70,7 +75,7 @@ for lang in "$@"; do
   for arm in "$(released_arm "$lang")" "${arms[@]}"; do
     d=$arm/model-best
     [ -d "$d" ] || { printf "%-7s %-16s %8s\n" "$lang" "$(basename $arm)" "MISSING"; continue; }
-    out=metrics_${lang}_$(basename $arm).json
+    out=metrics/${lang}/metrics_${lang}_$(basename $arm).json
     $PY -m spacy evaluate "$d" "$t" $GP --code scripts/seg_code.py --output "$out" >/dev/null 2>&1
     $PY -c "
 import json;p=json.load(open('$out'))

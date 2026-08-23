@@ -15,7 +15,12 @@
 #
 # The pre-rule treebanks are kept as *.pre_ruled beside each file, so this is reversible.
 set -euo pipefail
+
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE=scripts/seg_code.py
 
@@ -58,6 +63,6 @@ for lang in fa lzh ja; do
   echo "--- does the model now emit the ruled labels? ---"
   $PY -m spacy evaluate training_${lang}_lemma/model-best \
       "$CORP/${PFX}-test.relabeled_ext.spacy" --gold-preproc --code $CODE \
-      --output metrics_${lang}_ruled.json 2>&1 | grep -E "TAG|POS|LEMMA|UAS|LAS" | sed 's/^/    /'
+      --output metrics/${lang}/metrics_${lang}_ruled.json 2>&1 | grep -E "TAG|POS|LEMMA|UAS|LAS" | sed 's/^/    /'
 done
 echo "########## done ##########"

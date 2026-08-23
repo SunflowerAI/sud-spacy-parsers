@@ -16,6 +16,10 @@
 # Phases (run all, or name one): prep | base | layers | order | eval
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE="--code scripts/seg_code.py"
 P=te_mtg-sud
@@ -66,7 +70,7 @@ do_eval() {
     [ -d "$d" ] || { echo "== $kind: MISSING -- skip"; continue; }
     printf "%-8s " "$kind"
     $PY -m spacy evaluate "$d" "corpus_te/$P-test.spacy" --gold-preproc $CODE \
-        --output "metrics_te_${kind}.json" 2>/dev/null \
+        --output "metrics/te/metrics_te_${kind}.json" 2>/dev/null \
       | grep -E '^(TAG|UAS|LAS|POS|MORPH|LEMMA) ' | tr -s ' \n' ' '
     echo
   done

@@ -12,7 +12,12 @@
 #
 # Phases (run all, or name one): seeds | pick | stack | graft | raw | wheel | verify
 set -euo pipefail
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE="--code scripts/seg_code.py"
 export MECAB_PATH="${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}"
@@ -145,7 +150,7 @@ do_compare() {
     d=training_ko_$arm/model-best
     [ -d "$d" ] || { printf "%-30s MISSING\n" "$arm"; continue; }
     printf "%-30s " "$arm"
-    $PY -m spacy evaluate "$d" "$TEST" $CODE --output metrics_ko_${arm}_raw.json 2>/dev/null \
+    $PY -m spacy evaluate "$d" "$TEST" $CODE --output metrics/ko/metrics_ko_${arm}_raw.json 2>/dev/null \
       | awk '/^TAG/{t=$2} /^UAS/{u=$2} /^LAS/{l=$2} /^SENT F/{s=$3} END{printf "%7s %7s %7s %7s\n", t, u, l, s}'
   done
 }
@@ -169,10 +174,10 @@ do_verify() {
 do_raw() {
   echo "### RAW: end-to-end, the model finding its own sentences"
   $PY -m spacy evaluate "$ARM" "$TEST" $CODE \
-      --output metrics_ko_anseg_raw.json | grep -E '^(TOK|TAG|POS|MORPH|LEMMA|UAS|LAS|SENT)'
+      --output metrics/ko/metrics_ko_anseg_raw.json | grep -E '^(TOK|TAG|POS|MORPH|LEMMA|UAS|LAS|SENT)'
   echo "--- and with gold sentences, for comparison with everything else in docs/korean.md"
   $PY -m spacy evaluate "$ARM" "$TEST" --gold-preproc $CODE \
-      --output metrics_ko_anseg_gp.json | grep -E '^(TAG|UAS|LAS|SENT)'
+      --output metrics/ko/metrics_ko_anseg_gp.json | grep -E '^(TAG|UAS|LAS|SENT)'
 }
 
 phase=${1:-all}

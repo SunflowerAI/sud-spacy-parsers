@@ -7,6 +7,10 @@
 # the 100-sentence test noise. Prereq: the .spacy corpora (corpus_yue*, built by the relabel
 # pipeline) and zh_both_tok2vec.bin must exist.
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CFG=configs/config_yue.cfg
 CODE="--code scripts/yue_tokenizer.py"
@@ -17,7 +21,7 @@ declare -A SUF=(  [base]=""         [rl]=.relabeled          [ext]=.relabeled_ex
 
 for arm in base rl ext; do
   corp=${CORP[$arm]}; suf=${SUF[$arm]}
-  out=training_yue_init_${arm}; met=metrics_yue_init_${arm}.json
+  out=training_yue_init_${arm}; met=metrics/yue/metrics_yue_init_${arm}.json
   echo "############## TRAIN yue_init_$arm ##############"
   $PY -m spacy train $CFG $CODE --output $out/ \
     --paths.init_tok2vec zh_both_tok2vec.bin \

@@ -47,7 +47,7 @@
 # THE RELABEL IS FREE, IF THE ORDER IS RIGHT. An earlier draft of this script claimed "THE COST IS
 # THE RELABEL ... all of it has to be re-run over GUM", and filtered the NC genres in step 1. Both
 # were wrong, and the second one is what made the first true. The original development corpus WAS
-# EWT+GUM concatenated, so relabel_cache.jsonl and relabel_cache_ext_en.jsonl -- both tracked --
+# EWT+GUM concatenated, so caches/relabel_cache.jsonl and caches/relabel_cache_ext_en.jsonl -- both tracked --
 # already hold every GUM decision. Their keys are POSITIONAL (`path|sentence_index|token_id`), and
 # the highest index in each split is exactly EWT+GUM minus one: train 23,855 = 12,544 + 11,314 - 1,
 # dev 3,575 = 2,001 + 1,575 - 1, test 3,540 = 2,077 + 1,464 - 1.
@@ -70,7 +70,7 @@ G=assets/SUD_English-GUM
 SPLITS="train dev test"
 NC_GENRES="essay fiction letter podcast whow"
 # The merged, UNFILTERED concatenation. These paths are load-bearing: they are the literal keys in
-# relabel_cache*.jsonl, so relabel_ext.py's EN_FILES must name exactly these and nothing else.
+# caches/relabel_cache*.jsonl, so relabel_ext.py's EN_FILES must name exactly these and nothing else.
 MERGED=assets/en_sud            # -> assets/en_sud-<split>.conllu
 FILTERED=assets/en_ewtgum-sud   # -> assets/en_ewtgum-sud-<split>.relabeled_ext.conllu
 CORPUS=corpus_en_gum_ext

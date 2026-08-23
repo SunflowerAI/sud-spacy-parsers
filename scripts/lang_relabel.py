@@ -7,6 +7,7 @@ classify) decides, use that label; otherwise query qwen3:8b with the per-languag
 prompt (native instructions for id, English for zh/ko) + native few-shot from the gold.
 Clausal/long udep are left as udep. Resumable per-language cache. Writes *.relabeled.conllu.
 """
+import pathlib
 import argparse, importlib.util, json, os, random
 from collections import Counter
 
@@ -91,7 +92,8 @@ def main():
     args = ap.parse_args()
     lang = args.lang
     prefix = build_prefix(lang)
-    cachep = f"relabel_cache_{lang}.jsonl"
+    pathlib.Path("caches").mkdir(exist_ok=True)
+    cachep = f"caches/relabel_cache_{lang}.jsonl"
     cache = {}
     if os.path.exists(cachep):
         for line in open(cachep):

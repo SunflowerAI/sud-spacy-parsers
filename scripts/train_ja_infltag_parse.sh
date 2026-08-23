@@ -23,6 +23,10 @@
 #
 #   bash scripts/train_ja_infltag_parse.sh [seed ...]      (default 0 1 2)
 set -u
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CORPUS=corpus_ja_infltag
 SEEDS=${*:-0 1 2}
@@ -83,7 +87,7 @@ for seed in $SEEDS; do
         > "train_ja_seg_${v}_s${seed}.log" 2>&1
     [ -d "$arm/model-best" ] || { echo "  FAILED:"; tail -12 "train_ja_seg_${v}_s${seed}.log"; continue; }
     $PY scripts/eval_ja_infl.py "$arm/model-best" "$CORPUS/test.spacy" --reader infltag \
-        --label "seed $seed  $v" --out "metrics_ja_seg_${v}_s${seed}.json" \
+        --label "seed $seed  $v" --out "metrics/ja/metrics_ja_seg_${v}_s${seed}.json" \
       | grep -E 'seed|dep_|tag_acc'
   done
 done

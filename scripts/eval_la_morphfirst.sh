@@ -18,7 +18,12 @@
 #    is optimistic. These TEST numbers are the honest comparison.
 #  * TAG runs ~80 on the combined test but ~91 on dev purely because Perseus's XPOS is blanked
 #    (20 % of combined-test tokens, 0 % of dev) and scores as error. It hits every arm equally.
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 S=corpus_la_eval_slices
@@ -47,7 +52,7 @@ for arm in seg morphfirst capacity_control; do
       # whose banner line would otherwise be swept up by a bare grep for LAS
       $PY -m spacy evaluate "$d" "$t" --gold-preproc \
           --code scripts/seg_code.py \
-          --output metrics_la_${arm}_${sl}_${v}.json 2>/dev/null \
+          --output metrics/la/metrics_la_${arm}_${sl}_${v}.json 2>/dev/null \
         | grep -E '^(TAG|UAS|LAS) ' | tr -s ' \n' ' '
       echo
     done

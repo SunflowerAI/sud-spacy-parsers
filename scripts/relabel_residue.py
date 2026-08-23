@@ -23,7 +23,7 @@ whitespace-delimited token — would mangle. Numbering the options sidesteps tha
 
 Prompt shape follows the project convention: a long static prefix (task + relation glosses) and a
 short variable suffix (the sentence and the options), so Ollama reuses the cached prefix KV.
-Resumable: every decision is flushed to `relabel_cache_residue_<lang>.jsonl`.
+Resumable: every decision is flushed to `caches/relabel_cache_residue_<lang>.jsonl`.
 
     relabel_residue.py --lang ar --limit 200      # try a slice first
     relabel_residue.py --all
@@ -220,7 +220,8 @@ def main():
         items = collect(src, a.max_options)
         if a.limit:
             items = items[:a.limit]
-        cache_path = pathlib.Path(f"relabel_cache_residue_{lang}.jsonl")
+        pathlib.Path("caches").mkdir(exist_ok=True)
+        cache_path = pathlib.Path(f"caches/relabel_cache_residue_{lang}.jsonl")
         cache = {}
         if cache_path.exists():
             for line in cache_path.open(encoding="utf-8"):

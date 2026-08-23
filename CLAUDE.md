@@ -23,7 +23,7 @@ English ships twice (`en_sud_ewt` EWT-only, `en_sud_ewt_gum` + GUM; both CC BY-S
 2. A **`udep` disambiguation pipeline**: SUD labels adpositional/case-marked dependents of verbs
    with the noncommittal `udep`; we relabel each as `comp:obl` (complement) or `mod` (modifier)
    using a local LLM via Ollama (no thinking, temperature 0), then retrain and compare. This is the
-   core research contribution — see `docs/udep-relabel.md`, `README.md` and `metrics_*.json`.
+   core research contribution — see `docs/udep-relabel.md`, `README.md` and `metrics/<lang>/*.json`.
 
 There is no package/test suite; "running it" means executing the spaCy CLI and the `scripts/*.py`
 pipeline. Always use the project venv: `.venv/bin/python`.
@@ -77,19 +77,31 @@ Superseded but kept: `train_baselines.sh`, `train_all_retok.sh` / `eval_retok.sh
 `relabel_retrain_retok.sh` (the matched-tokenisation arms), the `*_new.sh` drivers that brought in
 fa/ar/la/sa/lzh/ja, `both_scripts_release.sh`, and `rebuild_sa_csl_rev.sh` (+ `hyphen_to_pipe_sa.py`,
 `strip_pipe_sa.py`) for the pausa-normalised Sanskrit representation.
-`spacy train` writes scores to `train_*.log`; `spacy evaluate --output` writes `metrics_*.json`.
+`spacy train` writes scores to `train_*.log`; `spacy evaluate --output` writes
+`metrics/<lang>/metrics_<lang>_*.json`. **Metrics live under `metrics/`, not the repo root** (moved
+2026-08-23; filenames unchanged, so the language is still readable off any single copied name). The
+drivers that write them `mkdir -p` the tree first, because several send stderr to `/dev/null` and a
+missing directory would fail silently. LLM decision caches are in `caches/`, gold benchmark sets in
+`gold/`.
 
-**`metrics_release_*.json` is the RELEASED arm; every other `metrics_*.json` is a development one.**
+**`metrics/release/*.json` is the RELEASED arm; every other `metrics/<lang>/*.json` is a development one.**
 The distinction earns its keep: several development files outlived the generation they describe and
 the README was quoting them. The release set was measured on the arm each wheel ships, identified by
 hashing `parser/model` out of the DOWNLOADED wheel — **a training directory of the right name is not
-evidence**. Which release figures are stale, and on which single field:
-`docs/packaging-and-release.md`.
+evidence**. Re-measured against the downloaded v0.3.0 assets on 2026-08-23: **la was stale by a
+whole arm** (the wheel ships the lemma-vector parser, LAS 71.72 → **73.23**), **sa by two
+generations** (37.35 → **48.54**), and **ta and te had no release file at all**. en/en_gum/id/zh/ja/ko
+reproduce exactly; **ar, fa, lzh and yue do not re-derive from any local corpus** and nobody has
+explained why — `docs/release-notes.md` has the table. ja cannot be scored with the stock reader at
+all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a model that does 90.04.
 
 ## Where the details live
 
 | doc | covers | the trap it records |
 |---|---|---|
+| `docs/results-notes.md` | what is behind each number in the README's results table, per language | the release set is **not cross-language comparable** — sa is measured on a different test set |
+| `docs/training-data.md` | corpus sizes, and what each treebank does and does not annotate | te trains on 5 097 tokens and la on 586 604; DCS's 1.7 M tokens carry **no dependency annotation** |
+| `docs/release-notes.md` | what changed in each wheel and when; which release figures are stale | `ar`, `fa`, `lzh` and `yue` do **not** re-derive from any local corpus, and the gap is unexplained |
 | `docs/layers-and-tokenisers.md` | the seg / morph / lemma layers; the per-language tokenisers; zh's jieba-decision channel | `seg` is a BASE recipe, not a stackable layer; a corpus lexicon only works **jackknifed** |
 | `docs/udep-relabel.md` | the research contribution — comp/mod prompting, extended scope, derived rules, `reparandum` → `conj:dicto` | each relabel rewrites the **test** gold too, so `comp:obl` F has a moving denominator |
 | `docs/xpos.md` | one tagset per arm (la's composite codes, en's `,`), the warm-started tagger conditioned on UPOS+FEATS | conditioning must enter **above** the encoder; a warm start must match label **order**, not just the set |
@@ -175,10 +187,10 @@ Four things about them are load-bearing for anyone touching the area:
 
 ## Conventions and invariants
 
-**Naming.** English artifacts are unsuffixed (`corpus/`, `training/`, `metrics.json`); other
+**Naming.** English artifacts are unsuffixed (`corpus/`, `training/`, `metrics/en/metrics.json`); other
 languages take `_<lang>`. Relabel variants: `_rl` (verb scope), `_ext` (extended scope), `_rl2`
 (contrastive-prompt rerun). Layers: `_seg`, `_morph`, `_lemma`, `_sud`. These compose
-(`training_ko_retok_rl/`, `metrics_zh_simp_rl_gp.json`); `metrics_*_{gp,raw}.json` are the
+(`training_ko_retok_rl/`, `metrics/zh/metrics_zh_simp_rl_gp.json`); `metrics_*_{gp,raw}.json` are the
 gold-preproc and raw end-to-end evaluations.
 
 **gold_preproc (essential for every language but en).** `spacy evaluate` re-tokenises raw text with

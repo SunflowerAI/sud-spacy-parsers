@@ -1,3 +1,7 @@
+# Claude Code's local tool config -- editor state, not project state. Purged from history
+# 2026-08-23; the files stay on disk.
+.claude/
+
 # Python / build
 .venv/
 __pycache__/
@@ -29,10 +33,10 @@ assets_lzh/SUD_Classical_Chinese-Kyoto-Both/
 # GUM is CC BY-NC-SA (NonCommercial) — the English model/data ship EWT-only.
 # Exclude every GUM-mixed English artifact; only assets/en_ewt-sud-*.relabeled*.conllu is published.
 assets/en_sud-*.conllu
-gold_udep.jsonl
-metrics.json
-metrics_relabeled.json
-metrics_en_ext.json
+gold/gold_udep.jsonl
+metrics/en/metrics.json
+metrics/en/metrics_relabeled.json
+metrics/en/metrics_en_ext.json
 
 # Trained parsers are distributed as release wheels, not committed.
 training_*/
@@ -185,3 +189,4 @@ corpus_sa_pmerged_norm/
 
 # lemma-vector tables: build artefacts, rebuilt by build_lemma_vectors.py
 scripts/*_lemmavec_*.npz
+assets_vec/

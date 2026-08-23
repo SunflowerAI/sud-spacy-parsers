@@ -210,7 +210,7 @@ uploading**: one per language, or the release is a coin toss.
 
 ## Metrics files: which is which, and which are stale
 
-**`metrics_release_*.json` is the RELEASED arm; every other `metrics_*.json` is a development one.**
+**`metrics/release/*.json` is the RELEASED arm; every other `metrics/<lang>/*.json` is a development one.**
 The distinction earns its keep, because several development files outlived the generation they
 describe and the README was quoting them: the en row was a RAW run in a table declaring
 gold-preproc (79.63/84.40 raw vs **81.33/86.26** gold-preproc), and ar/la/yue were still the `_ext`
@@ -223,11 +223,11 @@ of the DOWNLOADED wheel — a training directory of the right name is not eviden
 (`docs/xpos.md`); every other field in these files is unchanged and still correct, because every
 other component is byte-identical:
 
-- `metrics_release_la*.json` — holds the pre-normalisation TAG.
-- `metrics_release_la_{ittbproiel,perseus}.json` — the per-slice TAG was not re-measured after the
+- `metrics/release/metrics_release_la*.json` — holds the pre-normalisation TAG.
+- `metrics/release/metrics_release_la_{ittbproiel,perseus}.json` — the per-slice TAG was not re-measured after the
   conditioned tagger was grafted.
 
-**⚠ THE RELEASE SET IS NOT CROSS-LANGUAGE COMPARABLE, because `metrics_release_sa.json` is measured
+**⚠ THE RELEASE SET IS NOT CROSS-LANGUAGE COMPARABLE, because `metrics/release/metrics_release_sa.json` is measured
 on a DIFFERENT TEST SET from every other file in it.** Twelve of the thirteen report their own
 treebank's test split; sa reports the **1843-token `corpus_sa_ufal_eval`** (classical prose), because
 the arm was chosen for classical prose and the README quotes it that way — see `docs/sanskrit.md`,

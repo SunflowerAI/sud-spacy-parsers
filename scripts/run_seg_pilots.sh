@@ -20,6 +20,10 @@
 # win in either, and a learned model could only move them off those numbers.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 
 WAIT_PID="${1:-}"
@@ -84,7 +88,7 @@ print(f"    char tagger (ours) P {ours[0]:.4f}  R {ours[1]:.4f}  F {ours[2]:.4f}
 if base:
     print(f"    delta F            {ours[2] - base[2]:+.4f}")
 json.dump({"pkuseg_f": base[2] if base else None, "ours_f": ours[2]},
-          open("metrics_zh_seg_pilot.json", "w"), indent=2)
+          open("metrics/zh/metrics_zh_seg_pilot.json", "w"), indent=2)
 PY
 
 echo "=== id: build pairs and train ==============================================="

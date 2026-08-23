@@ -1,9 +1,14 @@
 #!/bin/bash
 # Extended-scope relabel retrain + eval for the five new languages (scripts/relabel_ext.py
-# output: *.relabeled_ext.conllu). gold-preproc eval throughout (comparable to metrics_<lang>.json).
+# output: *.relabeled_ext.conllu). gold-preproc eval throughout (comparable to metrics/<lang>/metrics_<lang>.json).
 # Run relabel_ext.py for each language first. Prints base vs verb-rl vs extended comp:obl F + LAS.
 # (Sanskrit has no verb-ADP baseline relabel — its signal is case-based — so verb-rl == base.)
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 declare -A DIR=( [fa]=assets_fa/SUD_Persian-PerDT [ar]=assets_ar/SUD_Arabic-PADT [la]=assets_la \
                  [sa]=assets_sa/SUD_Sanskrit-Vedic [lzh]=assets_lzh/SUD_Classical_Chinese-Kyoto \
@@ -11,8 +16,8 @@ declare -A DIR=( [fa]=assets_fa/SUD_Persian-PerDT [ar]=assets_ar/SUD_Arabic-PADT
 declare -A PREF=( [fa]=fa_perdt-sud [ar]=ar_padt-sud [la]=la_ittbproiel-sud \
                   [sa]=sa_vedic-sud [lzh]=lzh_kyoto-sud [ja]=ja_gsd-sud )
 declare -A CODE=( [lzh]="--code scripts/lzh_tokenizer.py" )
-declare -A RL=(   [fa]=metrics_fa_rl.json [ar]=metrics_ar_rl.json [la]=metrics_la_rl.json \
-                  [sa]=metrics_sa.json [lzh]=metrics_lzh_rl.json [ja]=metrics_ja_rl.json )
+declare -A RL=(   [fa]=metrics/fa/metrics_fa_rl.json [ar]=metrics/ar/metrics_ar_rl.json [la]=metrics/la/metrics_la_rl.json \
+                  [sa]=metrics/sa/metrics_sa.json [lzh]=metrics/lzh/metrics_lzh_rl.json [ja]=metrics/ja/metrics_ja_rl.json )
 
 for lang in "$@"; do
   p=${PREF[$lang]}; dir=${DIR[$lang]}; code=${CODE[$lang]}
@@ -32,8 +37,8 @@ for lang in "$@"; do
   if [ ! -d training_${lang}_ext/model-best ]; then echo "!! $lang retrain FAILED"; tail -6 train_${lang}_ext.log; continue; fi
   echo "############## EVAL $lang (extended) ##############"
   $PY -m spacy evaluate training_${lang}_ext/model-best corpus_${lang}_ext/$p-test.relabeled_ext.spacy \
-    $code --gold-preproc --output metrics_${lang}_ext.json >/dev/null 2>&1
-  $PY - "$lang" "metrics_${lang}_ext.json" "${RL[$lang]}" "metrics_${lang}.json" <<'EOF'
+    $code --gold-preproc --output metrics/${lang}/metrics_${lang}_ext.json >/dev/null 2>&1
+  $PY - "$lang" "metrics/${lang}/metrics_${lang}_ext.json" "${RL[$lang]}" "metrics/${lang}/metrics_${lang}.json" <<'EOF'
 import json, sys
 lang, ext_f, rl_f, base_f = sys.argv[1:5]
 def load(f):

@@ -21,7 +21,12 @@
 #
 # Phases (run all, or name one): corpus | variants | labels | base | morph | lemma | eval
 set -euo pipefail
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE="--code scripts/vocal_augment.py"
 LANGS="${LANGS:-ar fa}"
@@ -113,6 +118,6 @@ for L in $LANGS; do
     $PY scripts/eval_ar_variants.py --model "released=$rel" \
         --model "vocal=training_${L}_vocal_lemma/model-best" \
         --corpus-dir "corpus_${L}_variants" --prefix "$L" \
-        --out "metrics_${L}_variants.json"
+        --out "metrics/${L}/metrics_${L}_variants.json"
   fi
 done

@@ -21,6 +21,10 @@
 # so an arm trained at 8 can be served at 4 or 1.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 V=corpus_sa_mwt_rl2_norm/sa_vedic-sud-test.relabeled_ext.csl_mwt.spacy
 H=corpus_sa_ufal_holdout_norm/sa_ufal_test.relabeled_ext.csl_mwt.spacy
@@ -29,7 +33,7 @@ $PY -u -m spacy train configs/config_sa_mp2_beam.cfg --output training_sa_beam_s
     --paths.train corpus_sa_multitask_rl2/train.spacy \
     --paths.dev corpus_sa_multitask_rl2/dev.spacy > train_sa_beam_s1.log 2>&1
 $PY scripts/eval_sa_compound.py training_sa_beam_s1/model-best "$V" --reader norm \
-    --out metrics_sa_beam_s1_Vedic.json > /dev/null 2>&1
+    --out metrics/sa/metrics_sa_beam_s1_Vedic.json > /dev/null 2>&1
 $PY scripts/eval_sa_compound.py training_sa_beam_s1/model-best "$H" --reader norm \
-    --out metrics_sa_beam_s1_UFAL.json > /dev/null 2>&1
+    --out metrics/sa/metrics_sa_beam_s1_UFAL.json > /dev/null 2>&1
 echo "BEAM_DONE $(date '+%Y-%m-%d %H:%M')"

@@ -110,11 +110,11 @@ def score(preds, items):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gold", default="gold_udep.jsonl")
+    ap.add_argument("--gold", default="gold/gold_udep.jsonl")
     ap.add_argument("--per-class", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--variants", default=",".join(PREFIXES))
-    ap.add_argument("--out", default="prompt_eval.json")
+    ap.add_argument("--out", default="metrics/misc/prompt_eval.json")
     args = ap.parse_args()
 
     gold = load_gold(args.gold)

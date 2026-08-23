@@ -1,0 +1,46 @@
+{
+  "ta": {
+    "arm": "training_ta_both_lemvec/model-best",
+    "tokens": 1992,
+    "mono_las": 61.49598393574297,
+    "generic_las": 59.588353413654616,
+    "oracle": 68.12248995983936,
+    "gain_over_better": 6.626506024096386,
+    "only_generic": 6.626506024096385,
+    "agree": 70.78313253012048,
+    "agree_precision": 74.822695035461
+  },
+  "te": {
+    "arm": "training_te_lemma/model-best",
+    "tokens": 557,
+    "mono_las": 71.27468581687612,
+    "generic_las": 67.86355475763015,
+    "oracle": 78.09694793536805,
+    "gain_over_better": 6.822262118491935,
+    "only_generic": 6.822262118491921,
+    "agree": 69.12028725314183,
+    "agree_precision": 88.31168831168831
+  },
+  "ko": {
+    "arm": "training_ko_eojeol_lemma/model-best",
+    "tokens": 10184,
+    "mono_las": 57.73762765121759,
+    "generic_las": 54.860565593087195,
+    "oracle": 69.00039277297722,
+    "gain_over_better": 11.262765121759628,
+    "only_generic": 11.262765121759623,
+    "agree": 53.72152395915161,
+    "agree_precision": 81.15518186803143
+  },
+  "yue": {
+    "arm": "training_yue_sud_xpos",
+    "tokens": 1008,
+    "mono_las": 68.25396825396825,
+    "generic_las": 61.607142857142854,
+    "oracle": 74.60317460317461,
+    "gain_over_better": 6.349206349206355,
+    "only_generic": 6.349206349206349,
+    "agree": 67.7579365079365,
+    "agree_precision": 81.5519765739385
+  }
+}

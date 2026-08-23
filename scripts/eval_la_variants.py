@@ -8,7 +8,7 @@ question sharp -- how much LAS does this arm lose when the text is printed a dif
 
     .venv/bin/python scripts/eval_la_variants.py \
         --model union=training_la_seg/model-best --model aug=training_la_aug/model-best \
-        --corpus-dir corpus_la_variants --out metrics_la_variants.json
+        --corpus-dir corpus_la_variants --out metrics/la/metrics_la_variants.json
 
 All evaluation is gold-preproc, as everywhere else in this project outside English.
 """

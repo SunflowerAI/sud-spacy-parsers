@@ -29,7 +29,12 @@
 #
 # Phases: check | agree | beam | combined | eval | why
 set -euo pipefail
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 S=corpus_la_eval_slices
@@ -85,7 +90,7 @@ do_eval() {
       [ -f "$t" ] || { printf "   %-8s MISSING\n" "$sl"; continue; }
       printf "   %-8s " "$sl"
       $PY -m spacy evaluate "$d" "$t" --gold-preproc $CODE \
-          --output metrics_la_${arm}_${sl}_${ck}.json 2>/dev/null \
+          --output metrics/la/metrics_la_${arm}_${sl}_${ck}.json 2>/dev/null \
         | grep -E '^(TAG|UAS|LAS) ' | tr -s ' \n' ' '
       echo
     done

@@ -25,7 +25,7 @@ appeared in training (released arm, test, gold sentences and gold tokens):
 split is the whole deficit — the seen column is a perfectly ordinary parser.
 
 ⚠ **These figures exclude punctuation from UAS/LAS**, because `spacy.parser_scorer.v1` excludes it
-(`ignore_labels = ("p", "punct")`) and every `metrics_ko_*.json` in this repo is therefore on that
+(`ignore_labels = ("p", "punct")`) and every `metrics/ko/metrics_ko_*.json` in this repo is therefore on that
 scale. Marks are 13 % of Korean tokens and nearly free to attach, so scoring them lifts LAS by about
 3 points — enough that a table mixing the two scales would read as a result. Both eval scripts here
 were written the other way first and corrected; the meta-lesson in NEGATIVE-RESULTS.md is exactly
@@ -338,4 +338,4 @@ Audited after upload with `scripts/audit_ko_release.py`, against the **downloade
 * installed from the public release URL into a clean target, `scripts/` off `sys.path`, and parsed:
   two sentences, `잡스는 subj→청했다`, `워즈니악에게 comp:obl→청했다`.
 
-`metrics_release_ko.json` is regenerated against the shipped arm.
+`metrics/release/metrics_release_ko.json` is regenerated against the shipped arm.

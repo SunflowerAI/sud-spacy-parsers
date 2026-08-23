@@ -23,7 +23,12 @@
 # system seed AND the augmenter's own seed are moved: leaving the augmenter at 0 would re-use the
 # identical sequence of linearisations and measure only the weight initialisation.
 set -euo pipefail
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 A=assets_la
@@ -108,7 +113,7 @@ do_eval() {
       [ -f "$t" ] || { printf "   %-12s MISSING\n" "$v"; continue; }
       printf "   %-12s " "$v"
       $PY -m spacy evaluate "$d" "$t" --gold-preproc $CODE \
-          --output metrics_la_${arm}_${v}.json 2>/dev/null \
+          --output metrics/la/metrics_la_${arm}_${v}.json 2>/dev/null \
         | grep -E '^(TAG|UAS|LAS) ' | tr -s ' \n' ' '
       echo
     done

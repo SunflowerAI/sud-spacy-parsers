@@ -10,7 +10,7 @@ an orthography it was not trained on.
 All evaluation is gold-preproc, as everywhere in this project outside English.
 
     python scripts/eval_ar_variants.py --model released=training_ar_sud_xpos/model-best \\
-        --corpus-dir corpus_ar_variants --prefix ar --out metrics_ar_variants.json
+        --corpus-dir corpus_ar_variants --prefix ar --out metrics/ar/metrics_ar_variants.json
 """
 import argparse
 import json

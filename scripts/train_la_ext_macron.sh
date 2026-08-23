@@ -4,7 +4,12 @@
 # on the UNION of plain-ext and macronised-ext data, so the released model keeps the ext
 # udep disambiguation AND is robust to macronised input.  Macrons come from
 # transfer_macrons.py (FORM transform composed onto the ext deprels) -- no macroniser needed.
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 
@@ -32,13 +37,13 @@ if [ ! -d training_la_ext_macron_union/model-best ]; then
 fi
 tail -2 train_la_ext_macron_union.log
 
-echo "### evaluate (gold-preproc) vs ext baseline (metrics_la_ext.json)"
+echo "### evaluate (gold-preproc) vs ext baseline (metrics/la/metrics_la_ext.json)"
 echo "-- ext+macron union model on PLAIN-ext test --"
 $PY -m spacy evaluate training_la_ext_macron_union/model-best \
   corpus_la_ext/$P-test.relabeled_ext.spacy \
-  --gold-preproc --output metrics_la_ext_macron_union_plain.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS'
+  --gold-preproc --output metrics/la/metrics_la_ext_macron_union_plain.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS'
 echo "-- ext+macron union model on MACRON-ext test --"
 $PY -m spacy evaluate training_la_ext_macron_union/model-best \
   corpus_la_ext_macron/$P-test.relabeled_ext.macron.spacy \
-  --gold-preproc --output metrics_la_ext_macron_union_macron.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS'
+  --gold-preproc --output metrics/la/metrics_la_ext_macron_union_macron.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS'
 echo "DONE"

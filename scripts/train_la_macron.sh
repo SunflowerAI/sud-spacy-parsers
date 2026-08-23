@@ -3,11 +3,16 @@
 # the Alatius macroniser (see scripts/macronise_la.py) and trains ONE parser on the
 # UNION of the un-macronised and macronised data (data augmentation), so the model is
 # robust to input either way.  Evaluation (gold-preproc throughout) shows:
-#   * union model on plain test                  (metrics_la_macron_union_plain.json)
-#   * union model on macronised test             (metrics_la_macron_union_macron.json)
-#   * baseline (plain-only) model on macron test (metrics_la_baseline_on_macron.json)
-# compared to the existing plain baseline metrics_la.json.
+#   * union model on plain test                  (metrics/la/metrics_la_macron_union_plain.json)
+#   * union model on macronised test             (metrics/la/metrics_la_macron_union_macron.json)
+#   * baseline (plain-only) model on macron test (metrics/la/metrics_la_baseline_on_macron.json)
+# compared to the existing plain baseline metrics/la/metrics_la.json.
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 
@@ -38,11 +43,11 @@ tail -2 train_la_macron_union.log
 echo "### evaluate (gold-preproc)"
 echo "-- union model on PLAIN test --"
 $PY -m spacy evaluate training_la_macron_union/model-best corpus_la/$P-test.spacy \
-  --gold-preproc --output metrics_la_macron_union_plain.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS'
+  --gold-preproc --output metrics/la/metrics_la_macron_union_plain.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS'
 echo "-- union model on MACRONISED test --"
 $PY -m spacy evaluate training_la_macron_union/model-best corpus_la_macron/$P-test.macron.spacy \
-  --gold-preproc --output metrics_la_macron_union_macron.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS'
+  --gold-preproc --output metrics/la/metrics_la_macron_union_macron.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS'
 echo "-- baseline (plain-only) model on MACRONISED test (robustness control) --"
 $PY -m spacy evaluate training_la/model-best corpus_la_macron/$P-test.macron.spacy \
-  --gold-preproc --output metrics_la_baseline_on_macron.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS'
+  --gold-preproc --output metrics/la/metrics_la_baseline_on_macron.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS'
 echo "DONE"

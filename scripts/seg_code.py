@@ -84,6 +84,11 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            # it re-linearises is the order of siblings in the preverbal field, which the treebanks
            # show is genuinely free (26 % OSV in ta, 23 % in te).
            "dravidian_augment.py",
+           # registers sud.TamilSandhiTokenizer.v1 and sud.TeluguSplitTokenizer.v1. FIFTH
+           # registration gap: both sit in a RELEASED wheel's config, so the ta/te arms could not
+           # be opened through this file at all -- found when the release metrics were measured
+           # off the downloaded wheels.
+           "ta_tokenizer.py", "te_tokenizer.py",
            # registers sud.sa_case_variants.v1 — teaches that a capital carries no
            # syntax, which the tokeniser's case RESTORATION made necessary (14.62 %
            # of tokens change analysis when a sentence opens with a capital)

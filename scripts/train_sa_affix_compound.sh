@@ -15,7 +15,12 @@
 # for comparison. The `source` paths baked into the morph/lemma configs point at the released dirs,
 # so they are overridden on the command line to chain the new arms together.
 set -euo pipefail
+
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE=scripts/seg_code.py                 # sa_tokenizer (lex attrs + tokenizer) + CompoundCorpus reader
 C=corpus_sa_csl_rev
@@ -44,5 +49,5 @@ $PY -m spacy train configs/config_sa_lemma.cfg --output training_sa_lemma2/ --co
 
 echo "=== [4/4] evaluate on the Vedic test set (gold-preproc)"
 $PY -m spacy evaluate training_sa_lemma2/model-best $TEST --gold-preproc --code $CODE \
-  --output metrics_sa_affix_compound.json 2>&1 | tail -20
+  --output metrics/sa/metrics_sa_affix_compound.json 2>&1 | tail -20
 echo "=== done"

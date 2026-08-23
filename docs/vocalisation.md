@@ -331,7 +331,7 @@ sampled. Freeze recipe verified: tok2vec/tagger/parser (and morphologizer at the
 out byte-identical up both chains.
 
 Driver `train_vocal.sh` (`corpus | variants | labels | base | morph | lemma | eval`);
-`metrics_{ar,fa}_variants.json` hold the tables.
+`metrics/{ar,fa}/metrics_{ar,fa}_variants.json` hold the tables.
 
 **ADOPTED 2026-08-14 (user decision), released at v0.2.0 (clobbered).** `package_sud.sh` now names
 `training_{ar,fa}_vocal_sud_xpos` by default; `AR_BASE`/`FA_BASE` get the old arms back. Adoption

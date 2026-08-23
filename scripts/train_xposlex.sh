@@ -28,6 +28,10 @@
 #         ARMS="fields control" bash scripts/train_xposlex.sh
 set -uo pipefail
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 A=assets_lzh/SUD_Classical_Chinese-Kyoto
 S=relabeled_ext.udep_ruled.punct.rulemerged
@@ -78,7 +82,7 @@ for seed in $SEEDS; do
     # --gold-preproc is compulsory for every language but en: without it `spacy evaluate`
     # re-tokenises and the alignment collapses (Korean LAS once fell to ~30).
     $PY -m spacy evaluate "$out/model-best" "$C-test.$S.spacy" --gold-preproc \
-        --code scripts/seg_code.py --output "metrics_lzh_${arm}${sfx}_gp.json" 2>&1 | tail -3
+        --code scripts/seg_code.py --output "metrics/lzh/metrics_lzh_${arm}${sfx}_gp.json" 2>&1 | tail -3
   done
 done
 
@@ -86,7 +90,7 @@ STAMP "3/3  summary"
 $PY - <<'PYEOF'
 import glob, json, pathlib
 rows = []
-for p in sorted(glob.glob("metrics_lzh_*_gp.json")) + ["metrics_lzh_trad_base_gp.json"]:
+for p in sorted(glob.glob("metrics_lzh_*_gp.json")) + ["metrics/lzh/metrics_lzh_trad_base_gp.json"]:
     f = pathlib.Path(p)
     if not f.exists():
         continue

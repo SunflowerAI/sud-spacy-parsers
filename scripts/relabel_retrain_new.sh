@@ -2,7 +2,12 @@
 # Baseline (verb-ADP scope) relabel udep -> comp:obl/mod, then convert + retrain + evaluate,
 # for the new prepositional languages. Sanskrit is case-based (negligible ADP udep) so it is
 # handled only by the extended-scope driver. Set OLLAMA_MODEL to the Phase-3 winner per run.
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 declare -A DIR=( [fa]=assets_fa/SUD_Persian-PerDT [ar]=assets_ar/SUD_Arabic-PADT \
                  [la]=assets_la [lzh]=assets_lzh/SUD_Classical_Chinese-Kyoto \
@@ -27,6 +32,6 @@ for lang in "$@"; do
   if [ ! -d training_${lang}_rl/model-best ]; then echo "!! $lang retrain FAILED"; tail -6 train_${lang}_rl.log; continue; fi
   echo "############## EVAL $lang (relabeled, gold-preproc) ##############"
   $PY -m spacy evaluate training_${lang}_rl/model-best corpus_${lang}_rl/$p-test.relabeled.spacy $code \
-    --gold-preproc --output metrics_${lang}_rl.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS' | head -4
+    --gold-preproc --output metrics/${lang}/metrics_${lang}_rl.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS' | head -4
 done
 echo "ALL RELABEL+RETRAIN DONE: $*"

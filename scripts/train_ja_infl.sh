@@ -17,6 +17,10 @@
 #
 #   bash scripts/train_ja_infl.sh
 set -u
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 SRC=training_ja_lemma/model-best
 SRC_CORPUS=corpus_ja_ext
@@ -82,12 +86,12 @@ done
 #    through InflEvalCorpus or they are scored with an input deleted.
 echo "########## test (gold-preproc) ##########"
 $PY scripts/eval_ja_infl.py training_ja_xposwarm/model-best "$CORPUS/test.spacy" --plain \
-    --label "BASELINE  ExtPos only" --out metrics_ja_xposwarm_test.json
+    --label "BASELINE  ExtPos only" --out metrics/ja/metrics_ja_xposwarm_test.json
 for v in "infl FEATURE   ExtPos+Inflection" "infl_ctl CONTROL   ExtPos+CtlZero"; do
   set -- $v
   n=$1; shift
   $PY scripts/eval_ja_infl.py "training_ja_$n/model-best" "$CORPUS/test.spacy" \
-      --label "$*" --out "metrics_ja_${n}_test.json"
+      --label "$*" --out "metrics/ja/metrics_ja_${n}_test.json"
 done
 
 # 6) and the counterfactual: what an unwitting `spacy evaluate --gold-preproc` would have reported

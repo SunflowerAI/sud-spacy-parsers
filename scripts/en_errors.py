@@ -10,7 +10,7 @@ d = e.d
 
 
 def main():
-    gold = e.load_gold("gold_udep.jsonl")
+    gold = e.load_gold("gold/gold_udep.jsonl")
     test = e.balanced_sample(gold, 200, 0)
     prefix = e.PREFIXES["fewshot12_def"]
     miss_c, miss_m, prep_err = [], [], Counter()

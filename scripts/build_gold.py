@@ -11,6 +11,7 @@ nonetheless unambiguous, so we self-label the confident ones:
 
 Both sides are drawn from `udep` cases, giving a clean, on-target test set. Writes JSONL.
 """
+import pathlib
 import importlib.util, json, re
 from collections import Counter
 
@@ -137,10 +138,11 @@ def main():
             print(f"   [{i['verb']} … {i['prep']}]  {i['prep_phrase'][:70]}")
         print()
 
-    with open("gold_udep.jsonl", "w") as fh:
+    pathlib.Path("gold").mkdir(exist_ok=True)
+    with open("gold/gold_udep.jsonl", "w") as fh:
         for i in items:
             fh.write(json.dumps(i) + "\n")
-    print(f"Wrote {len(items)} items to gold_udep.jsonl")
+    print(f"Wrote {len(items)} items to gold/gold_udep.jsonl")
 
 
 if __name__ == "__main__":

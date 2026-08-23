@@ -26,21 +26,21 @@ now a LICENCE BOUNDARY, not a conservative default. **GUM's NC genres are FIVE**
 letter, podcast, whow), not two.
 
 **The relabel is free if the ORDER is right.** The original development corpus was EWT+GUM
-concatenated, so `relabel_cache*.jsonl` already holds every GUM decision — but the keys are
+concatenated, so `caches/relabel_cache*.jsonl` already holds every GUM decision — but the keys are
 POSITIONAL (`path|sentence_index|token_id`). Relabel the unfiltered EWT-first concatenation, filter
 the NC genres LAST: 34,461 targets at **zero** model calls. Filtering first shifts every later index
 and throws away half the cache. `build_en_ewt_gum.sh` step 2 refuses to run if the dry run bills
 anything. The Perseus XPOS trap does NOT apply — GUM's 46 tags are a strict subset of EWT's 49.
 
 **`Reported` gold keys differently and that is what makes IT cheap** — `sent_id|comp_id`, not
-positional — so `base_lang()` pointing en_gum at `relabel_cache_reported_en.jsonl` makes the EWT
+positional — so `base_lang()` pointing en_gum at `caches/relabel_cache_reported_en.jsonl` makes the EWT
 half free: of 565 residue decisions 394 hit, and all 171 misses were GUM. See `Reported` in
 `docs/sud-misc-layer.md`; an arm name is not a language, and the two places that confused them
 both failed silently.
 
 **Apples-to-apples on the EWT-only test** (identical gold — the EWT half of the en_gum test is
 byte-identical to it, 2077/2077 blocks; RAW end-to-end, not gold-preproc, so these are ~1.7 LAS
-below the released figures in `metrics_release_en*.json` and are a comparison, not a headline):
+below the released figures in `metrics/release/metrics_release_en*.json` and are a comparison, not a headline):
 LAS **79.63 → 80.26**, UAS 84.40 → 84.82, TAG 93.09 →
 93.20, `comp:obl` F **+1.52**, `udep` +4.56; against LEMMA −0.12, MORPH −0.19, SENT F −0.41. Same
 shape as Perseus for Latin — the extra treebank IMPROVES the original domain. ⚠ Single seed each and

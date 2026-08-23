@@ -4,7 +4,12 @@
 # gold tokens, so the rule/char tokenisers don't break alignment.
 #   fa  Persian-PerDT          ar  Arabic-PADT         la  Latin-ITTB+PROIEL (merged)
 #   sa  Sanskrit-Vedic         lzh Classical_Chinese-Kyoto (custom char tokeniser, needs --code)
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 
 declare -A PREF=( [fa]=fa_perdt-sud [ar]=ar_padt-sud [la]=la_ittbproiel-sud \
@@ -25,6 +30,6 @@ for lang in "$@"; do
   tail -2 train_$lang.log
   echo "############## EVAL $lang (gold-preproc) ##############"
   $PY -m spacy evaluate training_$lang/model-best corpus_$lang/$p-test.spacy $code \
-    --gold-preproc --output metrics_$lang.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS' | head -5
+    --gold-preproc --output metrics/$lang/metrics_$lang.json 2>&1 | grep -E 'TOK|TAG|UAS|LAS' | head -5
 done
 echo "DONE: $*"

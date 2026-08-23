@@ -24,7 +24,12 @@
 #
 # Phases (run all, or name one): check | seeds | labels | order | eval | oov | scramble
 set -euo pipefail
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE="--code scripts/seg_code.py"
 export MECAB_PATH="${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}"
@@ -108,7 +113,7 @@ do_eval() {
     [ -d "$d" ] || { printf "%-26s MISSING\n" "$arm"; continue; }
     printf "%-26s " "$arm"
     $PY -m spacy evaluate "$d" "$TEST" --gold-preproc $CODE \
-        --output metrics_ko_${arm}_gp.json 2>/dev/null \
+        --output metrics/ko/metrics_ko_${arm}_gp.json 2>/dev/null \
       | grep -E '^(TAG|UAS|LAS) ' | awk '{printf "%7s ", $2}'
     echo
   done

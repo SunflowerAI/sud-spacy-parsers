@@ -12,7 +12,12 @@
 # RETOKENISED corpus; this one is checked below rather than assumed, because a vacuous morphologiser
 # scores a misleading 100 % against all-empty gold.
 set -euo pipefail
+
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE=scripts/seg_code.py
 
@@ -65,4 +70,4 @@ done
 echo "=== final: raw end-to-end ==================================================="
 $PY -m spacy evaluate training_ko_eojeol_lemma/model-best \
     corpus_ko_eojeol/ko_gsd-sud-test.relabeled_ext.spacy --code $CODE \
-    --output metrics_ko_eojeol_lemma_raw.json 2>&1 | grep -E "TOK|TAG|POS|MORPH|LEMMA|UAS|LAS|SENT"
+    --output metrics/ko/metrics_ko_eojeol_lemma_raw.json 2>&1 | grep -E "TOK|TAG|POS|MORPH|LEMMA|UAS|LAS|SENT"

@@ -16,7 +16,7 @@ serve as gold, hence the rule build. `eval_prompts.py` / `lang_bench.py` benchma
 error analysis that drove the contrastive shots);
 `zh_bench.py`/`id_bench.py`/`en_bench.py` hold curated same-adposition contrastive few-shot.
 `relabel.py` / `lang_relabel.py` apply the chosen prompt (rule first, model only for the genuinely
-ambiguous remainder), resumable via on-disk `relabel_cache*.jsonl`. `relabel_ext.py` covers the
+ambiguous remainder), resumable via on-disk `caches/relabel_cache*.jsonl`. `relabel_ext.py` covers the
 **extended scope** into separate `*.relabeled_ext.conllu`. `udep_audit.py` / `udep_probe.py` /
 `hard_examples.py` are the analysis behind the scope decisions.
 
@@ -113,7 +113,7 @@ An LLM pass over the remaining residue was built and **abandoned** — see NEGAT
 424 DEPREL cells across `assets_ko/SUD_Korean-GSD/ko_gsd-sud-{train,dev,test}.relabeled_ext.conllu`
 (313/53/58), all `udep` → `mod` (392) or `comp:obl` (32); DEPREL is the only column touched. This is
 the extended relabel rebuilt at the eojeol granularity the released arm now uses, backed by +138
-entries in `relabel_cache_ext_ko.jsonl` (112 modifier / 26 complement). **None of it reached the
+entries in `caches/relabel_cache_ext_ko.jsonl` (112 modifier / 26 complement). **None of it reached the
 v0.1.0 wheels** — the shipped `ko_sud_gsd` predates it, so its `comp:obl` F 38.6 does not include it.
 
 ## SUD relation conformance (`normalise_reparandum.py`)

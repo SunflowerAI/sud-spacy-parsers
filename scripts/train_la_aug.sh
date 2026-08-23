@@ -15,6 +15,10 @@
 # Phases (run all, or name one): variants | labels | base | morph | lemma | eval
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 P=la_ittbproiel-sud
 A=assets_la
@@ -114,7 +118,7 @@ do_eval() {
   [ -d training_la_aug_lemma/model-best ] && base_aug=training_la_aug_lemma/model-best
   [ -d training_la_lemma/model-best ] && base_union=training_la_lemma/model-best
   $PY scripts/eval_la_variants.py --model "union=$base_union" --model "aug=$base_aug" \
-    --corpus-dir corpus_la_variants --out metrics_la_variants.json \
+    --corpus-dir corpus_la_variants --out metrics/la/metrics_la_variants.json \
     --metrics LAS,UAS,TAG,LEMMA | tee eval_la_variants.log
 }
 

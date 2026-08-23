@@ -2,7 +2,12 @@
 # Watch the three training logs; as each finishes ("Saved pipeline"), evaluate its
 # model-best on the test split both WITH --gold-preproc (gold tokens) and WITHOUT
 # (raw end-to-end: model re-tokenises). raw token_acc shows the tokeniser match.
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 export MECAB_PATH=${MECAB_PATH:-/opt/homebrew/lib/libmecab.dylib}
 PY=.venv/bin/python
 
@@ -20,9 +25,9 @@ for i in $(seq 1 480); do          # ~4h backstop
       eval "T=\$test_${L}"
       echo "######## EVAL $L ########"
       $PY -m spacy evaluate "training_${L}/model-best" "$T" --gold-preproc \
-        --output "metrics_${L}_gp.json" >/dev/null 2>&1
+        --output "metrics/${L}/metrics_${L}_gp.json" >/dev/null 2>&1
       $PY -m spacy evaluate "training_${L}/model-best" "$T" \
-        --output "metrics_${L}_raw.json" >/dev/null 2>&1
+        --output "metrics/${L}/metrics_${L}_raw.json" >/dev/null 2>&1
       $PY - "$L" <<'EOF'
 import json, sys
 L = sys.argv[1]
@@ -31,7 +36,7 @@ def load(f):
     except Exception: return {}
 def row(d): return (f"tok={d.get('token_acc',0):.3f}  TAG={d.get('tag_acc',0):.3f}  "
                     f"UAS={d.get('dep_uas',0):.3f}  LAS={d.get('dep_las',0):.3f}")
-gp, raw = load(f"metrics_{L}_gp.json"), load(f"metrics_{L}_raw.json")
+gp, raw = load(f"metrics/{L}/metrics_{L}_gp.json"), load(f"metrics/{L}/metrics_{L}_raw.json")
 print(f"  gold-preproc : {row(gp)}")
 print(f"  raw (e2e)    : {row(raw)}")
 for tag, d in [("gp", gp), ("raw", raw)]:

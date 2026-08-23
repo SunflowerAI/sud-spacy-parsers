@@ -18,6 +18,10 @@
 # +0.46 on seed 0 and +0.04 over three. Do not read a single row of this table.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CFG=configs/config_zh_graft.cfg
 CODE="--code scripts/seg_code.py"
@@ -31,7 +35,7 @@ BLOB=lzh_trad_tok2vec.bin
 
 for seed in 0 1 2; do
   for arm in graft ctl; do
-    out=training_zh_${arm}_s${seed}; log=train_zh_${arm}_s${seed}.log; met=metrics_zh_${arm}_s${seed}.json
+    out=training_zh_${arm}_s${seed}; log=train_zh_${arm}_s${seed}.log; met=metrics/zh/metrics_zh_${arm}_s${seed}.json
     [ -f "$met" ] && { echo "=== zh_${arm}_s${seed}: metrics exist, skipping"; continue; }
     echo "=== zh_${arm}_s${seed} ==="
     if [ "$arm" = graft ]; then INIT=(--paths.init_tok2vec "$BLOB"); else INIT=(); fi

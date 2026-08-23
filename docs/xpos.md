@@ -146,7 +146,7 @@ would have confounded the tagset change with a capacity cut.
 ⚠ Same version, so `pip install -U` will NOT replace an older copy; `--force-reinstall` will.
 Verified by DOWNLOADING both published assets (sha256 identical to what was built) and loading
 them from a clean `--target` install, not from `build_sud/`.
-`metrics_release_la*.json` still holds the pre-normalisation TAG and is now stale on that one
+`metrics/release/metrics_release_la*.json` still holds the pre-normalisation TAG and is now stale on that one
 field; every other figure in it is unchanged and still correct.
 
 ## XPOS conditioned on UPOS+FEATS — and WHERE the conditioning enters
@@ -254,15 +254,15 @@ three held on all eleven; the parse check covered 8 227–26 164 tokens per arm.
 
     sa 72.06 -> 73.58   ja 95.09 -> 95.38   yue 93.74 -> 93.66     (sa on the UFAL test set,
     ar 89.44 -> 89.71   id 92.12 -> 92.27   la  86.16 -> 86.10      which is what the README and
-    en 93.09 -> 93.50   fa 96.19 -> 96.23   ko  72.92 -> 72.93      metrics_release_sa.json report)
+    en 93.09 -> 93.50   fa 96.19 -> 96.23   ko  72.92 -> 72.93      metrics/release/metrics_release_sa.json report)
     en_gum 94.22->94.45 lzh 92.59 -> 92.88
     zh 90.81 -> 91.12
 
 yue and la go marginally BACKWARDS (−0.08 / −0.06, inside seed noise); shipped anyway by user
 decision, so the whole family has one tagger architecture. The sa wheel diffed against its v0.1.0
-predecessor is 34 of 49 files identical with **no weight file except `tagger/model`** moved. `metrics_release_*.json` updated on
+predecessor is 34 of 49 files identical with **no weight file except `tagger/model`** moved. `metrics/release/*.json` updated on
 `tag_acc`/`tag_micro_*` only — every other field is unchanged, because every other component is
-byte-identical. ⚠ `metrics_release_la_{ittbproiel,perseus}.json` hold the per-slice TAG and were
+byte-identical. ⚠ `metrics/release/metrics_release_la_{ittbproiel,perseus}.json` hold the per-slice TAG and were
 NOT re-measured; they are stale on that field.
 
 Packaging notes worth keeping: `pkg()` now appends `scripts/sud_feats_embed.py` to EVERY wheel's

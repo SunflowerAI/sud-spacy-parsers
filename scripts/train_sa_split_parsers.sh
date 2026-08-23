@@ -6,6 +6,10 @@
 # `configs/config_sa_split_w96_init.cfg` + `sa_joint_tok2vec_w96.bin` were written from it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# metrics land in metrics/<lang>/. Several evals below send stderr to /dev/null, so a
+# missing directory would fail SILENTLY and leave the driver reporting nothing.
+mkdir -p metrics/{ar,en,fa,generic,id,ja,ko,la,lzh,misc,release,sa,ta,te,yue,zh}
 PY=.venv/bin/python
 CODE=scripts/seg_code.py
 
@@ -36,8 +40,8 @@ for r in rows:
     u, v = r["UFAL"], r["Vedic"]
     print(f"  {r['arm']:<10}  {u[0]:7.4f} {u[1]:7.4f} {u[2]:7.4f}     "
           f"{v[0]:7.4f} {v[1]:7.4f} {v[2]:7.4f}")
-json.dump(rows, open("metrics_sa_split_arms.json", "w"), indent=2)
-print("\n  -> metrics_sa_split_arms.json")
+json.dump(rows, open("metrics/sa/metrics_sa_split_arms.json", "w"), indent=2)
+print("\n  -> metrics/sa/metrics_sa_split_arms.json")
 PY
 
 echo "=== 5/5  done ================================================================"

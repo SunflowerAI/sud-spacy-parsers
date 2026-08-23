@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Push English comp/mod accuracy with a comprehensive same-preposition contrastive set.
 Each confusable preposition (on/for/at/in/to/of/with/from/by/over/after) appears as both a
-verb-selected COMPLEMENT and a free/temporal MODIFIER. Benchmarked on gold_udep.jsonl against
+verb-selected COMPLEMENT and a free/temporal MODIFIER. Benchmarked on gold/gold_udep.jsonl against
 the current best (fewshot12_def, 0.912). Test split = balanced 200/class, seed 0.
 """
 import importlib.util, json
@@ -81,7 +81,7 @@ def run(name, prefix, test):
 
 
 def main():
-    gold = e.load_gold("gold_udep.jsonl")
+    gold = e.load_gold("gold/gold_udep.jsonl")
     test = e.balanced_sample(gold, 200, 0)
     print(f"en test {len(test)} (200/class); contrast shots {len(CONTRAST)}\n")
     variants = {
