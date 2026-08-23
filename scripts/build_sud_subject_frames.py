@@ -31,7 +31,8 @@ TRAIN = {
     "lzh": "assets_lzh/SUD_Classical_Chinese-Kyoto-Both/lzh_kyotoboth-sud-train.relabeled_ext.conllu",
     "fa":  "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-train.relabeled_ext.conllu",
     "la":  "assets_la/la_ittbproiel-sud-train.relabeled_ext.conllu",
-    "sa":  "corpus_sa_csl_rev/train.csl_rev.conllu",
+    # csl_mwt, not csl_rev: the DCS/MWT generation. `corpus_sa_csl_rev` is the SUPERSEDED pausa-normalised representation (CLAUDE.md lists `rebuild_sa_csl_rev.sh` under "Superseded but kept"); its FORMs and tokenisation differ from the arm that ships, and it is UNRELABELLED (`udep` 7.89 % of tokens against 0.00 %). See the BUILD PROVENANCE table in docs/sanskrit.md.
+    "sa":  "corpus_sa_mwt_rl2/train.csl_mwt.conllu",
 }
 
 

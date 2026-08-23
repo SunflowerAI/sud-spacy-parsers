@@ -127,9 +127,16 @@ src_conllu() {
     # on the split words, so a corpus built from the unsplit files would not align with it.
     ta)  echo "assets_ta/ta_ttb_mwtt-sud-$2.conllu" ;;
     te)  echo "assets_te/te_mtg-sud-$2.conllu" ;;
-    # sa trains on Vedic-train + UFAL combined (rebuild_sa_csl_rev.sh); dev/test are Vedic only
-    sa)  if [ "$2" = train ]; then echo "corpus_sa_csl_rev/train.csl_rev.conllu"
-         else echo "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-$2.csl_rev.conllu"; fi ;;
+    # sa trains on Vedic-train + UFAL combined; dev/test are Vedic only.
+    # ⚠ THIS NAMED `corpus_sa_csl_rev` UNTIL 2026-08-23, i.e. the SUPERSEDED pausa-normalised
+    # representation (CLAUDE.md, "Superseded but kept": `rebuild_sa_csl_rev.sh`). Two defects at
+    # once, neither of which announced itself: that corpus is UNRELABELLED (`udep` on 7.89 % of sa
+    # tokens against 0.00 % here, where the extended relabel committed every one), and its
+    # tokenisation is not the released parser's, so nothing built on it could align with the arm it
+    # was meant to stack on. `docs/sanskrit.md`'s BUILD PROVENANCE table is the authority. A
+    # superseded corpus loads, converts and trains exactly like a current one.
+    sa)  if [ "$2" = train ]; then echo "corpus_sa_mwt_rl2/train.csl_mwt.conllu"
+         else echo "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-$2.relabeled_ext.csl_mwt.conllu"; fi ;;
   esac
 }
 
@@ -162,6 +169,12 @@ src_model() {
     # ranking layers pay for it. ⚠ THIS DEFAULT ALSO NAMED THE BOTH-SCRIPTS ARM
     # (training_lzh_rm_morph), against its own comment; LZH_BASE_ARM is the escape hatch for it.
     lzh) echo "${LZH_BASE_ARM:-training_lzh_trad_morph/model-best}" ;;
+    # ⚠ `training_sa_multitask` is a SUPERSEDED generation. The released sa parser is
+    # `training_sa_mp2_sub_s1/model-best` (`SA_BASE` in package_sud.sh; docs/sanskrit.md). Left
+    # unchanged because repointing it changes which arm the MISC pipes stack on, and sa's shipped
+    # MISC components are RULES (`add_sud_reported_rule`, `add_idiom` in package_sud.sh) rather
+    # than the trained pipes this driver builds -- so nothing shipped depends on it. Repoint before
+    # trusting `train_sud.sh sa` for anything but a pilot.
     sa) echo "training_sa_multitask/model-best" ;;
     ko) echo "training_ko_eojeol_lemma/model-best" ;;
     # id's released arm is the SPLIT chain (char segmenter, enclitics separated). The generic

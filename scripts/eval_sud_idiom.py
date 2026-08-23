@@ -42,7 +42,8 @@ FILES = {
     "fa":  "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-{split}.relabeled_ext.conllu",
     "ar":  "assets_ar/SUD_Arabic-PADT/ar_padt-sud-{split}.relabeled_ext.conllu",
     "la":  "assets_la/la_ittbproiel-sud-{split}.relabeled_ext.conllu",
-    "sa":  "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{split}.csl_rev.conllu",
+    # csl_mwt, not csl_rev: the DCS/MWT generation. `corpus_sa_csl_rev` is the SUPERSEDED pausa-normalised representation (CLAUDE.md lists `rebuild_sa_csl_rev.sh` under "Superseded but kept"); its FORMs and tokenisation differ from the arm that ships, and it is UNRELABELLED (`udep` 7.89 % of tokens against 0.00 %). See the BUILD PROVENANCE table in docs/sanskrit.md.
+    "sa":  "assets_sa/SUD_Sanskrit-Vedic/sa_vedic-sud-{split}.relabeled_ext.csl_mwt.conllu",
 }
 KEYS = ("Idiom", "InIdiom")
 

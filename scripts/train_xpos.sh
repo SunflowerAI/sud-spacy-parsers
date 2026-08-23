@@ -56,6 +56,7 @@ tagger_arm() { case "$1" in
   id)     echo training_id_split_lemma/model-best ;;
   ko)     echo training_ko_eojeol_lemma/model-best ;;
   zh)     echo training_zh_trad_lemma/model-best ;;
+  # ⚠ SUPERSEDED generation; the released sa parser is `training_sa_mp2_sub_s1/model-best`.
   sa)     echo training_sa_multitask/model-best ;;
   # XPOS_SRC_ARM overrides it. Needed for the vocalisation-augmented chains: the conditioned
   # tagger must be trained on the AUGMENTED corpus, or a tagger that has only seen bare text gets
@@ -77,7 +78,8 @@ feats_conllu() { case "$1" in
   zh)  echo assets_zh/SUD_Chinese-GSD/zh_gsd-sud-train.relabeled_ext.conllu ;;
   yue) echo assets_yue/SUD_Cantonese-HK/yue_hk-sud-train.relabeled_ext.conllu ;;
   lzh) echo assets_lzh/SUD_Classical_Chinese-Kyoto/lzh_kyoto-sud-train.relabeled_ext.udep_ruled.punct.rulemerged.conllu ;;
-  sa)  echo corpus_sa_csl_rev/train.csl_rev.conllu ;;
+  # csl_mwt, not csl_rev (the superseded pausa representation; docs/sanskrit.md provenance table)
+  sa)  echo corpus_sa_mwt_rl2/train.csl_mwt.conllu ;;
 esac; }
 
 # DERIVED at run time, never hardcoded: build_feats_inventory.py ranks each morphological category

@@ -51,6 +51,12 @@ case $lang in
  zh)  train zh  configs/config_zh_both_seg.cfg training_zh_seg/model-best      corpus_zh_both/zh_gsdboth-sud-train.relabeled_ext.spacy corpus_zh_both/zh_gsdboth-sud-dev.relabeled_ext.spacy ;;
  yue) train yue configs/config_yue_seg.cfg     training_yue_seg/model-best     corpus_yue_ext/yue_hk-sud-train.relabeled_ext.spacy    corpus_yue_ext/yue_hk-sud-dev.relabeled_ext.spacy ;;
  lzh) train lzh configs/config_lzh.cfg         training_lzh_both_ext/model-seg corpus_lzh_both/lzh_kyotoboth-sud-train.relabeled_ext.spacy corpus_lzh_both/lzh_kyotoboth-sud-dev.relabeled_ext.spacy ;;
+ # ⚠ SUPERSEDED FOR sa, ON BOTH COUNTS -- left as the historical record, not a build to re-run.
+ # The ARM: sa no longer uses the freeze recipe at all; it ships a JOINT MULTI-TASK arm
+ # (`training_sa_mp2_sub_s1`, `SA_BASE` in package_sud.sh; CLAUDE.md, docs/sanskrit.md), whose
+ # morphologiser is sourced from `training_sa_mt2_analyser_s1` rather than trained here.
+ # The CORPUS: `corpus_sa_csl_rev` is the superseded pausa-normalised representation.
+ # Running this line rebuilds a generation nothing ships.
  sa)  train sa  configs/config_sa.cfg          training_sa_csl_rev/model-seg   corpus_sa_csl_rev/train.csl_rev.spacy  corpus_sa_csl_rev/sa_vedic-sud-dev.csl_rev.spacy ;;
  ta_ttb)  train ta_ttb  configs/config_ta_seg.cfg  training_ta_ttb_seg/model-best   corpus_ta/ta_ttb-sud-train.spacy       corpus_ta/ta_ttb-sud-dev.spacy ;;
  ta_both) train ta_both configs/config_ta_seg.cfg  training_ta_both_seg/model-best  corpus_ta/ta_ttb_mwtt-sud-train.spacy  corpus_ta/ta_ttb_mwtt-sud-dev.spacy ;;

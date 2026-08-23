@@ -46,6 +46,9 @@ case $lang in
  zh)  train zh  corpus_zh_both/zh_gsdboth-sud-train.relabeled_ext.spacy corpus_zh_both/zh_gsdboth-sud-dev.relabeled_ext.spacy ;;
  yue) train yue corpus_yue_ext/yue_hk-sud-train.relabeled_ext.spacy    corpus_yue_ext/yue_hk-sud-dev.relabeled_ext.spacy ;;
  lzh) train lzh corpus_lzh_both/lzh_kyotoboth-sud-train.relabeled_ext.spacy corpus_lzh_both/lzh_kyotoboth-sud-dev.relabeled_ext.spacy ;;
+ # ⚠ SUPERSEDED FOR sa: the released arm is JOINT MULTI-TASK (`training_sa_mp2_sub_s1`) and sources
+ # its lemmatizer from `training_sa_mt2_analyser_s1`, not from this freeze-recipe chain; and
+ # `corpus_sa_csl_rev` is the superseded pausa-normalised representation. Historical record only.
  sa)  train sa  corpus_sa_csl_rev/train.csl_rev.spacy  corpus_sa_csl_rev/sa_vedic-sud-dev.csl_rev.spacy ;;
  ta_ttb)  train ta_ttb  corpus_ta/ta_ttb-sud-train.spacy      corpus_ta/ta_ttb-sud-dev.spacy ;;
  ta_both) train ta_both corpus_ta/ta_ttb_mwtt-sud-train.spacy corpus_ta/ta_ttb_mwtt-sud-dev.spacy ;;

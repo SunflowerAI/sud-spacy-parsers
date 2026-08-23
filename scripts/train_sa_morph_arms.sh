@@ -1,4 +1,11 @@
 #!/bin/bash
+# ⚠ SUPERSEDED GENERATION. This driver reads `corpus_sa_csl_rev` and chains
+# `training_sa_csl_rev*` -- the pausa-normalised representation and the freeze-recipe arms
+# built on it. Neither is what ships: the sa wheel is a JOINT MULTI-TASK arm
+# (`training_sa_mp2_sub_s1`, `SA_BASE` in package_sud.sh) trained on the DCS/MWT
+# representation. Kept as the experimental record; do not treat its output as current.
+# CLAUDE.md lists `rebuild_sa_csl_rev.sh` under "Superseded but kept"; the authority on
+# which sa corpus feeds what is the BUILD PROVENANCE table in docs/sanskrit.md.
 # Run the sa morphologiser affix ablation (see scripts/make_sa_morph_arms.py for the arm table and
 # scripts/sud_affix_embed.py for why the layer exists).
 #

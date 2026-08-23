@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# ⚠ SUPERSEDED by scripts/rebuild_sa_csl_mwt.sh. This builds the PAUSA-NORMALISED representation
+# (`corpus_sa_csl_rev`, `*.csl_rev.conllu`); the released sa arm is trained on the DCS/MWT one.
+# The two differ in FORM and tokenisation, and the csl_rev corpus is additionally UNRELABELLED
+# (`udep` on 7.89 % of tokens against 0.00 %). Kept for the historical record only -- see the
+# BUILD PROVENANCE table in docs/sanskrit.md before rebuilding anything Sanskrit.
 # Rebuild the CSL-reverted Sanskrit corpus (corpus_sa_csl_rev/) from the sandhied-CSL sources,
 # so the training data matches whatever scripts/sa_tokenizer.py:desandhi_csl currently produces.
 # Run this after changing desandhi_csl (e.g. the pre-pausal normalisation), then retrain
