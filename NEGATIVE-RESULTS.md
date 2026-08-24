@@ -437,6 +437,72 @@ mark argues against one. There is no gold, so this is not proof the parser is wr
 to distrust the transfer, and it is why the residue ships as sentence breaks rather than as either
 our `parataxis` or its `comp:obj`.
 
+## The generic (language-agnostic) parser — results WITHDRAWN pending retrain; the harness lessons stand (2026-08-23)
+
+One parser over all thirteen SUD treebanks reading **only** UPOS, decomposed FEATS and a
+cross-lingually aligned 128-d vector — no wordform, no affix, no script, no language id — on a
+typologically balanced sample (`docs/generic-parser.md`).
+
+⚠ **THE MEASUREMENTS HAVE BEEN WITHDRAWN.** The corpus took Sanskrit from `corpus_sa_csl_rev/`,
+which `train_sud.sh`'s `src_conllu()` still names and CLAUDE.md lists under "Superseded but kept".
+sa therefore entered the mix **unrelabelled** (`udep` 7.89 % of its tokens against 0.00 % in the
+current `relabeled_ext.csl_mwt` generation) while all ten other relabelled languages were on their
+released generation, and on a tokenisation the released sa arm does not share. Retraining on the
+corrected corpus. **A superseded corpus loads, converts and trains exactly like a current one** —
+the only tell was a `udep` rate that looked like an annotation-policy difference and was a stale
+path.
+
+**What the aborted run indicated, to be re-established rather than cited:** in-sample macro LAS in
+the mid-70s; the vector channel worth ~8.6 macro LAS over a capacity-matched dead channel and ~2.5
+over a within-language SHUFFLE of the same rows (so the alignment, not merely a per-language lexical
+code, was carrying something); a thirteen-row language embedding worth ~0.3, i.e. nothing;
+zero-shot to a held-out language 25–39 LAS with gold sentence boundaries; and every delta against a
+released monolingual arm negative. None of these are quotable until the retrain lands.
+
+### The harness lessons, which do not depend on the retrain
+
+**THE COMPARISON WAS WRONG THREE TIMES, EVERY TIME IN THE FLATTERING DIRECTION, AND EACH ERROR WAS
+FOUND BY A READER RATHER THAN BY A CHECK.**
+
+*1 — inputs not equalised (~11 LAS on ta).* The generic arm was scored on GOLD UPOS/FEATS against
+arms predicting their own — handing one side the answer to a subproblem the other had to solve. ta
+carries FEATS on 88 % of its tokens and this was the entire apparent uplift. **A cross-model
+comparison must equalise the INPUTS as well as the target and the harness.**
+
+*2 — sentence condition not equalised (12.5 LAS on sa, biasing every row).* The monolingual arms
+were run over ten-sentence docs with MODEL-PREDICTED sentence boundaries. They are trained and
+reported under `gold_preproc` — one sentence per doc — and most never learned to START one. sa
+scored SENTS_F 25.07 that way. `eval_generic.py` now REFUSES `--monolingual` without `--gold-sents`,
+because the flag existed and had been wired through only one side.
+
+*3 — a validation check that CONFIRMED the error, because the two numbers were on different data.*
+The crippled harness read sa **37.23**; `metrics_release_sa.json` reads **37.35**; the match was
+reported as proof the harness was sound. But that release file is measured on the **1843-token UFAL**
+test set while the harness was scoring **Vedic**. Two unrelated numbers agreeing to 0.12.
+**Establish that both figures are on the same DATA before treating agreement as validation** —
+closeness alone is not evidence, and a coincidental match is worse than no check at all, because it
+converts doubt into confidence. Now recorded in `docs/packaging-and-release.md`, since the release
+metrics set is not cross-language comparable for this reason.
+
+**Sanskrit has three individually-correct LAS figures and none may be substituted for another:**
+37.35 (UFAL test set, what the README and release file quote), 49.73 (Vedic, plain `spacy evaluate
+--gold-preproc`, which denies the arm the tokeniser-set `Compound` input its parser reads), and
+**57.05** (Vedic, `eval_sa_compound.py --reader norm`, the arm as it actually runs). `eval_generic.py`
+now stamps tokeniser-supplied FEATS via `TOKENISER_FEATS`.
+
+**And ko's released arm is not in this working tree.** `package_sud.sh`'s `KO_BASE` names
+`training_ko_eojeol_lemma`, the **pre-analyser** arm — plain `MultiHashEmbed`, no mecab-ko morpheme
+channel — while the released `ko_sud_gsd` is `training_ko_an_senter` from `build_ko_release.sh`.
+Published ko LAS 74.55 against that arm's 61.57; the gap is the analyser channel (`docs/korean.md`,
+raw LAS 55.81 → 73.16). Fifth instance of a `package_sud.sh` default naming an arm a generation
+backwards.
+
+**A last one, cheap but real:** an arm-name glob is a hazard when arm names are prefixes of each
+other. `metrics_generic_s*.json` also matches `metrics_generic_shuf_s0.json`, which silently averaged
+two different arms into a headline column.
+
+---
+
 ## Meta-lessons worth more than the individual results
 
 - **A smoke test that pipes to `head` kills the run.** SIGPIPE truncated an arm at its best
@@ -1039,6 +1105,12 @@ the crossing arcs they target WORSE.**
       unconstrained                 55.41   28.03
       unit-root mask (two-pass)     54.05   23.57
 
+⚠ **THESE FIGURES PREDATE THE `deprojectivize` FIX** recorded at the end of this file: the
+constrained rows were produced by a decoder that skipped a postprocess the `unconstrained` rows got,
+worth −0.25 UAS / −0.48 LAS on its own where it was later measured. The losses here are ~1.3 LAS, so
+the VERDICT is not in doubt, but roughly a third of each gap may be the defect rather than the mask.
+Re-measure before quoting the magnitudes.
+
 **Variant 1, by LABEL** (`parse_with_clause_bounds`): allow a crossing arc only if its relation is
 one the merge introduces. The premise does not survive counting. The merge introduced SIX relations,
 not two (`conj:coord` 1065, `parataxis` 852, `comp:obj` 221, `subj` 110, `mod` 103, `comp:obl` 87),
@@ -1066,6 +1138,111 @@ is correct roughly a third of the time, and the unconstrained decoder was alread
 probability on those same correct arcs. **Consistency with gold at 80 % is not a licence to
 constrain** — the bar is the error rate of what you are overriding, not the accuracy of your rule.
 Same shape as the decode-time lexicon result above.
+
+## The compound-internal-head constraint (Sanskrit) — the parser already obeys it (2026-08-20)
+
+A samāsa is a syntactic island, so the head of any NON-FINAL member of a compound ought to lie
+inside that compound. Everything this needs is already in place and already exact: `Compound=Yes`
+marks each non-final member, the tokeniser supplies the identical value at inference (precision
+1.0000, `docs/sanskrit.md`), and the span is fixed by the input features BEFORE decoding starts — so
+unlike the cross-clause constraints above, this one is decidable incrementally, needs no second
+pass, and costs one comparison per action. It is the best-conditioned constraint in this file.
+
+It loses on every split, and on the target domain it loses in principle.
+
+    training_sa_mp2_sub_s1 (the RELEASED base), `flat` exempt, orthographic-word span
+
+                        baseline UAS / LAS    fired  fixed  broke      net
+      Vedic dev            70.79   57.86         13      1      5    −0.03 UAS / −0.03 LAS
+      Vedic test           71.00   57.80         26      5      6    −0.06     / −0.07
+      UFAL (classical)     73.09   56.21         11      1      6    −0.54     / −0.43
+
+**The parser already obeys it 95–96 % of the time unprompted, and that is what settles it.** Of the
+1 020 non-final compound members in the Vedic test it puts 95.1 % of their heads inside the compound
+with no prompting; on the 4.9 % where it goes outside it is nonetheless RIGHT 44 % of the time (63 %
+on dev, 58 % on UFAL). The bar is the error rate of what you override — the same bar the cross-clause
+constraints failed — and 44 % correct is nowhere near it. **A constraint the model has already
+learned has nothing left to buy**: run `check_sa_compound_signal.py` before building the mask, not
+after.
+
+**⚠ `flat` IS TWO THIRDS OF GOLD'S OWN VIOLATIONS, and the constraint is unusable without exempting
+it.** Gold puts 5.97 % of non-final members' heads outside their compound (657 of 11 003 over
+train+dev+test), and 426 of those bear `flat` — the treebank's rendering of an `iti`-quotation, where
+the first word of the quoted string heads the whole quote and a compound inside it reaches out to
+that head. Exempting `flat` takes the gold violation rate to 1.85 %. Measured on the Vedic test:
+with no exemption the ban fires on 48 arcs and goes fixed 2 / broke 22 (−0.20 UAS); exempting `flat`,
+26 arcs, fixed 5 / broke 6.
+
+**⚠ THE TWO TREEBANKS IN THIS ARM DISAGREE ABOUT COMPOUND-INTERNAL HEADS, AND THE CLASSICAL ONE IS
+THE TARGET.** On Vedic/DCS the gold violations are `flat` quotations. On UFAL there is no `flat` at
+all — they are `mod` 10, `conj:coord` 6, `udep` 3 — and gold violates the rule **10.75 %** of the
+time, nearly twice the Vedic rate. There the headroom arithmetic comes out NEGATIVE before the
+constraint is run at all: at most 7 correct arcs destroyed against at most 5 wrong ones fixed. A rule
+read off one half of a two-treebank arm does not transfer to the other half, and the released arm is
+selected on the half where this one is worst (`docs/sanskrit.md`).
+
+**⚠ THE SPAN IS NOT THE `Compound=Yes` RUN ALONE.** The run ends at the first member the CSL did not
+hyphen-join, which is sometimes one member early:
+`ākhukiri-pūtīka-mathita-jarat-pramanda-s' āvraskān` writes a space before its last member, so the
+run stops at `sa` while four of its members head `āvraskān` beyond it. Extending through tokens with
+no following whitespace — the same orthographic word — recovers those and takes the gold violation
+rate 5.97 → 5.73 %. Do NOT use the orthographic word ALONE: 2 545 of 11 003 members fail it, because
+an ELIDED compound member is written with FORM `_` and a trailing space and so leaves its own word.
+
+**⚠ THE MASK WORKS; THAT IS THE PROBLEM. It strands members rather than re-homing them.** The
+property check is exact — 0 of the 1 020 non-final members in the constrained test parse take a head
+outside their compound. But ArcEager gives a token no head by never arcing to it, which is not an
+action and so cannot be masked, and that is where the banned arcs go: **17 members come out as roots
+against 2 in the baseline**. Forbidding an arc does not say what to put instead, and here the
+parser's answer is usually nothing at all. That is why a mask which is CORRECT to ban 20 of the 26
+arcs it fires on still nets negative: it converted only 5 of those 20 into the right head, and broke
+all 6 it should not have touched.
+
+Kept and reusable: `scripts/check_sa_compound_signal.py` — the go/no-go, reporting gold's violation
+rate, the parser's own, and the headroom arithmetic per exemption set, in seconds rather than a night
+— plus `scripts/eval_compound_constraint.py` and `sud_constrained_parse.compound_spans` /
+`parse_with_compound`.
+
+## ⚠ Every decode-time constraint above was measured against a decoder that skipped `deprojectivize` (found and fixed 2026-08-20)
+
+`sud_constrained_parse.py` re-implements spaCy's greedy loop in Python so it can mask actions. It
+ended each decode with `moves.set_annotations(final, out)` — which is **not** what spaCy does.
+`Parser.set_annotations` also runs `parser.postprocesses`, and for a dependency parser that is
+`nonproj.deprojectivize`: the pass that undoes the pseudo-projective transformation, turning a
+composite `mod||comp:obj` back into `mod` and lifting the arc to the head it really names. Every arm
+here trains projectivised, so the constrained parses came back with composite labels and unlifted
+heads while the `parser(doc)` baselines they were compared against did not.
+
+The cost was **being charged to the constraint**. Measured on the sa Vedic test by re-decoding with
+the mask disabled — the control that should have been there from the start:
+
+    training_sa_mp2_sub_s1, Vedic test, 20 619 tokens
+      spaCy's own C decode                     UAS 71.00   LAS 57.80
+      this module, mask disabled, before fix   UAS 70.75   LAS 57.32     −0.25 / −0.48
+      this module, mask disabled, after fix    UAS 71.00   LAS 57.80      0.00 /  0.00
+
+After the fix the Python loop reproduces spaCy's C decode **exactly** — control equals baseline to
+four decimals on both sa splits, and 0 of 50 non-firing sentences differ by a single head. Before it,
+a constraint that fired on 26 of 20 619 tokens was being scored across a 0.48 LAS gap it had nothing
+to do with. Two contributing suspicions were chased and cleared first: unstable `argsort` tie-order
+(fixed anyway — `_rank` now breaks ties by lowest index, matching `arg_max_if_valid`; it changed
+nothing) and float drift between `predict_states`'s cblas path and Thinc's. Neither was it.
+
+**The agreement constraint does NOT reproduce as a win on the released arm.** Re-measured with the
+fixed decoder on the full 20 619-token Vedic test: baseline UAS 71.00 / LAS 57.80, constrained
+70.99 / 57.74, **−0.06 LAS**, firing on 85 arcs for fixed 16 / broke 15. The 95.1 % detector figure
+in `sud_constrained_parse.py` still stands — it is a property of gold, measured independently — but
+"a disagreeing adjectival `mod` is close to always wrong" was never the same claim as "masking it
+pays", which is exactly the distinction `eval_agreement_constraint.py`'s own docstring insists on.
+The earlier "works" verdict was recorded without a control and on an unidentified split (the module
+quotes 3 295 test tokens, and no corpus in the tree has that many), so treat it as unreproduced
+rather than refuted until the original arm is named.
+
+**The lesson, and it is the general one.** A hand-rolled decoder must be scored against ITSELF with
+the intervention disabled, never against the library's — otherwise every difference between the two
+implementations is silently attributed to the change under test. `eval_compound_constraint.py
+--control` does this and is the pattern to copy; it is also how the defect surfaced, from a
+`--check` sanity pass reporting 4 of 50 supposedly-identical sentences disagreeing.
 
 ## Word-order augmentation for Korean — buys robustness, costs accuracy (2026-08-20)
 
