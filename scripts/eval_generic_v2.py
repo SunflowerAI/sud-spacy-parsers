@@ -89,8 +89,24 @@ def one_sentence_per_doc(refs, lang):
     return out
 
 
-def run(nlp, refs, lang):
+def upos_dist(refs):
+    """The tag distribution of the documents being scored.
+
+    Errors are drawn from this rather than uniformly, so a simulated tagger confuses NOUN with
+    PROPN rather than with PUNCT. Taken from the refs themselves: an earlier version globbed the
+    `.spacy` corpus directory for `.conllu` files, found none, and produced an empty distribution.
+    """
+    c = collections.Counter(t.pos_ for d in refs for t in d if t.pos_)
+    tags = sorted(c)
+    tot = max(sum(c.values()), 1)
+    return tags, [c[t] / tot for t in tags]
+
+
+def run(nlp, refs, lang, no_feats=False, upos_noise=0.0, seed=0):
     """Predict over gold tokens with gold UPOS/FEATS -- the arm's DECLARED inputs."""
+    import random as _r
+    rng = _r.Random(seed)
+    tags, probs = upos_dist(refs) if upos_noise else ([], [])
     examples = []
     for ref in refs:
         ref._.tb_lang = lang
@@ -98,9 +114,18 @@ def run(nlp, refs, lang):
                    spaces=[bool(t.whitespace_) for t in ref])
         for p, r in zip(pred, ref):
             p.pos = r.pos
+            if upos_noise and rng.random() < upos_noise:
+                # Draw a WRONG tag from the corpus distribution: a uniform draw would mostly
+                # produce tags no real tagger would ever emit here, and would overstate the damage.
+                for _ in range(8):
+                    t = rng.choices(tags, probs)[0]
+                    if t != r.pos_:
+                        p.pos_ = t
+                        break
             # Copy the morph OBJECT, not its string: that preserves the unset/empty distinction
             # exactly as the reference has it (CLAUDE.md; sa, 6.8 LAS).
-            p.set_morph(r.morph)
+            if not no_feats:
+                p.set_morph(r.morph)
         annotate(pred, lang)
         for _, proc in nlp.pipeline:
             pred = proc(pred)
@@ -129,6 +154,12 @@ def main():
                          "the test treebank's own trees -- so that 'typology does not help' can be "
                          "separated from 'our external profiles are too noisy to help'. Any number "
                          "produced this way is an upper bound and must be labelled as one.")
+    ap.add_argument("--upos-noise", type=float, default=0.0,
+                    help="corrupt this fraction of UPOS tags, simulating a tagger of that error "
+                         "rate. Replacements are drawn from the corpus tag distribution.")
+    ap.add_argument("--no-feats", action="store_true",
+                    help="withhold FEATS from the model, simulating a language with no "
+                         "morphological analyser. UPOS is still supplied.")
     ap.add_argument("--json", default=None)
     a = ap.parse_args()
 
@@ -174,11 +205,11 @@ def main():
         if not refs:
             continue
         gold_sents = one_sentence_per_doc(refs, lang)
-        ex_gs = run(nlp, gold_sents, lang)
+        ex_gs = run(nlp, gold_sents, lang, a.no_feats, a.upos_noise)
         s_gs = score(ex_gs)
         s_coll = score(ex_gs, collapse=True)
         # The same model over the multi-sentence docs, finding its own boundaries.
-        s_raw = score(run(nlp, refs, lang))
+        s_raw = score(run(nlp, refs, lang, a.no_feats, a.upos_noise))
         v = man[lang]
         rec = {"tokens": sum(len(d) for d in gold_sents),
                "uas": s_gs["uas"], "las": s_gs["las"], "las_collapsed": s_coll["las"],

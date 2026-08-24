@@ -86,7 +86,7 @@ def find_nodes(nlp, name):
     return out
 
 
-def docs_from_conllu(paths, n, seed, vocab, lang):
+def docs_from_conllu(paths, n, seed, vocab, lang, no_feats=False):
     sents = [s for p in paths for s in read_conllu(p)]
     rng = random.Random(seed)
     if n and n < len(sents):
@@ -115,14 +115,14 @@ def docs_from_conllu(paths, n, seed, vocab, lang):
         for tok, r in zip(ref, rows):
             if r[3] != "_":
                 tok.pos_ = r[3]
-            if r[5] != "_":
+            if r[5] != "_" and not no_feats:
                 tok.set_morph(r[5])
         ref._.tb_lang = lang
         pred = Doc(vocab, words=words)
         for p, rr in zip(pred, rows):
             if rr[3] != "_":
                 p.pos_ = rr[3]
-            if rr[5] != "_":
+            if rr[5] != "_" and not no_feats:
                 p.set_morph(rr[5])
         pred._.tb_lang = lang
         out.append(Example(pred, ref))
@@ -139,6 +139,9 @@ def main():
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--lr", type=float, default=0.01)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--no-feats", action="store_true",
+                    help="fit without any morphology, i.e. the annotator supplies UPOS and syntax "
+                         "only. Must be paired with --no-feats at evaluation.")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
@@ -167,7 +170,7 @@ def main():
         d[a.lang] = row
         node.attrs["ls_slots"] = d
 
-    examples = docs_from_conllu(a.conllu, a.n_sents, a.seed, nlp.vocab, a.lang)
+    examples = docs_from_conllu(a.conllu, a.n_sents, a.seed, nlp.vocab, a.lang, a.no_feats)
     print(f"{len(examples)} training examples, "
           f"{sum(len(e.reference) for e in examples):,} tokens")
 
