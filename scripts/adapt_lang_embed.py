@@ -31,8 +31,33 @@ from spacy.tokens import Doc  # noqa: E402
 from spacy.training import Example  # noqa: E402
 from thinc.api import Adam  # noqa: E402
 
-import generic_code_v2  # noqa: E402,F401
-from prep_generic import read_conllu  # noqa: E402
+import sud_generic_embed_v2  # noqa: E402,F401  (registers sud.GenericEmbed.v2)
+
+
+def read_conllu(path):
+    """Word rows only; MWT ranges (`3-4`) and empty nodes (`3.1`) dropped.
+
+    Inlined rather than imported from `prep_generic` so this tool is self-contained: it ships
+    INSIDE the model wheel, where the rest of the repo is not present.
+    """
+    sents, rows = [], []
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            line = line.rstrip("\n")
+            if not line.strip():
+                if rows:
+                    sents.append(rows)
+                rows = []
+                continue
+            if line.startswith("#"):
+                continue
+            f = line.split("\t")
+            if len(f) < 8 or "-" in f[0] or "." in f[0]:
+                continue
+            rows.append(f)
+    if rows:
+        sents.append(rows)
+    return sents
 
 
 class OnlyTheseModels:
@@ -67,8 +92,7 @@ def docs_from_conllu(paths, n, seed, vocab, lang):
     if n and n < len(sents):
         sents = [sents[i] for i in sorted(rng.sample(range(len(sents)), n))]
     out = []
-    for s in sents:
-        rows = [r for r in s.rows]
+    for rows in sents:
         idx = {r[0]: i for i, r in enumerate(rows)}
         words = [r[1] for r in rows]
         heads, deps = [], []

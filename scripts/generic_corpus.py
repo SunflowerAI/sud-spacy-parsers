@@ -50,7 +50,12 @@ from spacy.training import Example
 from spacy.util import registry
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-import sud_generic_embed  # noqa: E402,F401  (registers the Doc._.tb_lang extension)
+# Either embed module registers `Doc._.tb_lang`; prefer v2 so the v2 pipeline has no hidden
+# dependency on v1 -- which in turn imports `aligned_vectors`, a file that is not even tracked.
+try:
+    import sud_generic_embed_v2  # noqa: E402,F401
+except ImportError:  # pragma: no cover - v1 checkouts
+    import sud_generic_embed  # noqa: E402,F401
 
 #: Loaded corpora, keyed by path. `generate` is called afresh for every epoch and these files are
 #: read whole; re-reading thirteen DocBins each time would dominate a short epoch.
