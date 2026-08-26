@@ -562,7 +562,20 @@ def main():
                     help="only source words this frequent get a vote in fitting the rotation")
     ap.add_argument("--eval-cand", type=int, default=50000)
     ap.add_argument("--out", default="release_vectors")
+    # ⚠ A SECOND GENERATION MUST NOT SHARE A WORK DIRECTORY WITH THE FIRST. `basis.npz` and
+    # `fit_report.json` are per-GENERATION, not per-language: emit reads whichever basis is sitting
+    # there and stamps it into every asset, so a v3 run into v1's directory would silently rebuild
+    # thirteen v1 assets against a 32-language basis -- and they would load, retrieve and look
+    # entirely normal, because a basis is only wrong relative to the rows it was fitted with.
+    ap.add_argument("--work", default=None,
+                    help="working directory (default assets_vec/work). Pass a NEW one for a new "
+                         "generation; sharing one silently mixes bases across generations.")
     a = ap.parse_args()
+    if a.work:
+        global WORK
+        WORK = pathlib.Path(a.work)
+    if a.sources and not a.work:
+        sys.exit("--sources names a new generation; give it its own --work directory (see --help)")
     meta = apply_sources(a.sources)["meta"] if a.sources else None
     if a.langs is None:
         a.langs = list(SOURCES)
