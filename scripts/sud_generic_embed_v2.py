@@ -336,3 +336,57 @@ def GenericEmbed(
 
     max_out = with_array(Maxout(width, width * n_blocks, nP=3, dropout=0.0, normalize=True))
     return chain(concatenate(*pieces), max_out, ragged2list())
+
+
+@registry.architectures("sud.GenericTagEmbed.v1")
+def GenericTagEmbed(
+    width: int,
+    attrs: List[str] = ["NORM", "PREFIX", "SUFFIX", "SHAPE"],
+    rows: List[int] = [5000, 2500, 2500, 2500],
+    lang_embed: bool = True,
+    lang_embed_rows: int = 0,
+    lang_embed_dim: int = 0,
+    lang_slots: dict = {},
+) -> Model[List[Doc], List[Floats2d]]:
+    """The tagging counterpart of `sud.GenericEmbed.v2`: WORDFORM + a per-language embedding.
+
+    The parser can be language-agnostic because UPOS and FEATS already are. A tagger cannot: its
+    only input is the string, and strings do not transfer -- an English tagger reaches 17-50 % UPOS
+    on the twenty held-out languages, against the ~95 % the parser needs. So this reads the form the
+    ordinary way (NORM/PREFIX/SUFFIX/SHAPE) and adds the same spare-row language table, on the bet
+    that eighty languages of shared orthographic evidence plus a fitted language vector does what
+    one language cannot.
+
+    ⚠ FEATS IS AN OUTPUT HERE, NOT AN INPUT. `sud.GenericEmbed.v2` takes a `feats` list and reads
+    morphology off the token; this must not, or the morphologiser would be predicting its own input.
+    The two architectures are deliberately separate rather than one with a flag.
+    """
+    if len(rows) != len(attrs):
+        raise ValueError(f"attrs has {len(attrs)} entries, rows has {len(rows)}")
+    if lang_embed and not lang_slots:
+        raise ValueError("lang_embed needs `lang_slots`, a {language: row} map with spare rows")
+
+    seed = 7
+
+    def make_hash_embed(index):
+        nonlocal seed
+        seed += 1
+        return HashEmbed(width, rows[index], column=index, seed=seed, dropout=0.0)
+
+    embeddings = [make_hash_embed(i) for i in range(len(attrs))]
+    pieces = [chain(FeatsFeatureExtractor(attrs, []), list2ragged(),
+                    with_array(concatenate(*embeddings)))]
+    n_blocks = len(embeddings)
+
+    if lang_embed:
+        n_rows = lang_embed_rows or (max(lang_slots.values()) + 1)
+        d = lang_embed_dim or width
+        # `column=0`: the slot extractor produces its OWN single-column array in a
+        # separate concat branch, so the index is not offset by the string attrs.
+        emb = Embed(d, n_rows, column=0, dropout=0.0)
+        pieces.append(chain(LangSlotExtractor(lang_slots), list2ragged(),
+                            with_array(emb if d == width else chain(emb, Linear(width, d)))))
+        n_blocks += 1
+
+    max_out = with_array(Maxout(width, width * n_blocks, nP=3, dropout=0.0, normalize=True))
+    return chain(concatenate(*pieces), max_out, ragged2list())

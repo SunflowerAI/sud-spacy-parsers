@@ -86,7 +86,8 @@ def find_nodes(nlp, name):
     return out
 
 
-def docs_from_conllu(paths, n, seed, vocab, lang, no_feats=False):
+def docs_from_conllu(paths, n, seed, vocab, lang, no_feats=False, predict_tags=False,
+                     give_pos=False):
     sents = [s for p in paths for s in read_conllu(p)]
     rng = random.Random(seed)
     if n and n < len(sents):
@@ -113,17 +114,26 @@ def docs_from_conllu(paths, n, seed, vocab, lang, no_feats=False):
         ref = Doc(vocab, words=words, heads=heads, deps=deps,
                   sent_starts=[True] + [False] * (len(words) - 1))
         for tok, r in zip(ref, rows):
+            if r[2] != "_":
+                tok.lemma_ = r[2]
             if r[3] != "_":
                 tok.pos_ = r[3]
             if r[5] != "_" and not no_feats:
                 tok.set_morph(r[5])
         ref._.tb_lang = lang
         pred = Doc(vocab, words=words)
-        for p, rr in zip(pred, rows):
-            if rr[3] != "_":
-                p.pos_ = rr[3]
-            if rr[5] != "_" and not no_feats:
-                p.set_morph(rr[5])
+        if predict_tags and give_pos:
+            for p, rr in zip(pred, rows):
+                if rr[3] != "_":
+                    p.pos_ = rr[3]
+        if not predict_tags:
+            # The PARSER reads UPOS/FEATS as inputs, so they belong on the predicted doc. The
+            # TAGGER predicts them, so for that arm they must not be there.
+            for p, rr in zip(pred, rows):
+                if rr[3] != "_":
+                    p.pos_ = rr[3]
+                if rr[5] != "_" and not no_feats:
+                    p.set_morph(rr[5])
         pred._.tb_lang = lang
         out.append(Example(pred, ref))
     return out
@@ -142,6 +152,11 @@ def main():
     ap.add_argument("--no-feats", action="store_true",
                     help="fit without any morphology, i.e. the annotator supplies UPOS and syntax "
                          "only. Must be paired with --no-feats at evaluation.")
+    ap.add_argument("--predict-tags", action="store_true",
+                    help="the TAGGING arm: UPOS/FEATS are targets, so keep them off the predicted "
+                         "doc. Also carries gold LEMMA on the reference.")
+    ap.add_argument("--give-pos", action="store_true",
+                    help="with --predict-tags: UPOS is an INPUT, FEATS and LEMMA targets")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
@@ -170,7 +185,7 @@ def main():
         d[a.lang] = row
         node.attrs["ls_slots"] = d
 
-    examples = docs_from_conllu(a.conllu, a.n_sents, a.seed, nlp.vocab, a.lang, a.no_feats)
+    examples = docs_from_conllu(a.conllu, a.n_sents, a.seed, nlp.vocab, a.lang, a.no_feats, a.predict_tags, a.give_pos)
     print(f"{len(examples)} training examples, "
           f"{sum(len(e.reference) for e in examples):,} tokens")
 
