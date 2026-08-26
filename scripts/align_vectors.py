@@ -523,10 +523,37 @@ def stage_emit(a):
         print(f"  {f.name}: {len(idx)} keys x {P.shape[1]}d, {f.stat().st_size/1e6:.1f} MB")
 
 
+def apply_sources(path):
+    """Replace the hand-written SOURCES/TREEBANK with a GENERATED manifest (v3 and later).
+
+    Thirteen languages fit in a literal; thirty-eight do not stay correct in one. The v3 arm derives
+    its corpus map from the same manifest the parser was trained against, so the two cannot drift --
+    the failure this repo has paid for four times is a default that names a superseded corpus, which
+    loads, converts and trains exactly like a current one.
+
+    Without `--sources` nothing here runs and v1's thirteen assets rebuild byte-for-byte as before.
+    """
+    global SOURCES, TREEBANK, LICENCE
+    m = json.load(open(path, encoding="utf-8"))
+    SOURCES, TREEBANK = {}, {}
+    for lc, s in m["languages"].items():
+        d = dict(route=s["route"], key=s["key"], src=s["src"])
+        if s.get("vec"):
+            d["vec"] = pathlib.Path(s["vec"])
+        if s.get("key_norm"):
+            d["key_norm"] = s["key_norm"]
+        SOURCES[lc] = d
+        TREEBANK[lc] = list(s.get("treebank") or [])
+    LICENCE = {l: FT_LICENCE for l in SOURCES}      # every v3 source is a fastText derivative
+    return m
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage", choices=["fit", "basis", "emit"], required=True)
-    ap.add_argument("--langs", nargs="+", default=list(SOURCES))
+    ap.add_argument("--sources", help="generated source manifest (assets_vec/sources_v3.json). "
+                                      "Omit to rebuild v1's thirteen from the literals above.")
+    ap.add_argument("--langs", nargs="+", default=None)
     ap.add_argument("--limit", type=int, default=200000, help="source vocabulary read per language")
     ap.add_argument("--keys", type=int, default=50000, help="frequency-ordered keys per asset")
     ap.add_argument("--dims", type=int, default=128)
@@ -536,6 +563,23 @@ def main():
     ap.add_argument("--eval-cand", type=int, default=50000)
     ap.add_argument("--out", default="release_vectors")
     a = ap.parse_args()
+    meta = apply_sources(a.sources)["meta"] if a.sources else None
+    if a.langs is None:
+        a.langs = list(SOURCES)
+    unknown = [l for l in a.langs if l not in SOURCES]
+    if unknown:
+        sys.exit(f"no source declared for {unknown}")
+
+    # ⚠ THE BASIS MUST NOT SEE A TEST LANGUAGE. It is a PCA over the aligned spaces, so fitting it on
+    # a held-out language's distribution is peeking -- no gold label is involved, which is exactly
+    # why nothing downstream would ever raise. Test tables are PROJECTED through the train basis
+    # instead (`AlignedVectors.project`). Refused here rather than left to the caller's memory.
+    if meta and a.stage == "basis":
+        allowed = set(meta.get("basis_langs") or meta["train"])
+        leak = sorted(set(a.langs) - allowed)
+        if leak:
+            sys.exit(f"REFUSING to fit the basis on non-training languages: {leak}")
+
     if HUB not in a.langs:
         a.langs = [HUB] + [l for l in a.langs if l != HUB]
     # identity routes read their pivot's cached space, so the pivot must be fitted first
