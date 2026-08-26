@@ -504,8 +504,25 @@ def stage_emit(a):
         idx = list(range(head)) + [i for i in range(head, len(keys)) if keys[i] in tb]
         Y = (np.asarray(X[idx]) - mu) @ P
         Y = (Y / (np.linalg.norm(Y, axis=1, keepdims=True) + 1e-9)).astype(np.float32)
+        # ⚠ key_norm COMES FROM THE SOURCE DECLARATION, NOT FROM THE FIT REPORT, and the difference
+        # is a split brain that ships. `fold_for` above already folds the treebank types with the
+        # CURRENT fold, so the right rows are selected -- but the report was written by whichever
+        # `--stage fit` ran last, so a fold added afterwards was recorded nowhere, and the LOOKUP
+        # then did not fold at all. Arabic sat at 41.2 % token coverage instead of 96.2 % with the
+        # fold present in the code, applied at build, and absent from the artefact. Only the
+        # coverage report caught it; nothing raised.
+        declared = s.get("key_norm")
+        if declared != report[lang].get("key_norm"):
+            if s["route"] == "gloss" and s.get("floret"):
+                # a floret source COMPOSES its rows through the fold, so a changed fold invalidates
+                # the fit itself rather than merely its record
+                sys.exit(f"{lang}: key_norm changed to {declared!r} since the fit, and this source "
+                         f"composes rows through the fold -- re-run --stage fit for it.")
+            print(f"  {lang}: key_norm {report[lang].get('key_norm')!r} -> {declared!r} "
+                  f"(fit report is older than the fold; the fold wins)")
         meta = dict(report[lang])
-        meta.update(lang=lang, dims=int(P.shape[1]), rows=len(idx), hub=HUB,
+        meta.update(key_norm=declared,
+                    lang=lang, dims=int(P.shape[1]), rows=len(idx), hub=HUB,
                     lookup=(f"apply the '{s['key_norm']}' key fold before lookup "
                             f"(AlignedVectors does this for you)" if s.get("key_norm") else
                             "lowercase the token before lookup" if low else
