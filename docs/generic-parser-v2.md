@@ -606,6 +606,81 @@ That held for four typological bits from Grambank, for the same bits from a 50-s
 a 128-d regression and for an 8-d one. The only thing that paid was fitting the language's own
 vector on its own data — and ten sentences was enough.
 
+## The wheel wrote back the UPOS it was given, and threw away the FEATS
+
+Found after release, in the bundled arm rather than in any measured one. It is the sharpest
+instance so far of a hazard this repo already lists twice — a component that silently discards an
+input, invisible to every metric because the harness that measures the arm and the pipeline that
+ships it were not the same object.
+
+**The mechanism.** spaCy's morphologiser does not predict FEATS. It predicts a single joint label,
+`POS=NOUN|Number=Sing`, and `set_annotations` writes *both halves*:
+
+```python
+if doc.c[j].morph == 0 or overwrite or extend:  doc.c[j].morph = labels_morph[morph]
+if doc.c[j].pos == 0 or overwrite:              doc.c[j].pos   = labels_pos[morph]
+```
+
+`xx_sud_generic` 0.1.0 shipped with `overwrite = true`, inherited from the training config where it
+belongs. So the wheel replaced the caller's UPOS with its own guess before the parser ever read it,
+and clobbered any FEATS the caller supplied along with it — on the arm whose entire premise is that
+**UPOS is the one column the user provides**, because tagging is the one thing that does not
+transfer.
+
+**Why nothing caught it.** `eval_generic_v2.py` scores the *parser* arm, which has no morphologiser,
+so every published figure describes a pipeline the wheel does not contain. The bundle was assembled
+and checked separately, and its check asked whether FEATS came out — they did. Nobody asked whether
+what came out was what went in. The training config is right to set `overwrite = true`: dev scoring
+reads predictions back off the doc, and with it false the metric would score the input. The two
+settings are correct in their own places and the packaging step never chose between them.
+
+**What it cost.** Two adapted held-out languages and the held-in dev sets, one harness throughout.
+`overwrite = true` makes the arm return the *same* number whether or not gold FEATS are supplied —
+that identity is the defect stated at its plainest.
+
+| | FEATS fill | UPOS replaced | LAS, UPOS only | LAS, UPOS + FEATS |
+|---|---|---|---|---|
+| **ka** Georgian (held out, adapted) | 0.94 | **14.03 %** | 47.23 → **55.00** | 47.23 → **69.27** |
+| **eu** Basque (held out, adapted) | 0.65 | 1.39 % | 42.08 → **43.48** | 42.08 → **53.42** |
+| **th** Thai (held out, adapted) | 0.05 | 0.00 % | 59.72 → 59.72 | 59.72 → **60.69** |
+| held-in dev, 8 languages | — | 0.00–1.54 % | 71.31 → 71.40 | 71.31 → **74.72** |
+| held-in dev, all 80 languages | — | — | — | 71.65 → **74.66** |
+
+Georgian loses **7.77 LAS** to the UPOS overwrite alone and **22.04** once the discarded FEATS are
+counted; Thai loses nothing, because it has almost no morphology to discard. **The damage scales
+with how much annotation the caller actually has**, which is the opposite of what a defect should
+do — the better-resourced the input, the more of it the wheel threw away.
+
+The per-token confusions are systematic, not noise. Georgian: NOUN→ADJ 487 times, PRON→ADJ 175.
+Basque: AUX→VERB 190 times — and SUD makes the auxiliary the head of its lexical verb, so an AUX
+misread as VERB reverses an attachment rather than mislabelling a leaf.
+
+**The fix, and the hole it opened.** `overwrite = false` makes both writes conditional on the slot
+being empty: the morphologiser fills FEATS where there are none and never touches a UPOS, because
+one is always there. But "because one is always there" was an assumption, and with the POS write
+gone a caller who forgot the tag column would get a silent parse over the `POS=` absent-feature row.
+So `sud_require_upos` goes first in the pipeline and refuses. `labels_pos` is deliberately left
+intact — zeroing it would make the POS write structurally impossible but destroy information the
+artefact carries; the guard gives the same guarantee reversibly.
+
+Neither change touches a weight: `tok2vec/model` and `parser/model` are byte-identical, and all 28
+of the morphologiser's parameter arrays compare at 0.000e+00 (`morphologizer/model` re-serialises to
+different bytes, which is msgpack, not weights).
+
+**Three notes for the next person.**
+
+- **The fix is a refusal in `package_generic_v2.sh`, not a comment.** `prepare_generic_bundle.py`
+  runs before `spacy package` and again with `--check` after; the script will not build a wheel
+  whose morphologiser still writes POS. Hazard 2, once more.
+- **`Language.factory` cannot be registered twice.** Inside the wheel this module is imported under
+  both `xx_sud_generic.sud_generic_embed_v2` and bare `sud_generic_embed_v2`, so the decorator runs
+  twice. `registry.architectures` tolerates that silently; `Language.factory` raises `E004` and the
+  wheel does not import at all. Only installing the built wheel into a clean target caught it —
+  running from the repo never will.
+- **An arm assembled from measured parts is not a measured arm.** Every figure above the release
+  section of this document describes the parser alone. The bundle needs its own scoring, through the
+  same harness, before anything is claimed of the thing users actually install.
+
 ## Files
 
 | file | purpose |
@@ -623,3 +698,6 @@ vector on its own data — and ten sentences was enough.
 | `scripts/check_generic_inputs_v2.py` | the 23 go/no-go assertions |
 | `scripts/eval_generic_v2.py` | zero-shot scoring; refuses a headline without baselines |
 | `scripts/train_generic_v2.sh` | the driver |
+| `scripts/fix_generic_pos_write.py` | `morphologizer.overwrite = false`, in both places it lives |
+| `scripts/prepare_generic_bundle.py` | the two edits that make the bundle shippable, plus the refusal |
+| `scripts/package_generic_v2.sh` | the wheel; will not package an arm that writes back its own UPOS |

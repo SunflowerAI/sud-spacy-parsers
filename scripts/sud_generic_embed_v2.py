@@ -390,3 +390,54 @@ def GenericTagEmbed(
 
     max_out = with_array(Maxout(width, width * n_blocks, nP=3, dropout=0.0, normalize=True))
     return chain(concatenate(*pieces), max_out, ragged2list())
+
+
+# --------------------------------------------------------------------------------------------
+# UPOS is an INPUT to this arm, never an output.
+# --------------------------------------------------------------------------------------------
+#
+# spaCy's morphologizer predicts a JOINT `POS=X|Feat=Val` label and, in `set_annotations`, writes
+# BOTH halves: `doc.c[j].pos = labels_pos[...]` fires whenever `overwrite` is on. The bundled arm
+# shipped with `overwrite = true`, so the morphologiser silently replaced the UPOS the user had
+# supplied -- with its own guess -- and the parser then read that guess rather than the input. The
+# whole premise of the arm is that UPOS is the one column the user provides, so this is the wheel
+# discarding its only lexical evidence.
+#
+# The fix is `overwrite = false` (see `fix_generic_pos_write.py`), which makes the POS write
+# unreachable for any token that already has one. That leaves one hole, and this component closes
+# it: a token with NO UPOS would then simply be parsed on the "POS=" absent-feature row -- silently,
+# and on the single input the arm cannot do without. It refuses instead (CLAUDE.md hazard 8: a
+# component that silently loses an input must refuse to load).
+#
+# ⚠ REGISTERED ONLY ONCE. Inside the wheel this module is imported twice under two names --
+# `xx_sud_generic.sud_generic_embed_v2` and, via the `sys.path` insertion above, bare
+# `sud_generic_embed_v2` -- so the decorator runs twice. `registry.architectures` tolerates that
+# silently; `Language.factory` raises E004 and the wheel will not import at all. Caught only by
+# installing the built wheel into a clean target, never by running from the repo.
+def _make_require_upos(nlp, name: str, strict: bool):
+    def require_upos(doc: Doc) -> Doc:
+        if not strict:
+            return doc
+        missing = [i for i, t in enumerate(doc) if t.pos == 0]
+        if missing:
+            head = ", ".join(f"{i}:{doc[i].text!r}" for i in missing[:5])
+            raise ValueError(
+                f"sud_require_upos: {len(missing)} of {len(doc)} tokens have no UPOS "
+                f"({head}{', ...' if len(missing) > 5 else ''}). This arm READS UPOS and does not "
+                f"predict it -- tagging does not transfer across languages (32-39 % on held-out "
+                f"languages, no better than one English tagger), which is why the column is yours "
+                f"to supply. Set `token.pos_` on every token, or "
+                f"`nlp.disable_pipe('sud_require_upos')` to parse without it and accept that every "
+                f"untagged token is read as category-unknown.")
+        return doc
+    return require_upos
+
+
+try:
+    from spacy.language import Language
+except ImportError:                      # pragma: no cover -- thinc-only use of this module
+    pass
+else:
+    if not Language.has_factory("sud_require_upos"):
+        Language.factory("sud_require_upos",
+                         default_config={"strict": True})(_make_require_upos)

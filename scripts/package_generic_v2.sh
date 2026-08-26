@@ -20,6 +20,13 @@
 # ⚠ THE MODEL IS USELESS ON A NEW LANGUAGE UNTIL ITS EMBEDDING ROW IS FITTED. An unfitted spare row
 # is not neutral -- on Georgian it cost 4 LAS against having no channel at all. `adapt_lang_embed`
 # ships inside the wheel for exactly this reason, and ten annotated sentences is enough.
+#
+# ⚠ UPOS IS AN INPUT AND MUST NOT COME BACK OUT. spaCy's morphologiser predicts a joint
+# `POS=X|Feat=Val` label and writes BOTH halves when `overwrite` is on, so 0.1.0 as first shipped
+# replaced the user's UPOS with its own guess -- and clobbered supplied FEATS with it (40 % of
+# gold-FEATS tokens in Latin). `prepare_generic_bundle.py` sets `overwrite = false` and inserts the
+# `sud_require_upos` guard, and this script REFUSES to package a bundle where it has not run: a
+# default plus a refusal, because a comment telling the next person is not the fix.
 set -u
 cd "$(dirname "$0")/.."
 PY=.venv/bin/python
@@ -30,6 +37,12 @@ NAME=${NAME:-sud_generic}
 VERSION=${VERSION:-0.1.0}
 
 [ -d "$SRC" ] || { echo "SRC $SRC missing"; exit 1; }
+
+# Make the arm shippable, then refuse if it still is not. Idempotent: a bundle already carrying
+# `overwrite = false` and the guard is left untouched, and the parse digest is checked either way.
+$PY scripts/prepare_generic_bundle.py "$SRC" || exit 1
+$PY scripts/prepare_generic_bundle.py "$SRC" --check || {
+    echo "REFUSING to package: $SRC still writes the UPOS it was given"; exit 1; }
 
 # The layer, the FEATS decomposition and the reader must all travel, or the wheel will not load.
 # `adapt_lang_embed` travels too: a model that cannot be given a new language is only half of what

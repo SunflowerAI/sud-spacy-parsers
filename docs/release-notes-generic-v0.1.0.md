@@ -10,28 +10,51 @@ pip install --force-reinstall https://github.com/SunflowerAI/sud-spacy-parsers/r
 import xx_sud_generic
 from spacy.tokens import Doc
 
-nlp = xx_sud_generic.load()            # ['morphologizer', 'tok2vec', 'parser']
+nlp = xx_sud_generic.load()   # ['sud_require_upos', 'morphologizer', 'tok2vec', 'parser']
 doc = Doc(nlp.vocab, words=["the", "cat", "sat", "on", "the", "mat"])
 for t, p in zip(doc, ["DET", "NOUN", "VERB", "ADP", "DET", "NOUN"]):
-    t.pos_ = p                         # UPOS is YOUR input
+    t.pos_ = p                         # UPOS is YOUR input, and stays yours
+doc[1].set_morph("Number=Sing")        # so is any FEATS you already have
 doc._.tb_lang = "en"                   # one of the 80 fitted languages
-doc = nlp(doc)                         # FEATS and the parse come out
+doc = nlp(doc)                         # the remaining FEATS and the parse come out
 ```
 
-### ⚠ This asset was re-clobbered in place
+### ⚠ Reinstall even if you already have 0.1.0 — it was wrong
 
-The 0.1.0 asset originally shipped the parser alone; it now carries the morphologiser as well. **The
-version number is unchanged, so `pip install -U` will NOT pull this.** Reinstall from the URL above,
-or use `--force-reinstall`. That is the standing trade-off with clobbering in this repo, and it is
-why the fourteen monolingual wheels took a version bump instead.
+The asset has been replaced twice in place, most recently to fix a defect that made the wheel throw
+away its own inputs. **The version number is unchanged both times, so `pip install -U` will NOT pull
+this.** Use `--force-reinstall`, as in the command above.
+
+**The defect.** spaCy's morphologiser predicts a joint `POS=X|Feat=Val` label and writes both halves
+when `overwrite` is on, and the wheel shipped with it on. So it replaced the UPOS you supplied with
+its own guess before the parser read it, and clobbered any FEATS you supplied with it. The tell is
+that the arm returned an identical score whether or not you passed gold morphology.
+
+| | UPOS replaced | LAS, UPOS only | LAS, UPOS + FEATS |
+|---|---|---|---|
+| Georgian (adapted) | 14.0 % | 47.23 → **55.00** | 47.23 → **69.27** |
+| Basque (adapted) | 1.4 % | 42.08 → **43.48** | 42.08 → **53.42** |
+| Thai (adapted) | 0.0 % | 59.72 → 59.72 | 59.72 → **60.69** |
+| held-in, 80 languages | — | — | 71.65 → **74.66** |
+
+The damage scaled with how much morphology you had: Thai, with FEATS on 5 % of tokens, lost nothing;
+Georgian, at 94 %, lost 22 LAS. No weight changed in the fix — `tok2vec/model` and `parser/model`
+are byte-identical and all 28 morphologiser parameter arrays compare at 0.000e+00.
+
+**Two behaviour changes come with it.** The morphologiser now fills FEATS only where a token has
+none, so anything you supply survives; and a new `sud_require_upos` pipe, first in the pipeline,
+**refuses a doc with untagged tokens** rather than parsing it as category-unknown. Disable it with
+`nlp.disable_pipe("sud_require_upos")` if you want the old permissiveness.
+
+The earlier clobber, for the record, added the morphologiser: 0.1.0 first shipped the parser alone.
 
 ### What you supply, and what you do not
 
 | column | who provides it | why |
 |---|---|---|
 | tokens | you | there is no tokeniser |
-| **UPOS** | **you** | it does not transfer — see below |
-| FEATS | the wheel | +13.9 points over predict-nothing on held-out languages |
+| **UPOS** | **you, always** | it does not transfer — see below. Required: the pipeline refuses without it, and never writes it back |
+| FEATS | you where you have it, else the wheel | +13.9 points over predict-nothing on held-out languages, and anything you supply is left alone |
 | heads / deprels | the wheel | 30 coarsened SUD relations |
 | lemmas | nobody | measured inert on unseen languages; no lemmatiser ships |
 
