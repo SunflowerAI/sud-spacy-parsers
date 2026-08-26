@@ -190,3 +190,10 @@ corpus_sa_pmerged_norm/
 # lemma-vector tables: build artefacts, rebuilt by build_lemma_vectors.py
 scripts/*_lemmavec_*.npz
 assets_vec/
+
+# The whole SUD 2.18 release (352 corpora, ~560 MB tarball) for the generic parser v2.
+# Re-fetch with scripts/fetch_sud_release.sh.
+assets_sud218/
+# Typological profiles + the WALS/Grambank CLDF slices they are built from.
+# Rebuild with scripts/build_typology_v2.py and scripts/typology_external.py.
+assets_typ/

@@ -1,0 +1,470 @@
+{
+ "model": "training_v2_g2_lemb8_s0/model-best",
+ "n_langs": 51,
+ "n_feats": 65,
+ "n_pass": 11,
+ "shuffled_pass": [
+  2,
+  1,
+  0,
+  1,
+  2
+ ],
+ "rows": [
+  {
+   "feature": "GB075",
+   "acc": 0.7647058823529411,
+   "baseline": 0.5294117647058824,
+   "gain": 0.23529411764705876,
+   "name": "Are there postpositions?"
+  },
+  {
+   "feature": "GB133",
+   "acc": 0.8627450980392157,
+   "baseline": 0.6666666666666666,
+   "gain": 0.1960784313725491,
+   "name": "Is a pragmatically unmarked constituent order verb-final for transitive clauses?"
+  },
+  {
+   "feature": "GB132",
+   "acc": 0.8431372549019608,
+   "baseline": 0.6666666666666666,
+   "gain": 0.17647058823529416,
+   "name": "Is a pragmatically unmarked constituent order verb-medial for transitive clauses?"
+  },
+  {
+   "feature": "GB115",
+   "acc": 0.6470588235294118,
+   "baseline": 0.5098039215686274,
+   "gain": 0.13725490196078438,
+   "name": "Is there a phonologically bound reciprocal marker on the verb?"
+  },
+  {
+   "feature": "GB074",
+   "acc": 0.8823529411764706,
+   "baseline": 0.7450980392156863,
+   "gain": 0.13725490196078427,
+   "name": "Are there prepositions?"
+  },
+  {
+   "feature": "GB113",
+   "acc": 0.7254901960784313,
+   "baseline": 0.5882352941176471,
+   "gain": 0.13725490196078427,
+   "name": "Are there verbal affixes or clitics that turn intransitive verbs into transitive ones?"
+  },
+  {
+   "feature": "GB170",
+   "acc": 0.6862745098039216,
+   "baseline": 0.5686274509803921,
+   "gain": 0.11764705882352944,
+   "name": "Can an adnominal property word agree with the noun in gender/noun class?"
+  },
+  {
+   "feature": "GB020",
+   "acc": 0.6078431372549019,
+   "baseline": 0.5098039215686274,
+   "gain": 0.0980392156862745,
+   "name": "Are there definite or specific articles?"
+  },
+  {
+   "feature": "GB171",
+   "acc": 0.6470588235294118,
+   "baseline": 0.5686274509803921,
+   "gain": 0.07843137254901966,
+   "name": "Can an adnominal demonstrative agree with the noun in gender/noun class?"
+  },
+  {
+   "feature": "GB070",
+   "acc": 0.6078431372549019,
+   "baseline": 0.5490196078431373,
+   "gain": 0.05882352941176461,
+   "name": "Are there morphological cases for non-pronominal core arguments (i.e. S/A/P)?"
+  },
+  {
+   "feature": "GB184",
+   "acc": 0.7647058823529411,
+   "baseline": 0.7058823529411765,
+   "gain": 0.05882352941176461,
+   "name": "Can an adnominal property word agree with the noun in number?"
+  },
+  {
+   "feature": "GB107",
+   "acc": 0.7058823529411765,
+   "baseline": 0.6666666666666666,
+   "gain": 0.03921568627450989,
+   "name": "Can standard negation be marked by an affix, clitic or modification of the verb?"
+  },
+  {
+   "feature": "GB150",
+   "acc": 0.6862745098039216,
+   "baseline": 0.6470588235294118,
+   "gain": 0.039215686274509776,
+   "name": "Is there clause chaining?"
+  },
+  {
+   "feature": "GB072",
+   "acc": 0.5490196078431373,
+   "baseline": 0.5294117647058824,
+   "gain": 0.019607843137254943,
+   "name": "Are there morphological cases for oblique non-pronominal NPs (i.e. not S/A/P)?"
+  },
+  {
+   "feature": "GB105",
+   "acc": 0.6666666666666666,
+   "baseline": 0.6470588235294118,
+   "gain": 0.019607843137254832,
+   "name": "Can the recipient in a ditransitive construction be marked like the monotransitive patient?"
+  },
+  {
+   "feature": "GB138",
+   "acc": 0.5686274509803921,
+   "baseline": 0.5490196078431373,
+   "gain": 0.019607843137254832,
+   "name": "Can standard negation be marked clause-initially?"
+  },
+  {
+   "feature": "GB155",
+   "acc": 0.6666666666666666,
+   "baseline": 0.6470588235294118,
+   "gain": 0.019607843137254832,
+   "name": "Are causatives formed by affixes or clitics on verbs?"
+  },
+  {
+   "feature": "GB192",
+   "acc": 0.6078431372549019,
+   "baseline": 0.5882352941176471,
+   "gain": 0.019607843137254832,
+   "name": "Is there a gender system where a noun's phonological properties are a factor in class assignment?"
+  },
+  {
+   "feature": "GB021",
+   "acc": 0.6666666666666666,
+   "baseline": 0.6666666666666666,
+   "gain": 0.0,
+   "name": "Do indefinite nominals commonly have indefinite articles?"
+  },
+  {
+   "feature": "GB027",
+   "acc": 0.7647058823529411,
+   "baseline": 0.7647058823529411,
+   "gain": 0.0,
+   "name": "Are nominal conjunction and comitative expressed by different elements?"
+  },
+  {
+   "feature": "GB030",
+   "acc": 0.6274509803921569,
+   "baseline": 0.6274509803921569,
+   "gain": 0.0,
+   "name": "Is there a gender distinction in independent 3rd person pronouns?"
+  },
+  {
+   "feature": "GB044",
+   "acc": 0.7843137254901961,
+   "baseline": 0.7843137254901961,
+   "gain": 0.0,
+   "name": "Is there productive morphological plural marking on nouns?"
+  },
+  {
+   "feature": "GB051",
+   "acc": 0.6470588235294118,
+   "baseline": 0.6470588235294118,
+   "gain": 0.0,
+   "name": "Is there a gender/noun class system where sex is a factor in class assignment?"
+  },
+  {
+   "feature": "GB053",
+   "acc": 0.7843137254901961,
+   "baseline": 0.7843137254901961,
+   "gain": 0.0,
+   "name": "Is there a gender/noun class system where animacy is a factor in class assignment?"
+  },
+  {
+   "feature": "GB059",
+   "acc": 0.7843137254901961,
+   "baseline": 0.7843137254901961,
+   "gain": 0.0,
+   "name": "Is the adnominal possessive construction different for alienable and inalienable nouns?"
+  },
+  {
+   "feature": "GB071",
+   "acc": 0.7450980392156863,
+   "baseline": 0.7450980392156863,
+   "gain": 0.0,
+   "name": "Are there morphological cases for pronominal core arguments (i.e. S/A/P)?"
+  },
+  {
+   "feature": "GB083",
+   "acc": 0.7843137254901961,
+   "baseline": 0.7843137254901961,
+   "gain": 0.0,
+   "name": "Is there overt morphological marking on the verb dedicated to past tense?"
+  },
+  {
+   "feature": "GB086",
+   "acc": 0.7058823529411765,
+   "baseline": 0.7058823529411765,
+   "gain": 0.0,
+   "name": "Is a morphological distinction between perfective and imperfective aspect available on verbs?"
+  },
+  {
+   "feature": "GB089",
+   "acc": 0.7647058823529411,
+   "baseline": 0.7647058823529411,
+   "gain": 0.0,
+   "name": "Can the S argument be indexed by a suffix/enclitic on the verb in the simple main clause?"
+  },
+  {
+   "feature": "GB091",
+   "acc": 0.7843137254901961,
+   "baseline": 0.7843137254901961,
+   "gain": 0.0,
+   "name": "Can the A argument be indexed by a suffix/enclitic on the verb in the simple main clause?"
+  },
+  {
+   "feature": "GB093",
+   "acc": 0.7450980392156863,
+   "baseline": 0.7450980392156863,
+   "gain": 0.0,
+   "name": "Can the P argument be indexed by a suffix/enclitic on the verb in the simple main clause?"
+  },
+  {
+   "feature": "GB095",
+   "acc": 0.7843137254901961,
+   "baseline": 0.7843137254901961,
+   "gain": 0.0,
+   "name": "Are variations in marking strategies of core participants based on TAM distinctions?"
+  },
+  {
+   "feature": "GB099",
+   "acc": 0.7843137254901961,
+   "baseline": 0.7843137254901961,
+   "gain": 0.0,
+   "name": "Can verb stems alter according to the person of a core participant?"
+  },
+  {
+   "feature": "GB111",
+   "acc": 0.7647058823529411,
+   "baseline": 0.7647058823529411,
+   "gain": 0.0,
+   "name": "Are there conjugation classes?"
+  },
+  {
+   "feature": "GB126",
+   "acc": 0.7058823529411765,
+   "baseline": 0.7058823529411765,
+   "gain": 0.0,
+   "name": "Is there an existential verb?"
+  },
+  {
+   "feature": "GB139",
+   "acc": 0.7450980392156863,
+   "baseline": 0.7450980392156863,
+   "gain": 0.0,
+   "name": "Is there a difference between imperative (prohibitive) and declarative negation constructions?"
+  },
+  {
+   "feature": "GB204",
+   "acc": 0.7647058823529411,
+   "baseline": 0.7647058823529411,
+   "gain": 0.0,
+   "name": "Do collective ('all') and distributive ('every') universal quantifiers differ in their forms or their syntactic positions?"
+  },
+  {
+   "feature": "GB260",
+   "acc": 0.7254901960784313,
+   "baseline": 0.7254901960784313,
+   "gain": 0.0,
+   "name": "Can polar interrogation be indicated by a special word order?"
+  },
+  {
+   "feature": "GB266",
+   "acc": 0.6862745098039216,
+   "baseline": 0.6862745098039216,
+   "gain": 0.0,
+   "name": "Is there a comparative construction that employs a marker of the standard which elsewhere has a locational meaning?"
+  },
+  {
+   "feature": "GB273",
+   "acc": 0.7058823529411765,
+   "baseline": 0.7058823529411765,
+   "gain": 0.0,
+   "name": "Is there a comparative construction with a standard marker that elsewhere has neither a locational meaning nor a 'surpass/exceed' meaning?"
+  },
+  {
+   "feature": "GB312",
+   "acc": 0.7450980392156863,
+   "baseline": 0.7450980392156863,
+   "gain": 0.0,
+   "name": "Is there overt morphological marking on the verb dedicated to mood?"
+  },
+  {
+   "feature": "GB122",
+   "acc": 0.7450980392156863,
+   "baseline": 0.7647058823529411,
+   "gain": -0.019607843137254832,
+   "name": "Is verb compounding a regular process?"
+  },
+  {
+   "feature": "GB172",
+   "acc": 0.7058823529411765,
+   "baseline": 0.7254901960784313,
+   "gain": -0.019607843137254832,
+   "name": "Can an article agree with the noun in gender/noun class?"
+  },
+  {
+   "feature": "GB186",
+   "acc": 0.7058823529411765,
+   "baseline": 0.7254901960784313,
+   "gain": -0.019607843137254832,
+   "name": "Can an article agree with the noun in number?"
+  },
+  {
+   "feature": "GB198",
+   "acc": 0.5882352941176471,
+   "baseline": 0.6078431372549019,
+   "gain": -0.019607843137254832,
+   "name": "Can an adnominal numeral agree with the noun in gender/noun class?"
+  },
+  {
+   "feature": "GB262",
+   "acc": 0.5882352941176471,
+   "baseline": 0.6078431372549019,
+   "gain": -0.019607843137254832,
+   "name": "Is there a clause-initial polar interrogative particle?"
+  },
+  {
+   "feature": "GB263",
+   "acc": 0.7058823529411765,
+   "baseline": 0.7254901960784313,
+   "gain": -0.019607843137254832,
+   "name": "Is there a clause-final polar interrogative particle?"
+  },
+  {
+   "feature": "GB023",
+   "acc": 0.7647058823529411,
+   "baseline": 0.7843137254901961,
+   "gain": -0.019607843137254943,
+   "name": "Are there postnominal articles?"
+  },
+  {
+   "feature": "GB035",
+   "acc": 0.6862745098039216,
+   "baseline": 0.7058823529411765,
+   "gain": -0.019607843137254943,
+   "name": "Are there three or more distance contrasts in demonstratives?"
+  },
+  {
+   "feature": "GB042",
+   "acc": 0.6666666666666666,
+   "baseline": 0.6862745098039216,
+   "gain": -0.019607843137254943,
+   "name": "Is there productive overt morphological singular marking on nouns?"
+  },
+  {
+   "feature": "GB137",
+   "acc": 0.6862745098039216,
+   "baseline": 0.7058823529411765,
+   "gain": -0.019607843137254943,
+   "name": "Can standard negation be marked clause-finally?"
+  },
+  {
+   "feature": "GB160",
+   "acc": 0.6666666666666666,
+   "baseline": 0.6862745098039216,
+   "gain": -0.019607843137254943,
+   "name": "Are elements apart from verbs or nouns reduplicated?"
+  },
+  {
+   "feature": "GB276",
+   "acc": 0.5686274509803921,
+   "baseline": 0.5882352941176471,
+   "gain": -0.019607843137254943,
+   "name": "Is there a non-bound comparative degree marker modifying the property word in a comparative construction?"
+  },
+  {
+   "feature": "GB299",
+   "acc": 0.7647058823529411,
+   "baseline": 0.7843137254901961,
+   "gain": -0.019607843137254943,
+   "name": "Can standard negation be marked by a non-inflecting word (\"auxiliary particle\")?"
+  },
+  {
+   "feature": "GB068",
+   "acc": 0.7058823529411765,
+   "baseline": 0.7450980392156863,
+   "gain": -0.039215686274509776,
+   "name": "Do core adjectives (defined semantically as property concepts such as value, shape, age, dimension) act like verbs in predicative position?"
+  },
+  {
+   "feature": "GB082",
+   "acc": 0.5490196078431373,
+   "baseline": 0.5882352941176471,
+   "gain": -0.039215686274509776,
+   "name": "Is there overt morphological marking of present tense on verbs?"
+  },
+  {
+   "feature": "GB140",
+   "acc": 0.6274509803921569,
+   "baseline": 0.6666666666666666,
+   "gain": -0.039215686274509776,
+   "name": "Is verbal predication marked by the same negator as all of the following types of predication: locational, existential and nominal?"
+  },
+  {
+   "feature": "GB257",
+   "acc": 0.5686274509803921,
+   "baseline": 0.6078431372549019,
+   "gain": -0.039215686274509776,
+   "name": "Can polar interrogation be marked by intonation only?"
+  },
+  {
+   "feature": "GB136",
+   "acc": 0.5098039215686274,
+   "baseline": 0.5490196078431373,
+   "gain": -0.03921568627450989,
+   "name": "Is the order of core argument (i.e. S/A/P) constituents fixed?"
+  },
+  {
+   "feature": "GB185",
+   "acc": 0.6666666666666666,
+   "baseline": 0.7058823529411765,
+   "gain": -0.03921568627450989,
+   "name": "Can an adnominal demonstrative agree with the noun in number?"
+  },
+  {
+   "feature": "GB275",
+   "acc": 0.5490196078431373,
+   "baseline": 0.6078431372549019,
+   "gain": -0.05882352941176461,
+   "name": "Is there a bound comparative degree marker on the property word in a comparative construction?"
+  },
+  {
+   "feature": "GB084",
+   "acc": 0.49019607843137253,
+   "baseline": 0.5490196078431373,
+   "gain": -0.058823529411764774,
+   "name": "Is there overt morphological marking on the verb dedicated to future tense?"
+  },
+  {
+   "feature": "GB114",
+   "acc": 0.49019607843137253,
+   "baseline": 0.5686274509803921,
+   "gain": -0.0784313725490196,
+   "name": "Is there a phonologically bound reflexive marker on the verb?"
+  },
+  {
+   "feature": "GB022",
+   "acc": 0.47058823529411764,
+   "baseline": 0.5490196078431373,
+   "gain": -0.07843137254901966,
+   "name": "Are there prenominal articles?"
+  },
+  {
+   "feature": "GB147",
+   "acc": 0.35294117647058826,
+   "baseline": 0.5294117647058824,
+   "gain": -0.1764705882352941,
+   "name": "Is there a morphological passive marked on the lexical verb?"
+  }
+ ]
+}
