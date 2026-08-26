@@ -42,6 +42,19 @@ ALIGNED44 = set(
 
 SRC = pathlib.Path("assets_vec/src")
 
+#: Languages whose LEMMA column and whose source space do not share a spelling convention, with the
+#: fold that makes them meet. Each entry is a measured token-coverage gain, not a tidy-up -- the
+#: rules themselves live in `aligned_vectors.py` so that the builder and the layer cannot diverge.
+#:
+#:     ar   41.2 % -> 96.2 %   vocalised PADT citation forms against unvocalised fastText
+#:     ko   36.4 % -> 83.8 %   `+`-segmented morpheme lemmas against orthographic words
+#:     et   82.6 % -> 88.4 %   compound-boundary marks (`maa_ilm`) that nobody writes
+#:     fi   84.7 % -> 88.6 %   the same, spelled `#` (`yli#opisto`)
+#:
+#: ⚠ THE ABSENT FOLD IS THE DANGEROUS CASE, not a wrong one. A 41 % channel trains, converges and
+#: reports a normal loss curve; it is simply worse, and no metric in the sweep names the cause.
+KEY_NORM_FOR = {"ar": "ar", "ko": "ko", "et": "et", "fi": "fi"}
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -84,7 +97,8 @@ def main():
 
         langs[lc] = dict(vec=str(vec), route=route, key=key, pool=v["pool"],
                          src=f"fastText aligned (wiki.{lc}.align)",
-                         corpus=v["corpus"], lemma_fill=lf, treebank=tb)
+                         corpus=v["corpus"], lemma_fill=lf, treebank=tb,
+                         key_norm=KEY_NORM_FOR.get(lc))
 
     # The invariant the diagnostic rests on, asserted rather than trusted.
     for lc, s in langs.items():
