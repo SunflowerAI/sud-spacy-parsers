@@ -27,7 +27,7 @@ PY=.venv/bin/python
 SRC=${SRC:-training_v2_g2_bundle}
 OUT=${OUT:-build_generic_v2}
 NAME=${NAME:-sud_generic}
-VERSION=${VERSION:-0.2.0}
+VERSION=${VERSION:-0.1.0}
 
 [ -d "$SRC" ] || { echo "SRC $SRC missing"; exit 1; }
 
@@ -36,6 +36,8 @@ VERSION=${VERSION:-0.2.0}
 # this release is.
 CODE="scripts/sud_feats_embed.py,scripts/sud_generic_embed_v2.py,scripts/generic_tag_corpus.py,scripts/adapt_lang_embed.py"
 
+# ⚠ This wipes $OUT. Keep nothing there you want to survive a rebuild -- the release notes live in
+# docs/release-notes-generic-v0.1.0.md for exactly that reason, having once been deleted mid-release.
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
