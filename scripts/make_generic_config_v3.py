@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 """Configs for the v3 arms: the released v2 arm, plus a lexical channel and its two controls.
 
-    g3_base       the RELEASED v2 arm, reproduced           the comparator
+    g3_base       v2's published `g2_base`, reproduced       the comparator
     g3_vec        + the aligned lemma-vector channel        THE HEADLINE
     g3_vec_ctl    + the same Linear, a zero vector          what the PARAMETERS buy
     g3_vec_shuf   + the vectors, permuted within a doc      whether the RIGHT vector matters
 
-⚠ `g3_base` IS BUILT BY CALLING v2's OWN `build()`, NOT BY COPYING IT. The comparison this arm
-exists to make is "the released wheel, plus a lexical channel", and the fastest way to fake a gain
-is to compare against a baseline that differs in some second thing nobody wrote down. This repo has
-had two such confounds already -- one faked +11 LAS and one +12.5 -- so the baseline is not
-re-specified here at all: it is v2's `g2_langemb` shape (lang_embed on, 112 rows, no typology),
-which is what `training_v2_g2_bundle/config.cfg` ships. The vector arms are that dict with the
-architecture re-pointed and four keys added, and nothing else moves.
+⚠ THE BASELINE IS `g2_base`, NOT THE RELEASED WHEEL, AND THE REASON IS THE WORD "ZERO-SHOT". The
+released wheel carries a trainable per-language embedding, and that channel REFUSES an unseen
+language until one of its spare rows is fitted on the target language's own gold trees. Building on
+it would make every held-out number depend on 10-200 annotated sentences of the language being
+scored -- a defensible deployment story, and not a zero-shot measurement. `g2_base` is v2's own
+published baseline (UPOS + FEATS, no typology, no language embedding), it scores all twenty held-out
+languages with no adaptation at all, and `metrics/generic_v2/metrics_g2_base_s*.json` already holds
+three seeds of it at macro LAS 54.24. So v3's delta is read against a published number measured by
+the same harness, which is the comparison this repo keeps having to redo.
+
+⚠ AND IT IS BUILT BY CALLING v2's OWN `build()`, NOT BY COPYING IT. The fastest way to fake a gain
+is a baseline that differs in some second thing nobody wrote down; this repo has had two such
+confounds, one faking +11 LAS and one +12.5.
 
 ⚠ `g3_vec_ctl` AND `g3_base` ARE BOTH NEEDED AND ARE NOT THE SAME ARM. The first has no vector block
 at all; the second has every parameter of the channel and none of its information. A delta is
@@ -43,8 +49,8 @@ ARMS = ("g3_base", "g3_vec", "g3_vec_ctl", "g3_vec_shuf")
 
 
 def build(arm, *, vectors, vectors_fill, **kw):
-    # The released shape, from v2's own builder -- lang_embed on, 112 rows, no typology.
-    cfg = build_v2("g2_langemb", **kw)
+    # v2's OWN published baseline: UPOS + FEATS, no typology, NO language embedding.
+    cfg = build_v2("g2_base", **kw)
     embed = cfg["components"]["tok2vec"]["model"]["embed"]
     if arm == "g3_base":
         return cfg                                  # untouched: this IS the released arm

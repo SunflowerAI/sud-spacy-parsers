@@ -358,3 +358,37 @@ def GenericEmbedV3(
 
     max_out = with_array(Maxout(width, width * n_blocks, nP=3, dropout=0.0, normalize=True))
     return chain(concatenate(*pieces), max_out, ragged2list())
+
+
+def set_vectors_fill(nlp, fill: str) -> int:
+    """Switch a LOADED arm between the training fill and the deployment fill.
+
+    The fill regime is a property of INFERENCE, not of the weights. An arm trains on `lemma`,
+    because that is what a treebank has; it is deployed on `gloss`, because that is what a user of
+    an unseen language has. Nothing about the parameters changes -- both routes look up rows in the
+    same shared space, which is the entire premise of the channel.
+
+    ⚠ THIS RETURNS A COUNT AND REFUSES AT ZERO, deliberately. A no-op that silently changed nothing
+    would leave the caller evaluating the LEMMA fill while reporting the gloss one, and on a test
+    language with no rows the lemma fill is all-OOV -- so the number would look like "the channel
+    buys nothing zero-shot" when what actually happened is that it was never switched on. That is
+    precisely the shape of defect this repo keeps paying for, so it raises.
+    """
+    if fill not in FILLS:
+        raise ValueError(f"fill must be one of {FILLS}, not {fill!r}")
+    n = 0
+    for _, pipe in nlp.pipeline:
+        model = getattr(pipe, "model", None)
+        if model is None:
+            continue
+        for node in model.walk():
+            if node.name == "extract_aligned_vec":
+                node.attrs["vt_fill"] = fill
+                n += 1
+    if not n:
+        raise ValueError(
+            f"set_vectors_fill({fill!r}): this pipeline has no `extract_aligned_vec` node, so it "
+            f"has no lexical channel to switch -- it is a g3_base/g3_vec_ctl arm, or a v2 wheel. "
+            f"Refusing rather than returning quietly, because a silent no-op here would report the "
+            f"lemma fill's number under the gloss fill's name.")
+    return n
