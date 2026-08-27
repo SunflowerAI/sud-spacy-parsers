@@ -45,7 +45,7 @@ from spacy.training import Example                              # noqa: E402
 import generic_code_v3                                          # noqa: E402,F401
 from generic_corpus import annotate                             # noqa: E402
 from eval_generic_v2 import load_docs, score, one_sentence_per_doc   # noqa: E402
-from sud_generic_embed_v3 import set_vectors_fill               # noqa: E402
+from sud_generic_embed_v3 import set_gloss_debias, set_vectors_fill   # noqa: E402
 
 
 def load_gloss_dict(path, top=3):
@@ -109,6 +109,10 @@ def main():
     ap.add_argument("--split", default="test")
     ap.add_argument("--pool", default="test", choices=("test", "train"))
     ap.add_argument("--lang", nargs="*", default=None)
+    ap.add_argument("--gloss-debias", default=None,
+                    help="assets_vec/gloss_shift_v3.npy -- subtract the measured source->English "
+                         "displacement from GLOSS rows only. Estimated on a training language; "
+                         "whether it generalises is what the held-out number answers.")
     ap.add_argument("--json", default=None)
     a = ap.parse_args()
 
@@ -125,6 +129,9 @@ def main():
         # fill flag then means nothing and saying so beats printing it in the header.
         has_channel = False
         print(f"no lexical channel in this arm; --fill {a.fill!r} is inert ({str(e)[:60]}...)")
+    if has_channel and a.gloss_debias:
+        set_gloss_debias(nlp, a.gloss_debias)
+        print(f"gloss de-bias applied from {a.gloss_debias}")
 
     rows, unscorable = [], []
     for lang in langs:
@@ -163,7 +170,7 @@ def main():
     if unscorable:
         print(f"NOT scorable on the gloss fill (no Wiktionary extract): {unscorable}")
 
-    out = dict(model=a.model, fill=a.fill, gloss_key=a.gloss_key, split=a.split, pool=a.pool,
+    out = dict(model=a.model, fill=a.fill, gloss_key=a.gloss_key, gloss_debias=a.gloss_debias, split=a.split, pool=a.pool,
                macro_las=macro, n_scored=len(scored), unscorable=unscorable, languages=rows)
     if a.json:
         pathlib.Path(a.json).parent.mkdir(parents=True, exist_ok=True)

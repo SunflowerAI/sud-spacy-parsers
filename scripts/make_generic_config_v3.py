@@ -5,6 +5,14 @@
     g3_vec        + the aligned lemma-vector channel        THE HEADLINE
     g3_vec_ctl    + the same Linear, a zero vector          what the PARAMETERS buy
     g3_vec_shuf   + the vectors, permuted within a doc      whether the RIGHT vector matters
+    g3_vec_aug    + training-time REAL shift displacement    whether the gloss route is recoverable
+
+`g3_vec_aug` exists because seed 0 said the channel is worth +4.51 macro LAS on held-out languages
+that have aligned rows, and that the English-gloss substitution delivers -0.86 of it. The gap is an
+input-regime mismatch, not a geometry failure: a gloss sits at cos +0.46 from its source lemma,
+which is far above a shuffled control and far below the same distribution. So the arm trains on the
+lemma vector DISPLACED by a real measured source->English shift, and meets at training time what it
+will be handed at inference. No gloss enters training.
 
 ⚠ THE BASELINE IS `g2_base`, NOT THE RELEASED WHEEL, AND THE REASON IS THE WORD "ZERO-SHOT". The
 released wheel carries a trainable per-language embedding, and that channel REFUSES an unseen
@@ -45,10 +53,10 @@ from thinc.api import Config
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from make_generic_config_v2 import build as build_v2, feats_inventory   # noqa: E402
 
-ARMS = ("g3_base", "g3_vec", "g3_vec_ctl", "g3_vec_shuf")
+ARMS = ("g3_base", "g3_vec", "g3_vec_ctl", "g3_vec_shuf", "g3_vec_aug")
 
 
-def build(arm, *, vectors, vectors_fill, **kw):
+def build(arm, *, vectors, vectors_fill, shift_aug=None, shift_prob=0.0, **kw):
     # v2's OWN published baseline: UPOS + FEATS, no typology, NO language embedding.
     cfg = build_v2("g2_base", **kw)
     embed = cfg["components"]["tok2vec"]["model"]["embed"]
@@ -68,6 +76,8 @@ def build(arm, *, vectors, vectors_fill, **kw):
         embed["vectors_constant"] = True
     elif arm == "g3_vec_shuf":
         embed["vectors_shuffle"] = True
+    elif arm == "g3_vec_aug":
+        embed.update({"vectors_shift_aug": shift_aug, "vectors_shift_prob": shift_prob})
     else:
         raise ValueError(f"unknown arm {arm}")
     return cfg
@@ -81,6 +91,9 @@ def main():
     ap.add_argument("--typology", default="assets_typ/typology_v2.json")
     ap.add_argument("--manifest", default="assets_generic_v2/manifest.json")
     ap.add_argument("--vectors", default="assets_vec/generic_vec_v3.npz")
+    ap.add_argument("--shift-aug", default="assets_vec/gloss_shift_sample_v3.npy")
+    ap.add_argument("--shift-prob", type=float, default=0.5,
+                    help="fraction of in-table tokens displaced per step, for g3_vec_aug")
     ap.add_argument("--vectors-fill", default="lemma", choices=("lemma", "gloss", "auto"),
                     help="TRAINING fill. `lemma` is the arm as designed; the gloss regime is a "
                          "property of INFERENCE and is set on the loaded model, not here.")
@@ -112,6 +125,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     for arm in a.arm:
         cfg = build(arm, vectors=a.vectors, vectors_fill=a.vectors_fill,
+                    shift_aug=a.shift_aug, shift_prob=a.shift_prob,
                     corpus=a.corpus, typology=a.typology, feats=feats, feat_rows=feat_rows,
                     langs=langs, seed=a.seed, width=a.width, depth=a.depth,
                     hidden_width=a.hidden_width, max_steps=a.max_steps,

@@ -159,10 +159,13 @@ def load_vectors(path: str) -> _VecTable:
     return t
 
 
-def VecExtractor(table: _VecTable, fill: str, shuffle: bool = False):
+def VecExtractor(table: _VecTable, fill: str, shuffle: bool = False, debias=None,
+                 shift_aug=None, shift_prob: float = 0.0, seed: int = 0):
     return Model("extract_aligned_vec", _vec_forward,
                  attrs={"vt_table": table, "vt_fill": fill, "vt_shuffle": bool(shuffle),
-                        "vt_dim": table.dim + 1})
+                        "vt_debias": debias, "vt_dim": table.dim + 1,
+                        "vt_shift": shift_aug, "vt_shift_p": float(shift_prob),
+                        "vt_rng": np.random.default_rng(seed)})
 
 
 def _vec_forward(model: Model, docs, is_train: bool):
@@ -195,20 +198,21 @@ def _vec_forward(model: Model, docs, is_train: bool):
 
         n = len(doc)
         A = model.ops.alloc2f(n, dim)
-        rows, seen_key = [], False
+        rows, from_gloss, seen_key = [], [], False
         for i, tok in enumerate(doc):
-            r = None
+            r, viagloss = None, False
             if fill in ("gloss", "auto"):
                 g = tok._.gloss
                 if g:
                     seen_key = True
                     r = table.row("en", g)
+                    viagloss = r is not None
             if r is None and fill in ("lemma", "auto"):
                 lem = tok.lemma_
                 if lem and lem != "_":
                     seen_key = True
                     r = table.row(lang, lem)
-            rows.append(r)
+            rows.append(r); from_gloss.append(viagloss)
         if not seen_key and fill not in _WARNED_FILL:
             # ⚠ A WARNING, AND THE ENFORCEMENT LIVES IN THE CALLER. This began as an error and fired
             # on legitimate input: with one sentence per doc, a short sentence of punctuation and
@@ -232,10 +236,40 @@ def _vec_forward(model: Model, docs, is_train: bool):
             # unrepeatable across seeds, which is the one thing a control may not be.
             order = np.argsort(np.array([hash((lang, i)) % (2 ** 31) for i in range(n)]))
             rows = [rows[j] for j in order]
+            from_gloss = [from_gloss[j] for j in order]
 
+        debias = model.attrs.get("vt_debias")
+        # ⚠ TRAINING ONLY. This displaces a source-lemma row by a REAL measured source->English
+        # shift, so the model meets the deployment distribution during training instead of at
+        # inference for the first time. It is still trained on the language's own aligned lemma
+        # vector -- the displacement is applied TO that vector, not substituted for it, and not one
+        # gloss enters training.
+        #
+        # ⚠ SAMPLED, NOT GAUSSIAN, and the difference is measured rather than aesthetic. The shift
+        # is 34.6 % one constant direction plus a residual whose top-8 of 128 dimensions hold 36.3 %
+        # of the variance (6.2 % if isotropic). Gaussian noise at the right cosine would reproduce
+        # the ANGLE and none of the structure -- and correcting the constant part alone at inference
+        # was measured to hurt, so the structure is what matters.
+        shift = model.attrs.get("vt_shift")
+        sp = model.attrs.get("vt_shift_p", 0.0)
         for i, r in enumerate(rows):
             if r is None:
                 A[i, -1] = 1.0                       # OOV owns its own dimension
+            elif is_train and shift is not None and sp and not from_gloss[i] \
+                    and model.attrs["vt_rng"].random() < sp:
+                d = shift[model.attrs["vt_rng"].integers(len(shift))]
+                v = table.V[r] + d
+                nn = float(np.linalg.norm(v))
+                A[i, :-1] = v / nn if nn else table.V[r]
+            elif debias is not None and from_gloss[i]:
+                # ⚠ ONLY ON ROWS THAT CAME FROM A GLOSS. The shift is the displacement from a source
+                # lemma to its English translation, measured at 34.6 % of the total shift on 239,748
+                # Arabic pairs; a source-language row is already where it belongs and correcting it
+                # would move it somewhere it is not. Under `auto` the two kinds arrive interleaved,
+                # which is why this tracks WHERE each row came from rather than the fill mode.
+                v = table.V[r] - debias
+                n = float(np.linalg.norm(v))
+                A[i, :-1] = v / n if n else table.V[r]
             else:
                 A[i, :-1] = table.V[r]
         out.append(A)
@@ -290,6 +324,10 @@ def GenericEmbedV3(
     vectors_fill: str = "lemma",
     vectors_constant: bool = False,
     vectors_shuffle: bool = False,
+    vectors_gloss_debias: Optional[str] = None,
+    vectors_shift_aug: Optional[str] = None,
+    vectors_shift_prob: float = 0.0,
+    vectors_seed: int = 0,
 ) -> Model[List[Doc], List[Floats2d]]:
     import collections
 
@@ -348,8 +386,19 @@ def GenericEmbedV3(
     if vectors is not None:
         table = load_vectors(vectors)
         vdim = table.dim + 1                       # + the OOV dimension, which is never a zero row
+        db = np.load(vectors_gloss_debias).astype("float32") if vectors_gloss_debias else None
+        if db is not None and db.shape != (table.dim,):
+            raise ValueError(f"gloss debias vector is {db.shape}, table is {table.dim}-d")
+        sh = np.load(vectors_shift_aug).astype("float32") if vectors_shift_aug else None
+        if sh is not None and sh.shape[1] != table.dim:
+            raise ValueError(f"shift sample is {sh.shape}, table is {table.dim}-d")
+        if vectors_shift_aug and not vectors_shift_prob:
+            raise ValueError("vectors_shift_aug is set with vectors_shift_prob = 0, which loads the "
+                             "sample and never uses it -- an augmentation that silently does "
+                             "nothing is the arm it is supposed to be different from.")
         vex = (VecConstantExtractor(vdim) if vectors_constant
-               else VecExtractor(table, vectors_fill, shuffle=vectors_shuffle))
+               else VecExtractor(table, vectors_fill, shuffle=vectors_shuffle, debias=db,
+                                 shift_aug=sh, shift_prob=vectors_shift_prob, seed=vectors_seed))
         pieces.append(chain(vex, list2ragged(), with_array(Linear(width, vdim))))
         n_blocks += 1
 
@@ -401,4 +450,33 @@ def set_vectors_fill(nlp, fill: str) -> int:
             f"has no lexical channel to switch -- it is a g3_base/g3_vec_ctl arm, or a v2 wheel. "
             f"Refusing rather than returning quietly, because a silent no-op here would report the "
             f"lemma fill's number under the gloss fill's name.")
+    return n
+
+
+def set_gloss_debias(nlp, path) -> int:
+    """Attach (or clear) the source->English shift correction on a LOADED arm.
+
+    Companion to `set_vectors_fill`, and for the same reason: this is an inference-time property.
+    The weights never saw it, and they do not need to -- the correction moves a gloss row closer to
+    where the source lemma row it stands in for would have been, which is the distribution the model
+    WAS trained on. Pass None to clear.
+
+    Refuses at zero nodes for the same reason `set_vectors_fill` does: a silent no-op would report
+    the uncorrected number under the corrected one's name.
+    """
+    vec = np.load(path).astype("float32") if path else None
+    n = 0
+    for _, pipe in nlp.pipeline:
+        model = getattr(pipe, "model", None)
+        if model is None:
+            continue
+        for node in model.walk():
+            if node.name == "extract_aligned_vec":
+                if vec is not None and vec.shape != (node.attrs["vt_dim"] - 1,):
+                    raise ValueError(f"debias vector is {vec.shape}, channel is "
+                                     f"{node.attrs['vt_dim'] - 1}-d")
+                node.attrs["vt_debias"] = vec
+                n += 1
+    if not n:
+        raise ValueError("set_gloss_debias: this pipeline has no lexical channel to correct.")
     return n
