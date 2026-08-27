@@ -59,7 +59,7 @@ def load_gloss_dict(path, top=3):
     return {k: " ".join(list(v)[:top]) for k, v in raw.items() if v}
 
 
-def run(nlp, refs, lang, gloss=None, gloss_key="lemma"):
+def run(nlp, refs, lang, gloss=None, gloss_key="lemma", copy_lemma=True):
     """Predict over gold tokens with gold UPOS/FEATS -- the arm's DECLARED inputs -- plus glosses.
 
     Mirrors eval_generic_v2.run(); the only addition is Token._.gloss. The morph OBJECT is copied
@@ -74,6 +74,14 @@ def run(nlp, refs, lang, gloss=None, gloss_key="lemma"):
         for p, r in zip(pred, ref):
             p.pos = r.pos
             p.set_morph(r.morph)
+            # ⚠ THE LEMMA IS COPIED ONLY WHERE THE FILL REGIME USES IT, and that is a claim about
+            # what the caller has, not a convenience. `generic_corpus` copies UPOS, FEATS AND LEMMA
+            # onto the predicted doc during training, so the `lemma` fill must too or the model
+            # meets a regime it never trained on. But the DEPLOYMENT story is UPOS + a gloss: a user
+            # of an unseen language has no lemmatiser, so handing the gloss fill a gold lemma column
+            # would quietly score an input the contract does not offer.
+            if copy_lemma:
+                p.lemma = r.lemma
             n_tok += 1
             if gloss is not None:
                 key = (r.lemma_ if gloss_key == "lemma" else r.text)
@@ -131,7 +139,15 @@ def main():
                 gd = load_gloss_dict(p)
             else:
                 unscorable.append(lang)
-        ex, fill_rate = run(nlp, refs, lang, gloss=gd, gloss_key=a.gloss_key)
+        # `gloss` alone is the pure deployment regime: UPOS, FEATS and a gloss, no lemma.
+        ex, fill_rate = run(nlp, refs, lang, gloss=gd, gloss_key=a.gloss_key,
+                            copy_lemma=(a.fill != "gloss"))
+        if gd is not None and fill_rate == 0.0:
+            # The failure the layer cannot see: a whole language whose channel was never filled.
+            # Scoring it would report the no-channel number under the gloss fill's name.
+            sys.exit(f"{lang}: --fill {a.fill} with a dictionary loaded, and NOT ONE token got a "
+                     f"gloss. Wrong --gloss-key, or a dictionary keyed differently from this "
+                     f"treebank's {a.gloss_key} column.")
         s = score(ex)
         rows.append(dict(lang=lang, tokens=sum(len(e.reference) for e in ex),
                          sents=len(ex), uas=s["uas"], las=s["las"], sents_f=s["sents_f"],

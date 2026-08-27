@@ -88,6 +88,9 @@ _TABLES: dict = {}
 #: languages already warned about, so a training run says it once rather than per batch
 _WARNED: set = set()
 
+#: fill regimes already warned about for an empty doc, so a corpus says it once
+_WARNED_FILL: set = set()
+
 
 class _VecTable:
     """The merged aligned table, plus the per-language key fold each lookup needs.
@@ -206,14 +209,21 @@ def _vec_forward(model: Model, docs, is_train: bool):
                     seen_key = True
                     r = table.row(lang, lem)
             rows.append(r)
-        if not seen_key:
-            want = {"lemma": "a lemma on any token", "gloss": "Token._.gloss on any token",
-                    "auto": "either a lemma or Token._.gloss on any token"}[fill]
-            raise ValueError(
-                f"sud.GenericEmbed.v3: vectors_fill={fill!r} but this doc has {want} nowhere, so "
-                f"every token would reach the model as OOV -- the parse would be silently worse "
-                f"than one from an arm with no lexical channel, and nothing would raise. Supply the "
-                f"input, or train/serve an arm without `vectors`.")
+        if not seen_key and fill not in _WARNED_FILL:
+            # ⚠ A WARNING, AND THE ENFORCEMENT LIVES IN THE CALLER. This began as an error and fired
+            # on legitimate input: with one sentence per doc, a short sentence of punctuation and
+            # function words has nothing glossable in it, and that is normal rather than a mistake.
+            # The failure actually worth catching -- a caller who set `fill = "gloss"` and never set
+            # Token._.gloss at all -- is not visible from ONE doc; it is visible from the corpus
+            # fill rate, which the caller computes and this layer cannot see. So the layer says it
+            # once and `eval_generic_v3.py` refuses on a whole-language fill rate of zero.
+            _WARNED_FILL.add(fill)
+            want = {"lemma": "a lemma", "gloss": "Token._.gloss",
+                    "auto": "either a lemma or Token._.gloss"}[fill]
+            print(f"sud.GenericEmbed.v3: vectors_fill={fill!r} and a doc had {want} on no token, "
+                  f"so the channel is OOV throughout it. Normal for a short sentence; if it holds "
+                  f"across a corpus, the input is missing and the parse is silently worse than one "
+                  f"from an arm with no lexical channel.", file=sys.stderr)
 
         if shuffle:
             # The control that asks whether it is the RIGHT vector that matters, not merely A
