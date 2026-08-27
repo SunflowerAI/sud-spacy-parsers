@@ -42,9 +42,10 @@ into Spanish. Nothing here can detect that; the corpus builder must.
 THE REFUSALS, in the same spirit as v2's:
 
   * `Doc._.tb_lang` unset -> raise. Inherited from v2.
-  * a language with no row-set in the table -> raise, never a silent zero vector. An unfitted
-    channel is not a neutral one: v2 measured an unfitted spare language row at 4 LAS WORSE than
-    having no channel at all.
+  * a language with no row-set in the table -> WARN once and run the channel all-OOV. Not an
+    error: 48 of the 80 training languages are in this state, so it is a signal the model learns
+    to condition on rather than a defect. It is not v2's unfitted-language-row case, which cost
+    4 LAS because it was an untrained PARAMETER that training never produced.
   * a doc with nothing to fill the channel from -> raise. This is the failure that would otherwise
     ship: a user sets `vectors_fill = "gloss"`, forgets `Token._.gloss`, and gets the
     OOV-on-every-token parse with no error anywhere.
@@ -83,6 +84,9 @@ if not Token.has_extension("gloss"):
 FILLS = ("lemma", "gloss", "auto")
 
 _TABLES: dict = {}
+
+#: languages already warned about, so a training run says it once rather than per batch
+_WARNED: set = set()
 
 
 class _VecTable:
@@ -172,14 +176,19 @@ def _vec_forward(model: Model, docs, is_train: bool):
                 "sud.GenericEmbed.v3: Doc._.tb_lang is unset. The reader stamps it during training "
                 "and the caller must stamp it at inference; there is no default, because one would "
                 "silently give every document the same row-set.")
-        if lang not in table.langs and fill != "gloss":
-            raise ValueError(
-                f"sud.GenericEmbed.v3: no vector rows for Doc._.tb_lang={lang!r}. The table covers "
-                f"{len(table.langs)} languages: {', '.join(table.langs)}. For a language outside "
-                f"that set, set `vectors_fill = \"gloss\"` and supply Token._.gloss -- an English "
-                f"gloss resolves against the English rows, which is the whole point of the channel. "
-                f"An unfilled channel is NOT neutral: v2 measured an unfitted language row at 4 LAS "
-                f"worse than having no channel at all.")
+        if lang not in table.langs and fill != "gloss" and lang not in _WARNED:
+            # ⚠ A WARNING AND NOT AN ERROR, and the distinction took a wrong turn to find. Only 32
+            # of the 80 training languages have rows, so an all-OOV channel is a state the model
+            # meets constantly WHILE TRAINING and has learned to condition on -- the OOV dimension
+            # exists for exactly this. Refusing here does not protect a deployer; it makes the arm
+            # untrainable. This is NOT the same shape as v2's unfitted language row, which was 4 LAS
+            # worse than no channel because it was an untrained PARAMETER rather than a trained
+            # signal, and nothing in training ever produced it.
+            _WARNED.add(lang)
+            print(f"sud.GenericEmbed.v3: no vector rows for tb_lang={lang!r}; the lexical channel "
+                  f"is OOV on every token of it. Fine while training (48 of 80 languages are in "
+                  f"this state) and a real loss at inference -- supply Token._.gloss and set "
+                  f"`vectors_fill = \"gloss\"` to fill it from English instead.", file=sys.stderr)
 
         n = len(doc)
         A = model.ops.alloc2f(n, dim)
