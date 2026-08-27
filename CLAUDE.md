@@ -120,6 +120,7 @@ all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a mod
 | `docs/languages.md` | en's two arms and two licences; id's FEATS and lemma-casing fixes | an arm name is not a language — the two places that confused them both failed silently |
 | `docs/dravidian.md` | ta's two treebanks and its akṣara-decomposition tokeniser; te's missing multiword tokens and missing morphology; the head-final order augmenter | Telugu's lemma column is `_` on EVERY token and spaCy keeps that as a literal string; and MTG ships **no** multiword tokens, which is an annotation policy, not a fact about Telugu |
 | `docs/generic-parser-v2.md` | the language-agnostic parser: UPOS + FEATS + four typological features over 80 SUD treebanks, scored on 20 genus-disjoint held-out languages | Grambank's `ISO639P3code` column is EMPTY, so an iso3 join returns the whole database as nothing; and genus-disjointness passes on a technicality while Latin sits beside eight Romance test languages |
+| `docs/generic-parser-v3.md` | the lexical channel returns, keyed by LEMMA and fillable at deployment from an ENGLISH GLOSS — so a language with no fastText can still use it | type coverage said 28.5 % where token coverage said 90.2 %, and hid four key folds; one of them was worth 55 points of Arabic |
 | `docs/generic-parser-v1.md` | SUPERSEDED — the same idea with an aligned fastText vector, 13 treebanks, leave-one-language-out | its four data decisions and seven traps still apply, and every figure in it is SINGLE-SEED |
 
 ## The fourteen wheels
