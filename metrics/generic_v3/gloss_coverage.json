@@ -1,0 +1,65 @@
+{
+ "table": "assets_vec/generic_vec_v3.npz",
+ "split": "test",
+ "top": 3,
+ "languages": [
+  {
+   "lang": "cop",
+   "tokens": 10372,
+   "headwords": 2653,
+   "dict_lemma": 0.3083,
+   "rows_lemma": 0.3082,
+   "dict_form": 0.3897,
+   "rows_form": 0.3896,
+   "genus": "Egyptian"
+  },
+  {
+   "lang": "el",
+   "tokens": 10672,
+   "headwords": 36058,
+   "dict_lemma": 0.7643,
+   "rows_lemma": 0.7638,
+   "dict_form": 0.4453,
+   "rows_form": 0.4451,
+   "genus": "Greek"
+  },
+  {
+   "lang": "eu",
+   "tokens": 20164,
+   "headwords": 7517,
+   "dict_lemma": 0.525,
+   "rows_lemma": 0.5243,
+   "dict_form": 0.2486,
+   "rows_form": 0.2461,
+   "genus": "Basque"
+  },
+  {
+   "lang": "grc",
+   "tokens": 13314,
+   "headwords": 36594,
+   "dict_lemma": 0.7469,
+   "rows_lemma": 0.7449,
+   "dict_form": 0.249,
+   "rows_form": 0.2458,
+   "genus": "Greek"
+  }
+ ],
+ "no_dictionary": [
+  "aln",
+  "bor",
+  "ctn",
+  "hu",
+  "hy",
+  "ka",
+  "kpv",
+  "lt",
+  "lv",
+  "quc",
+  "th",
+  "vi",
+  "wo",
+  "xav",
+  "xcl",
+  "yo"
+ ]
+}
