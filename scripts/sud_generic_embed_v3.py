@@ -160,12 +160,12 @@ def load_vectors(path: str) -> _VecTable:
 
 
 def VecExtractor(table: _VecTable, fill: str, shuffle: bool = False, debias=None,
-                 shift_aug=None, shift_prob: float = 0.0, seed: int = 0):
+                 shift_aug=None, shift_prob: float = 0.0, seed: int = 0, shift_cos=None):
     return Model("extract_aligned_vec", _vec_forward,
                  attrs={"vt_table": table, "vt_fill": fill, "vt_shuffle": bool(shuffle),
                         "vt_debias": debias, "vt_dim": table.dim + 1,
                         "vt_shift": shift_aug, "vt_shift_p": float(shift_prob),
-                        "vt_rng": np.random.default_rng(seed)})
+                        "vt_cos": shift_cos, "vt_rng": np.random.default_rng(seed)})
 
 
 def _vec_forward(model: Model, docs, is_train: bool):
@@ -257,8 +257,27 @@ def _vec_forward(model: Model, docs, is_train: bool):
                 A[i, -1] = 1.0                       # OOV owns its own dimension
             elif is_train and shift is not None and sp and not from_gloss[i] \
                     and model.attrs["vt_rng"].random() < sp:
-                d = shift[model.attrs["vt_rng"].integers(len(shift))]
-                v = table.V[r] + d
+                rngm = model.attrs["vt_rng"]
+                d = shift[rngm.integers(len(shift))]
+                cosd = model.attrs.get("vt_cos")
+                if cosd is None:
+                    # ADDITIVE mode: v + d. Kept for the arm already measured with it, and it
+                    # UNDER-PERTURBS -- a shift is correlated with its own source, so against an
+                    # unrelated vector it lands as a much smaller angle. Measured cos 0.704
+                    # (sd 0.072) where the real lemma->gloss shift is 0.460 (sd 0.185).
+                    v = table.V[r] + d
+                else:
+                    # ANGULAR mode: draw the target cosine from the EMPIRICAL distribution and take
+                    # only the DIRECTION from a real shift, orthogonalised against v. Matches the
+                    # deployment geometry in both moments by construction, instead of in neither.
+                    v0 = table.V[r]
+                    c = float(cosd[rngm.integers(len(cosd))])
+                    perp = d - float(d @ v0) * v0
+                    pn = float(np.linalg.norm(perp))
+                    if pn < 1e-6:
+                        v = v0
+                    else:
+                        v = c * v0 + np.sqrt(max(0.0, 1.0 - c * c)) * (perp / pn)
                 nn = float(np.linalg.norm(v))
                 A[i, :-1] = v / nn if nn else table.V[r]
             elif debias is not None and from_gloss[i]:
@@ -327,6 +346,7 @@ def GenericEmbedV3(
     vectors_gloss_debias: Optional[str] = None,
     vectors_shift_aug: Optional[str] = None,
     vectors_shift_prob: float = 0.0,
+    vectors_shift_cos: Optional[str] = None,
     vectors_seed: int = 0,
 ) -> Model[List[Doc], List[Floats2d]]:
     import collections
@@ -396,9 +416,14 @@ def GenericEmbedV3(
             raise ValueError("vectors_shift_aug is set with vectors_shift_prob = 0, which loads the "
                              "sample and never uses it -- an augmentation that silently does "
                              "nothing is the arm it is supposed to be different from.")
+        sc = np.load(vectors_shift_cos).astype("float32") if vectors_shift_cos else None
+        if sc is not None and sh is None:
+            raise ValueError("vectors_shift_cos without vectors_shift_aug: the cosines say HOW FAR "
+                             "to move and the shift sample says WHICH WAY; neither is usable alone.")
         vex = (VecConstantExtractor(vdim) if vectors_constant
                else VecExtractor(table, vectors_fill, shuffle=vectors_shuffle, debias=db,
-                                 shift_aug=sh, shift_prob=vectors_shift_prob, seed=vectors_seed))
+                                 shift_aug=sh, shift_prob=vectors_shift_prob, seed=vectors_seed,
+                                 shift_cos=sc))
         pieces.append(chain(vex, list2ragged(), with_array(Linear(width, vdim))))
         n_blocks += 1
 

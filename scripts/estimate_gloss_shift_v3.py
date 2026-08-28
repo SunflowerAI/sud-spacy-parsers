@@ -66,6 +66,13 @@ def main():
                          "something the data is not. Sampling real displacements reproduces the "
                          "deployment distribution without training on a single gloss.")
     ap.add_argument("--sample-n", type=int, default=20000)
+    ap.add_argument("--cos-out", default="assets_vec/gloss_cos_v3.npy",
+                    help="the empirical cos(source, gloss) distribution. Sampling a TARGET COSINE "
+                         "from this, rather than adding a displacement, is what makes the "
+                         "augmentation match the deployment geometry in both moments: adding a "
+                         "shift sampled from one pair to an UNRELATED vector under-perturbs badly, "
+                         "because the shift is correlated with its own source. Measured: adding "
+                         "gives cos 0.704 (sd 0.072) where the real thing is 0.460 (sd 0.185).")
     a = ap.parse_args()
 
     T = load_vectors(a.table)
@@ -103,6 +110,9 @@ def main():
     idx = rng.choice(len(D), min(a.sample_n, len(D)), replace=False)
     np.save(a.sample_out, D[idx].astype("float32"))
     print(f"wrote {a.sample_out}: {len(idx):,} real shift vectors")
+    cos = (S * G).sum(1).astype("float32")
+    np.save(a.cos_out, cos[rng.choice(len(cos), min(a.sample_n, len(cos)), replace=False)])
+    print(f"wrote {a.cos_out}: cos distribution, mean {cos.mean():+.4f} sd {cos.std():.4f}")
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@
     g3_vec_ctl    + the same Linear, a zero vector          what the PARAMETERS buy
     g3_vec_shuf   + the vectors, permuted within a doc      whether the RIGHT vector matters
     g3_vec_aug    + training-time REAL shift displacement    whether the gloss route is recoverable
+    g3_vec_aug2   the same, calibrated to the real geometry   how much of it the mis-calibration cost
 
 `g3_vec_aug` exists because seed 0 said the channel is worth +4.51 macro LAS on held-out languages
 that have aligned rows, and that the English-gloss substitution delivers -0.86 of it. The gap is an
@@ -53,10 +54,11 @@ from thinc.api import Config
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from make_generic_config_v2 import build as build_v2, feats_inventory   # noqa: E402
 
-ARMS = ("g3_base", "g3_vec", "g3_vec_ctl", "g3_vec_shuf", "g3_vec_aug")
+ARMS = ("g3_base", "g3_vec", "g3_vec_ctl", "g3_vec_shuf", "g3_vec_aug", "g3_vec_aug2")
 
 
-def build(arm, *, vectors, vectors_fill, shift_aug=None, shift_prob=0.0, **kw):
+def build(arm, *, vectors, vectors_fill, shift_aug=None, shift_prob=0.0,
+          shift_cos=None, **kw):
     # v2's OWN published baseline: UPOS + FEATS, no typology, NO language embedding.
     cfg = build_v2("g2_base", **kw)
     embed = cfg["components"]["tok2vec"]["model"]["embed"]
@@ -78,6 +80,14 @@ def build(arm, *, vectors, vectors_fill, shift_aug=None, shift_prob=0.0, **kw):
         embed["vectors_shuffle"] = True
     elif arm == "g3_vec_aug":
         embed.update({"vectors_shift_aug": shift_aug, "vectors_shift_prob": shift_prob})
+    elif arm == "g3_vec_aug2":
+        # Same idea, correctly calibrated. g3_vec_aug ADDS a sampled displacement, which
+        # under-perturbs: cos 0.704 (sd 0.072) against a real gloss's 0.460 (sd 0.185), because a
+        # shift is correlated with its own source and lands smaller against an unrelated vector.
+        # This draws the TARGET COSINE from the empirical distribution and takes only the direction
+        # from a real shift, so both moments match the deployment geometry by construction.
+        embed.update({"vectors_shift_aug": shift_aug, "vectors_shift_prob": shift_prob,
+                      "vectors_shift_cos": shift_cos})
     else:
         raise ValueError(f"unknown arm {arm}")
     return cfg
@@ -92,6 +102,7 @@ def main():
     ap.add_argument("--manifest", default="assets_generic_v2/manifest.json")
     ap.add_argument("--vectors", default="assets_vec/generic_vec_v3.npz")
     ap.add_argument("--shift-aug", default="assets_vec/gloss_shift_sample_v3.npy")
+    ap.add_argument("--shift-cos", default="assets_vec/gloss_cos_v3.npy")
     ap.add_argument("--shift-prob", type=float, default=0.5,
                     help="fraction of in-table tokens displaced per step, for g3_vec_aug")
     ap.add_argument("--vectors-fill", default="lemma", choices=("lemma", "gloss", "auto"),
@@ -125,7 +136,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     for arm in a.arm:
         cfg = build(arm, vectors=a.vectors, vectors_fill=a.vectors_fill,
-                    shift_aug=a.shift_aug, shift_prob=a.shift_prob,
+                    shift_aug=a.shift_aug, shift_prob=a.shift_prob, shift_cos=a.shift_cos,
                     corpus=a.corpus, typology=a.typology, feats=feats, feat_rows=feat_rows,
                     langs=langs, seed=a.seed, width=a.width, depth=a.depth,
                     hidden_width=a.hidden_width, max_steps=a.max_steps,
