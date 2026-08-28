@@ -1,8 +1,8 @@
 # The generic parser v3: a lexical channel you can fill with an English gloss
 
-> **Status: seed 0 only.** Every number below is single-seed and none of it is a claim yet. Seeds 1
-> and 2 are running. The repo's standing rule applies — one seed once reported +0.46 LAS on a
-> channel whose three-seed mean was +0.04.
+> **Status: three seeds, complete.** Deltas are computed per seed against that seed's OWN baseline,
+> so baseline drift cannot leak into an arm. Ranges are reported beside every mean, and the ones
+> that swallow their effect are named as such.
 
 v2 reads UPOS + FEATS + a typological profile and no wordform at all. v3 adds back **one lexical
 channel**, and changes what fills it.
@@ -90,40 +90,54 @@ in: mean fillable is 51.3 % by lemma and 37.0 % by form, while the three held-ou
 a real gloss column run 67–81 %. Yoruba is the instructive case — 67.4 % from its own column against
 15.3 % from Wiktionary, so the shortfall is the dictionary, not the language.
 
-## Results (seed 0)
+## Results (three seeds)
 
-The baseline reproduces v2's published `g2_base`: **54.45** against **54.24**, so this harness and
-v2's agree and the delta is read against a published number.
+The baseline reproduces v2's published `g2_base`: **54.45 / 53.82 / 54.45** against **54.24**.
 
-Held-in dev LAS: base 72.21, capacity control 72.05, shuffled 72.55, **`g3_vec` 73.89**,
-`g3_vec_aug` 73.74. **Three different null channels converge to 72.0–72.6 and only real vectors move
-it** — so the gain is information, not capacity. (A mid-training reading of the shuffled arm at step
-11 000 said 70.39 and looked like "a wrong vector is actively harmful"; it caught up by convergence.
-Read controls at convergence.)
+Held-in dev LAS: base 72.05, capacity control 71.88, shuffled 72.31, **`g3_vec` 73.72**,
+`g3_vec_aug` 73.50, `g3_vec_aug2` 73.44. Both null channels sit within ±0.3 of the baseline and
+every informative arm sits +1.4 to +1.7 above it.
 
-Zero-shot, held-out and genus-disjoint:
+Zero-shot, **six languages with real aligned rows**, delta vs baseline:
 
-| | lemma fill | gloss fill |
-|---|---|---|
-| **6 with real aligned rows** | | |
-| `g3_vec` | **+4.51** | −0.86 |
-| `g3_vec_aug` | +3.90 | **+0.74** |
-| **10 with no rows, gloss-scorable** | | |
-| `g3_vec` | −1.88 | −2.23 |
-| `g3_vec_aug` | **−0.21** | −0.24 |
-| **all 20, lemma fill** | `g3_vec` +0.17 · `g3_vec_aug` **+0.84** | |
+| arm / fill | s0 | s1 | s2 | **mean** | range |
+|---|---|---|---|---|---|
+| `g3_vec_ctl` / lemma | −0.96 | +0.43 | +1.56 | +0.34 | 2.52 |
+| `g3_vec_shuf` / lemma | +1.92 | +3.69 | +2.70 | **+2.77** | 1.77 |
+| `g3_vec` / lemma | +4.51 | +5.51 | +6.31 | **+5.44** | 1.80 |
+| `g3_vec` / gloss | −0.86 | +0.43 | +2.03 | +0.53 | 2.89 |
+| `g3_vec_aug` / lemma | +3.90 | +4.68 | +5.79 | +4.79 | 1.89 |
+| **`g3_vec_aug` / gloss** | +0.74 | +1.53 | +0.73 | **+1.00** | **0.80** |
+| `g3_vec_aug2` / lemma | +2.58 | +4.09 | +4.72 | +3.80 | 2.14 |
+| `g3_vec_aug2` / gloss | −1.57 | +1.40 | +2.08 | +0.64 | 3.65 |
 
-**1. The channel works: +4.51 macro LAS** on languages whose genus never appears in training. Large
-for one input, and the uplift v1 looked for and did not find.
+**1. The channel works where it has rows: +5.44.** Every seed positive.
 
-**2. An empty channel is not free: −1.88.** This contradicts what the layer's own comment argued
-while the guard was being softened — that 48 of 80 training languages being all-OOV would teach the
-model to condition on the OOV dimension. It does not. v2's "an unfitted channel is not a neutral
-one", arriving where it had been argued away.
+**2. ⚠ THE SHUFFLE CONTROL GAINS +2.77 AND SHOULD NOT.** It permutes rows WITHIN a doc, which
+destroys token-level alignment but preserves the document's bag of lexical content. So only about
+**+2.67 of the +5.44** is attributable to per-token correctness; the rest is available from
+document-level content however arranged. A clean control must shuffle ACROSS documents. This is the
+number in the sweep to trust least, and it is a design error rather than a finding.
 
-**3. The gloss substitution does not transfer on its own: −0.86.** Geometrically sound and still a
-loss, with a NEGATIVE correlation between fill rate and delta. cos 0.46 is a different distribution,
-not a noisy version of the same one.
+**3. The gloss fill needs augmentation to be worth anything, and then it is worth about +1.00.**
+Unaugmented it is +0.53 with a range of 2.89 — indistinguishable from zero. Augmented it is +1.00
+with a range of 0.80, positive in all three seeds and the tightest row in the table. The
+augmentation's contribution is **reliability**, not headroom.
+
+**4. ⚠ MATCHING THE DEPLOYMENT DISTRIBUTION IS THE WRONG TARGET FOR THE AUGMENTATION.** `g3_vec_aug`
+perturbs to cos 0.70 by accident; `g3_vec_aug2` perturbs to cos 0.4611 (sd 0.1840) against a real
+gloss's 0.4597 (sd 0.1845) — correct in both moments, and WORSE: +0.64 against +1.00 on the gloss
+fill, with a range of 3.65 against 0.80, and −0.99 on the lemma fill. Perturbing all the way to the
+deployment geometry destroys enough of the training signal that the model learns less from the
+channel than it loses. **The mis-calibration was load-bearing.** The right augmentation strength is
+a bias-variance trade-off to be tuned, not a distribution to be matched.
+
+**5. Nothing on the fourteen languages with no rows survives three seeds.** Every arm lands between
+−1.16 and −0.19 with ranges of 1.5–2.4. The seed-0 reading that an empty channel costs 1.88 LAS, and
+that augmentation repairs it, are both inside noise and are withdrawn.
+
+Over all twenty languages on the lemma fill: `g3_vec_aug` **+1.22** (range 0.75) is both the best
+and the tightest, ahead of `g3_vec` +1.09 and `g3_vec_aug2` +0.97.
 
 ## The shift is a structured displacement, and that is what fixes it
 
@@ -146,9 +160,13 @@ on. The residual is, and it is 65 % of the shift.
 
 `g3_vec_aug` therefore displaces each training lemma vector by a **real shift vector sampled from
 the measured 20 000**. The training signal is still the language's own aligned lemma vector — the
-displacement is applied TO it, not substituted for it — and **no gloss enters training**. It moves
-the gloss fill from −0.86 to +0.74 and the dead-channel cost from −1.88 to −0.21, at a cost of 0.61
-on the lemma fill.
+displacement is applied TO it, not substituted for it — and **no gloss enters training**.
+
+⚠ **It does so at cos 0.7042 (sd 0.0717), not at the real 0.4597 (sd 0.1845)** — adding a
+displacement sampled from one pair to an unrelated vector under-perturbs, because a displacement is
+correlated with its own source. `g3_vec_aug2` corrects that exactly (0.4611 / 0.1840) by sampling
+the target cosine from the empirical distribution and taking only the direction from a real shift.
+**It is worse.** See result 4: the accident was load-bearing.
 
 ## Traps
 
