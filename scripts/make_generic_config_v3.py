@@ -54,7 +54,15 @@ from thinc.api import Config
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from make_generic_config_v2 import build as build_v2, feats_inventory   # noqa: E402
 
-ARMS = ("g3_base", "g3_vec", "g3_vec_ctl", "g3_vec_shuf", "g3_vec_aug", "g3_vec_aug2")
+#: The augmentation STRENGTH sweep. k scales distance-from-1 on the empirical cosine distribution,
+#: so the shape survives and only the centre moves: k=1.00 reproduces the real lemma->gloss geometry
+#: (cos 0.461), k=0.25 is a gentle nudge (0.865). k=0.55 lands on cos 0.704 -- the same STRENGTH as
+#: g3_vec_aug's accidental additive perturbation but with realistic SPREAD (sd 0.101 against 0.072),
+#: which is what separates the two variables those two arms confounded.
+AUG_K = {"g3_aug_k25": 0.25, "g3_aug_k40": 0.40, "g3_aug_k55": 0.55, "g3_aug_k75": 0.75}
+
+ARMS = (("g3_base", "g3_vec", "g3_vec_ctl", "g3_vec_shuf", "g3_vec_aug", "g3_vec_aug2")
+        + tuple(AUG_K))
 
 
 def build(arm, *, vectors, vectors_fill, shift_aug=None, shift_prob=0.0,
@@ -80,6 +88,9 @@ def build(arm, *, vectors, vectors_fill, shift_aug=None, shift_prob=0.0,
         embed["vectors_shuffle"] = True
     elif arm == "g3_vec_aug":
         embed.update({"vectors_shift_aug": shift_aug, "vectors_shift_prob": shift_prob})
+    elif arm in AUG_K:
+        embed.update({"vectors_shift_aug": shift_aug, "vectors_shift_prob": shift_prob,
+                      "vectors_shift_cos": shift_cos, "vectors_shift_strength": AUG_K[arm]})
     elif arm == "g3_vec_aug2":
         # Same idea, correctly calibrated. g3_vec_aug ADDS a sampled displacement, which
         # under-perturbs: cos 0.704 (sd 0.072) against a real gloss's 0.460 (sd 0.185), because a

@@ -160,12 +160,14 @@ def load_vectors(path: str) -> _VecTable:
 
 
 def VecExtractor(table: _VecTable, fill: str, shuffle: bool = False, debias=None,
-                 shift_aug=None, shift_prob: float = 0.0, seed: int = 0, shift_cos=None):
+                 shift_aug=None, shift_prob: float = 0.0, seed: int = 0, shift_cos=None,
+                 shift_strength: float = 1.0):
     return Model("extract_aligned_vec", _vec_forward,
                  attrs={"vt_table": table, "vt_fill": fill, "vt_shuffle": bool(shuffle),
                         "vt_debias": debias, "vt_dim": table.dim + 1,
                         "vt_shift": shift_aug, "vt_shift_p": float(shift_prob),
-                        "vt_cos": shift_cos, "vt_rng": np.random.default_rng(seed)})
+                        "vt_cos": shift_cos, "vt_k": float(shift_strength),
+                        "vt_rng": np.random.default_rng(seed)})
 
 
 def _vec_forward(model: Model, docs, is_train: bool):
@@ -271,7 +273,16 @@ def _vec_forward(model: Model, docs, is_train: bool):
                     # only the DIRECTION from a real shift, orthogonalised against v. Matches the
                     # deployment geometry in both moments by construction, instead of in neither.
                     v0 = table.V[r]
-                    c = float(cosd[rngm.integers(len(cosd))])
+                    # STRENGTH scales DISTANCE FROM 1, not the cosine itself, so the empirical
+                    # distribution's SHAPE survives while its centre moves: k = 1 reproduces the
+                    # real lemma->gloss geometry (mean 0.4597), k < 1 is a milder perturbation.
+                    # Scaling the cosine directly would squash the spread toward zero as well as
+                    # the mean, which would confound strength with spread -- and those are exactly
+                    # the two things g3_vec_aug and g3_vec_aug2 differ in, which is why neither
+                    # of them can serve as a point on a strength axis.
+                    k = model.attrs.get("vt_k", 1.0)
+                    c = 1.0 - (1.0 - float(cosd[rngm.integers(len(cosd))])) * k
+                    c = max(-1.0, min(1.0, c))
                     perp = d - float(d @ v0) * v0
                     pn = float(np.linalg.norm(perp))
                     if pn < 1e-6:
@@ -347,6 +358,7 @@ def GenericEmbedV3(
     vectors_shift_aug: Optional[str] = None,
     vectors_shift_prob: float = 0.0,
     vectors_shift_cos: Optional[str] = None,
+    vectors_shift_strength: float = 1.0,
     vectors_seed: int = 0,
 ) -> Model[List[Doc], List[Floats2d]]:
     import collections
@@ -423,7 +435,7 @@ def GenericEmbedV3(
         vex = (VecConstantExtractor(vdim) if vectors_constant
                else VecExtractor(table, vectors_fill, shuffle=vectors_shuffle, debias=db,
                                  shift_aug=sh, shift_prob=vectors_shift_prob, seed=vectors_seed,
-                                 shift_cos=sc))
+                                 shift_cos=sc, shift_strength=vectors_shift_strength))
         pieces.append(chain(vex, list2ragged(), with_array(Linear(width, vdim))))
         n_blocks += 1
 
