@@ -16,9 +16,18 @@ the candidate senses supplied, glossing Old Armenian is a SELECTION task rather 
 Without them the model is being asked what it knows about a language it has barely seen, and it
 will answer confidently either way.
 
-⚠ ONE CALL PER SENTENCE, NOT PER TOKEN. Context is the whole point of using a model at all, and the
-repo's Ollama ceiling is ~3 calls/s with no gain from parallelism (CLAUDE.md) -- per token that
-would be 10 000 calls a language against 1 000.
+⚠ ONE CALL PER WINDOW OF ~15 TOKENS, WITH THE WHOLE SENTENCE AS CONTEXT. Per-token would be 10 000
+calls a language; per-SENTENCE was tried first and failed on length, because a model cannot hold
+array alignment over a long list. Measured on gemma4, fallback by sentence length:
+
+    0-9 tokens   0 %      20-29   67 %      40-49   87 %
+    10-19       18 %      30-39   76 %      50+    100 %
+
+Yoruba's median sentence is 25 tokens, so a THIRD to a HALF of sentences never got a model gloss at
+all and quietly fell back to the dictionary -- which dragged the measured quality toward the
+dictionary's and made it look as though the model was barely better. Windows bound the output length
+where the failures actually come from, and a failing window now falls back ALONE rather than taking
+its whole sentence with it.
 
 ⚠ A WRONG-LENGTH REPLY IS A FAILURE, NEVER PADDED OR TRUNCATED. A misaligned gloss list attaches
 every gloss to the wrong token, and nothing downstream would notice: the channel would fill at a
@@ -51,10 +60,13 @@ _HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_URL = os.environ.get("OLLAMA_URL") or _HOST.rstrip("/") + "/api/generate"
 MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:latest")
 
-PROMPT = """You are producing an interlinear English gloss for one sentence of {lang}.
+PROMPT = """You are producing an interlinear English gloss for part of one sentence of {lang}.
 
-The sentence tokens are listed one per line and numbered. For some tokens a dictionary offers
-candidate English senses; choose the one that fits THIS sentence, or give a better one if none fit.
+Full sentence, for context:
+{context}
+
+Gloss ONLY these {n} tokens. For some a dictionary offers candidate English senses; choose the one
+that fits THIS sentence, or give a better one if none fit.
 
 {lines}
 
@@ -159,6 +171,9 @@ def main():
     ap.add_argument("--cache", default=None)
     ap.add_argument("--max-sents", type=int, default=0)
     ap.add_argument("--max-cands", type=int, default=8)
+    ap.add_argument("--window", type=int, default=15,
+                    help="tokens per call. Failure is almost purely a function of this: 0 %% below "
+                         "10, 67 %% at 20-29, 100 %% above 50.")
     ap.add_argument("--grade", action="store_true",
                     help="score against the treebank's own human Gloss= column")
     a = ap.parse_args()
@@ -181,27 +196,33 @@ def main():
         if key in cache:
             glosses = cache[key]
         else:
-            lines = []
-            for i, t in enumerate(toks, 1):
-                c = wik.get(t) or wik.get(t.lower()) or []
-                lines.append(f"{i}. {t}" + (f"   [candidates: {', '.join(c)}]" if c else ""))
-            prompt = PROMPT.format(lang=a.lang_name, lines="\n".join(lines), n=len(toks))
-            glosses = None
-            for _ in range(2):
-                try:
-                    glosses = parse_array(ask(prompt), len(toks))
-                except Exception:
-                    glosses = None
-                if glosses:
-                    break
-            if not glosses:
-                n_fail += 1
-                # fall back to the dictionary rather than to nothing, and count that it happened
-                glosses = [" ".join((wik.get(t) or wik.get(t.lower()) or [])[:3]) for t in toks]
+            ctx = " ".join(toks)
+            glosses, W = [], a.window
+            for s0 in range(0, len(toks), W):
+                chunk = toks[s0:s0 + W]
+                lines = []
+                for i, tk in enumerate(chunk, 1):
+                    c = wik.get(tk) or wik.get(tk.lower()) or []
+                    lines.append(f"{i}. {tk}" + (f"   [candidates: {', '.join(c)}]" if c else ""))
+                prompt = PROMPT.format(lang=a.lang_name, context=ctx,
+                                       lines="\n".join(lines), n=len(chunk))
+                got = None
+                for _ in range(2):
+                    try:
+                        got = parse_array(ask(prompt), len(chunk))
+                    except Exception:
+                        got = None
+                    if got:
+                        break
+                if not got:
+                    n_fail += 1
+                    got = [" ".join((wik.get(tk) or wik.get(tk.lower()) or [])[:3]) for tk in chunk]
+                glosses += got
             cache[key] = glosses
             if n_sent % 25 == 0:
                 json.dump(cache, open(cache_path, "w", encoding="utf-8"), ensure_ascii=False)
-                print(f"  {n_sent} sentences, {n_fail} fell back", file=sys.stderr, flush=True)
+                print(f"  {n_sent} sentences, {n_fail} windows fell back",
+                      file=sys.stderr, flush=True)
         out[key] = glosses
         if a.grade:
             pairs += [(g, h) for g, h in zip(glosses, gold) if h and g]
@@ -212,7 +233,7 @@ def main():
     total = sum(len(v) for v in out.values())
     filled = sum(1 for v in out.values() for g in v if g)
     print(f"{a.lang}: {n_sent} sentences, {total} tokens, {filled / max(total, 1):.1%} glossed, "
-          f"{n_fail} sentences fell back to the dictionary")
+          f"{n_fail} WINDOWS fell back to the dictionary")
     print(f"wrote {dest}")
 
     if a.grade and pairs:
