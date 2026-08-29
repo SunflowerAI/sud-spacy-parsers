@@ -86,14 +86,22 @@ TAB = "\t"
 SPLIT = re.compile(r"[-.:=,;/\[\]()<>+~]+|_")
 
 
+class Unreachable(Exception):
+    """The server went away. Distinct from a bad reply, and it must NOT become a fallback."""
+
+
 def ask(prompt, timeout=240):
     req = urllib.request.Request(
         OLLAMA_URL,
         data=json.dumps({"model": MODEL, "prompt": prompt, "stream": False,
                          "think": False, "options": {"temperature": 0}}).encode(),
         headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read())["response"]
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())["response"]
+    except urllib.error.URLError as e:
+        # connection refused / tunnel dropped / host gone -- not a modelling failure
+        raise Unreachable(str(e)) from e
 
 
 def parse_array(text, n):
@@ -177,6 +185,8 @@ def main():
     ap.add_argument("--cache", default=None)
     ap.add_argument("--max-sents", type=int, default=0)
     ap.add_argument("--max-cands", type=int, default=3)
+    ap.add_argument("--max-fallback", type=float, default=0.30,
+                    help="refuse to write output if more than this fraction of windows fell back")
     ap.add_argument("--window", type=int, default=15,
                     help="tokens per call. Failure is almost purely a function of this: 0 %% below "
                          "10, 67 %% at 20-29, 100 %% above 50.")
@@ -216,6 +226,17 @@ def main():
                 for _ in range(2):
                     try:
                         got = parse_array(ask(prompt), len(chunk))
+                    except Unreachable as e:
+                        # ⚠ ABORT, NEVER FALL BACK. An ssh tunnel died mid-run once and every
+                        # window after it "succeeded" straight into the dictionary: four languages
+                        # wrote complete-looking output files that were 100 % Wiktionary, with
+                        # glossed-percentages that happened to equal their Wiktionary coverage
+                        # exactly. Nothing raised, and the files would have been evaluated as LLM
+                        # glosses. A dead server is not a hard sentence.
+                        sys.exit(f"\nABORTING: the model is unreachable ({e}). "
+                                 f"{n_sent} sentences done, {n_fail} windows had genuinely fallen "
+                                 f"back. Nothing written -- fix the connection and re-run; the "
+                                 f"cache keeps completed sentences.")
                     except Exception:
                         got = None
                     if got:
@@ -234,6 +255,12 @@ def main():
             pairs += [(g, h) for g, h in zip(glosses, gold) if h and g]
 
     json.dump(cache, open(cache_path, "w", encoding="utf-8"), ensure_ascii=False)
+    # A second refusal, for degradation that is not a clean disconnection.
+    n_win = sum((len(v) + a.window - 1) // a.window for v in out.values())
+    if n_win and n_fail / n_win > a.max_fallback:
+        sys.exit(f"ABORTING: {n_fail}/{n_win} windows ({n_fail/n_win:.0%}) fell back to the "
+                 f"dictionary, over the --max-fallback of {a.max_fallback:.0%}. That output would "
+                 f"be mostly Wiktionary wearing an -llm.json name. Nothing written.")
     dest = a.out or f"assets_vec/dict/{a.lang}-llm.json"
     json.dump(out, open(dest, "w", encoding="utf-8"), ensure_ascii=False)
     total = sum(len(v) for v in out.values())
