@@ -60,21 +60,27 @@ _HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_URL = os.environ.get("OLLAMA_URL") or _HOST.rstrip("/") + "/api/generate"
 MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:latest")
 
-PROMPT = """You are producing an interlinear English gloss for part of one sentence of {lang}.
+# ⚠ FIXED TEXT FIRST, VARIABLE TEXT LAST -- but do not expect KV reuse from it. Measured on a
+# QUIET server, consecutive windows of one sentence take 5.12s / 5.46s / 5.45s of prompt_eval while
+# the SAME prompt repeated takes 0.43s. So Ollama's cache is worth 12x and this workload captures
+# none of it: the shared prefix is ~120 of ~474 tokens and the bulk -- the per-token candidate
+# lines -- is unique to every call by construction. Ordering still costs nothing and helps if a
+# future server does partial-prefix reuse.
+#
+# The lever that DOES work is prompt LENGTH. Trimming candidates 8 -> 3 and tightening the wording
+# took 517 tokens / 5.9s to 447 / 4.8s, about 18 %.
+PROMPT = """You are an interlinear glossing engine for {lang}.
+Return ONLY a JSON array of strings, one gloss per numbered token, in order.
+Each gloss is 1-3 lowercase English words giving that token's MEANING in this context.
+For punctuation return the mark itself. For a grammatical morpheme with no English word, return the
+closest English function word (for example "of", "to", "not", "the").
+Where candidates are offered, choose the one that fits; give a better one if none fit.
+No explanation, no keys, no markdown fence.
 
-Full sentence, for context:
-{context}
-
-Gloss ONLY these {n} tokens. For some a dictionary offers candidate English senses; choose the one
-that fits THIS sentence, or give a better one if none fit.
-
+Sentence: {context}
+Tokens:
 {lines}
-
-Return ONLY a JSON array of exactly {n} strings, one gloss per token, in order.
-Each gloss is 1-3 lowercase English words giving that token's MEANING here.
-For punctuation, return the punctuation mark itself. For a grammatical morpheme with no English
-word, return the closest English function word (for example "of", "to", "not", "the").
-No explanation, no keys, no markdown fence -- just the JSON array."""
+Array length: {n}"""
 
 TAB = "\t"
 SPLIT = re.compile(r"[-.:=,;/\[\]()<>+~]+|_")
@@ -170,7 +176,7 @@ def main():
     ap.add_argument("--out", default=None)
     ap.add_argument("--cache", default=None)
     ap.add_argument("--max-sents", type=int, default=0)
-    ap.add_argument("--max-cands", type=int, default=8)
+    ap.add_argument("--max-cands", type=int, default=3)
     ap.add_argument("--window", type=int, default=15,
                     help="tokens per call. Failure is almost purely a function of this: 0 %% below "
                          "10, 67 %% at 20-29, 100 %% above 50.")
@@ -203,7 +209,7 @@ def main():
                 lines = []
                 for i, tk in enumerate(chunk, 1):
                     c = wik.get(tk) or wik.get(tk.lower()) or []
-                    lines.append(f"{i}. {tk}" + (f"   [candidates: {', '.join(c)}]" if c else ""))
+                    lines.append(f"{i}. {tk}" + (f" [{', '.join(c)}]" if c else ""))
                 prompt = PROMPT.format(lang=a.lang_name, context=ctx,
                                        lines="\n".join(lines), n=len(chunk))
                 got = None

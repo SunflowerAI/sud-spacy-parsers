@@ -59,7 +59,8 @@ def load_gloss_dict(path, top=3):
     return {k: " ".join(list(v)[:top]) for k, v in raw.items() if v}
 
 
-def run(nlp, refs, lang, gloss=None, gloss_key="lemma", copy_lemma=True):
+def run(nlp, refs, lang, gloss=None, gloss_key="lemma", copy_lemma=True,
+        mode="wiktionary"):
     """Predict over gold tokens with gold UPOS/FEATS -- the arm's DECLARED inputs -- plus glosses.
 
     Mirrors eval_generic_v2.run(); the only addition is Token._.gloss. The morph OBJECT is copied
@@ -71,6 +72,13 @@ def run(nlp, refs, lang, gloss=None, gloss_key="lemma", copy_lemma=True):
         ref._.tb_lang = lang
         pred = Doc(nlp.vocab, words=[t.text for t in ref],
                    spaces=[bool(t.whitespace_) for t in ref])
+        # ⚠ POSITIONAL, AND LENGTH-CHECKED. An LLM gloss list is keyed by the sentence and applied
+        # by index, so a length mismatch would attach every gloss to the wrong token and nothing
+        # downstream would notice -- the same failure the glosser itself refuses.
+        llm_row = None
+        if mode == "llm" and gloss is not None:
+            cand = gloss.get("".join(t.text for t in ref))
+            llm_row = cand if cand and len(cand) == len(ref) else None
         for p, r in zip(pred, ref):
             p.pos = r.pos
             p.set_morph(r.morph)
@@ -83,7 +91,12 @@ def run(nlp, refs, lang, gloss=None, gloss_key="lemma", copy_lemma=True):
             if copy_lemma:
                 p.lemma = r.lemma
             n_tok += 1
-            if gloss is not None:
+            if mode == "llm":
+                g = llm_row[p.i] if llm_row else None
+                if g:
+                    p._.gloss = g
+                    n_gloss += 1
+            elif gloss is not None:
                 key = (r.lemma_ if gloss_key == "lemma" else r.text)
                 if key and key != "_":
                     g = gloss.get(key) or gloss.get(key.lower())
@@ -105,6 +118,11 @@ def main():
     ap.add_argument("--manifest", default="assets_generic_v2/manifest.json")
     ap.add_argument("--gloss-dir", default="assets_vec/dict")
     ap.add_argument("--gloss-key", default="form", choices=("lemma", "form"))
+    ap.add_argument("--gloss-mode", default="wiktionary", choices=("wiktionary", "llm"),
+                    help="wiktionary: <lang>-en.json, a {headword: bag} map keyed by lemma or form. "
+                         "llm: <lang>-llm.json, keyed by the sentence and applied POSITIONALLY, so "
+                         "--gloss-key does not apply and a sentence the glosser never saw gets "
+                         "nothing rather than a wrong-token gloss.")
     ap.add_argument("--fill", default="gloss", choices=("lemma", "gloss", "auto"))
     ap.add_argument("--split", default="test")
     ap.add_argument("--pool", default="test", choices=("test", "train"))
@@ -141,14 +159,16 @@ def main():
         refs = one_sentence_per_doc(refs, lang)
         gd = None
         if has_channel and a.fill in ("gloss", "auto"):
-            p = os.path.join(a.gloss_dir, f"{lang}-en.json")
+            suffix = "llm" if a.gloss_mode == "llm" else "en"
+            p = os.path.join(a.gloss_dir, f"{lang}-{suffix}.json")
             if os.path.exists(p):
-                gd = load_gloss_dict(p)
+                gd = (json.load(open(p, encoding="utf-8")) if a.gloss_mode == "llm"
+                      else load_gloss_dict(p))
             else:
                 unscorable.append(lang)
         # `gloss` alone is the pure deployment regime: UPOS, FEATS and a gloss, no lemma.
         ex, fill_rate = run(nlp, refs, lang, gloss=gd, gloss_key=a.gloss_key,
-                            copy_lemma=(a.fill != "gloss"))
+                            copy_lemma=(a.fill != "gloss"), mode=a.gloss_mode)
         if gd is not None and fill_rate == 0.0:
             # The failure the layer cannot see: a whole language whose channel was never filled.
             # Scoring it would report the no-channel number under the gloss fill's name.
@@ -159,7 +179,7 @@ def main():
         rows.append(dict(lang=lang, tokens=sum(len(e.reference) for e in ex),
                          sents=len(ex), uas=s["uas"], las=s["las"], sents_f=s["sents_f"],
                          gloss_fill=round(fill_rate, 4),
-                         gloss_source=("wiktionary" if gd else None),
+                         gloss_source=(a.gloss_mode if gd else None),
                          genus=man[lang]["genus"], family=man[lang]["family"]))
         print(f"  {lang:5s} n={rows[-1]['tokens']:6d}  UAS {s['uas']*100:5.2f}  "
               f"LAS {s['las']*100:5.2f}  gloss fill {fill_rate:5.1%}")
@@ -170,7 +190,7 @@ def main():
     if unscorable:
         print(f"NOT scorable on the gloss fill (no Wiktionary extract): {unscorable}")
 
-    out = dict(model=a.model, fill=a.fill, gloss_key=a.gloss_key, gloss_debias=a.gloss_debias, split=a.split, pool=a.pool,
+    out = dict(model=a.model, fill=a.fill, gloss_key=a.gloss_key, gloss_mode=a.gloss_mode, gloss_debias=a.gloss_debias, split=a.split, pool=a.pool,
                macro_las=macro, n_scored=len(scored), unscorable=unscorable, languages=rows)
     if a.json:
         pathlib.Path(a.json).parent.mkdir(parents=True, exist_ok=True)
