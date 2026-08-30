@@ -1,0 +1,26 @@
+{
+ "model": "/private/tmp/claude-501/-Users-sivakalyan-Linguistics-Tools-SUD-spaCy/07e019a8-7a45-459c-90c5-553065506e0c/scratchpad/adaptg_s0_vi",
+ "fill": "gloss",
+ "gloss_key": "form",
+ "gloss_mode": "llm",
+ "gloss_debias": null,
+ "split": "test",
+ "pool": "test",
+ "macro_las": 0.5196715703044817,
+ "n_scored": 1,
+ "unscorable": [],
+ "languages": [
+  {
+   "lang": "vi",
+   "tokens": 11692,
+   "sents": 800,
+   "uas": 0.6361614779336299,
+   "las": 0.5196715703044817,
+   "sents_f": 0.9869321717485999,
+   "gloss_fill": 0.9808,
+   "gloss_source": "llm",
+   "genus": "Viet-Muong",
+   "family": "Austro-Asiatic"
+  }
+ ]
+}

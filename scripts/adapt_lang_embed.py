@@ -32,6 +32,10 @@ from spacy.training import Example  # noqa: E402
 from thinc.api import Adam  # noqa: E402
 
 import sud_generic_embed_v2  # noqa: E402,F401  (registers sud.GenericEmbed.v2)
+import sud_generic_embed_v3  # noqa: E402,F401  (registers sud.GenericEmbed.v3 -- an
+#                              arm carrying the lexical channel cannot be LOADED
+#                              without it, so adaptation failed with E893 on every
+#                              g3_lemb_vec model until this line existed)
 
 
 def read_conllu(path):
@@ -86,12 +90,20 @@ def find_nodes(nlp, name):
     return out
 
 
-def docs_from_conllu(paths, n, seed, vocab, lang, no_feats=False, predict_tags=False,
-                     give_pos=False):
+def select(paths, n, seed):
+    """The exact sentences this adaptation will use. Factored out so the SAME set can be dumped and
+    glossed -- the sample is a seeded random draw, so guessing at it would silently gloss a
+    different fifty than the ones fitted on."""
     sents = [s for p in paths for s in read_conllu(p)]
     rng = random.Random(seed)
     if n and n < len(sents):
         sents = [sents[i] for i in sorted(rng.sample(range(len(sents)), n))]
+    return sents
+
+
+def docs_from_conllu(paths, n, seed, vocab, lang, no_feats=False, predict_tags=False,
+                     give_pos=False, gloss=None):
+    sents = select(paths, n, seed)
     out = []
     for rows in sents:
         idx = {r[0]: i for i, r in enumerate(rows)}
@@ -134,6 +146,16 @@ def docs_from_conllu(paths, n, seed, vocab, lang, no_feats=False, predict_tags=F
                     p.pos_ = rr[3]
                 if rr[5] != "_" and not no_feats:
                     p.set_morph(rr[5])
+        # ⚠ FIT THE ROW UNDER THE REGIME IT WILL BE USED IN. Without this the row is fitted with
+        # the lexical channel OOV on every token and then deployed with it filled -- the exact
+        # train/deploy mismatch this arm exists to avoid, and it understated the combined cell.
+        # The annotator produces the trees and the gloss line from ONE pass, so both are available.
+        if gloss is not None:
+            row = gloss.get("".join(words))
+            if row and len(row) == len(pred):
+                for p_, g in zip(pred, row):
+                    if g:
+                        p_._.gloss = g
         pred._.tb_lang = lang
         out.append(Example(pred, ref))
     return out
@@ -157,6 +179,12 @@ def main():
                          "doc. Also carries gold LEMMA on the reference.")
     ap.add_argument("--give-pos", action="store_true",
                     help="with --predict-tags: UPOS is an INPUT, FEATS and LEMMA targets")
+    ap.add_argument("--gloss", default=None,
+                    help="an <lang>-llm.json of {sentence: [glosses]}, applied POSITIONALLY, so the "
+                         "row is fitted with the lexical channel filled as it will be at inference")
+    ap.add_argument("--dump-sample", default=None,
+                    help="write the exact sentences this run would fit on, as CoNLL-U, and exit -- "
+                         "so they can be glossed and handed back via --gloss")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
 
@@ -185,7 +213,21 @@ def main():
         d[a.lang] = row
         node.attrs["ls_slots"] = d
 
-    examples = docs_from_conllu(a.conllu, a.n_sents, a.seed, nlp.vocab, a.lang, a.no_feats, a.predict_tags, a.give_pos)
+    if a.dump_sample:
+        with open(a.dump_sample, "w", encoding="utf-8") as fh:
+            for rows in select(a.conllu, a.n_sents, a.seed):
+                for r in rows:
+                    fh.write("\t".join(r) + "\n")
+                fh.write("\n")
+        print(f"wrote {a.dump_sample}: the {a.n_sents} sentences seed {a.seed} selects")
+        return
+    gl = json.load(open(a.gloss, encoding="utf-8")) if a.gloss else None
+    examples = docs_from_conllu(a.conllu, a.n_sents, a.seed, nlp.vocab, a.lang, a.no_feats,
+                                a.predict_tags, a.give_pos, gloss=gl)
+    if gl is not None:
+        n_g = sum(1 for e in examples for t_ in e.predicted if t_._.gloss)
+        n_t = sum(len(e.predicted) for e in examples)
+        print(f"  glosses on {n_g}/{n_t} adaptation tokens ({n_g/max(n_t,1):.1%})")
     print(f"{len(examples)} training examples, "
           f"{sum(len(e.reference) for e in examples):,} tokens")
 
