@@ -52,6 +52,8 @@ import os
 import pathlib
 import re
 import sys
+import time
+import urllib.error
 import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -102,6 +104,23 @@ def ask(prompt, timeout=240):
     except urllib.error.URLError as e:
         # connection refused / tunnel dropped / host gone -- not a modelling failure
         raise Unreachable(str(e)) from e
+
+
+def wait_for_server(seconds, step=5):
+    """Poll until the server answers again, or give up. True if it came back."""
+    waited = 0
+    while waited < seconds:
+        time.sleep(step)
+        waited += step
+        try:
+            ask("ping", timeout=20)
+            print(f"  server back after {waited}s", file=sys.stderr, flush=True)
+            return True
+        except Unreachable:
+            continue
+        except Exception:
+            return True          # answering, just not usefully -- that is a modelling problem
+    return False
 
 
 def parse_array(text, n):
@@ -185,6 +204,8 @@ def main():
     ap.add_argument("--cache", default=None)
     ap.add_argument("--max-sents", type=int, default=0)
     ap.add_argument("--max-cands", type=int, default=3)
+    ap.add_argument("--reconnect-wait", type=int, default=180,
+                    help="seconds to keep retrying an unreachable server before aborting")
     ap.add_argument("--max-fallback", type=float, default=0.30,
                     help="refuse to write output if more than this fraction of windows fell back")
     ap.add_argument("--window", type=int, default=15,
@@ -227,16 +248,22 @@ def main():
                     try:
                         got = parse_array(ask(prompt), len(chunk))
                     except Unreachable as e:
-                        # ⚠ ABORT, NEVER FALL BACK. An ssh tunnel died mid-run once and every
-                        # window after it "succeeded" straight into the dictionary: four languages
-                        # wrote complete-looking output files that were 100 % Wiktionary, with
-                        # glossed-percentages that happened to equal their Wiktionary coverage
-                        # exactly. Nothing raised, and the files would have been evaluated as LLM
-                        # glosses. A dead server is not a hard sentence.
-                        sys.exit(f"\nABORTING: the model is unreachable ({e}). "
-                                 f"{n_sent} sentences done, {n_fail} windows had genuinely fallen "
-                                 f"back. Nothing written -- fix the connection and re-run; the "
-                                 f"cache keeps completed sentences.")
+                        # ⚠ WAIT, THEN ABORT -- NEVER FALL BACK. A connection error is not a hard
+                        # sentence, and conflating the two once produced four complete-looking
+                        # `-llm.json` files that were 100 % Wiktionary, because a dead tunnel made
+                        # every window "fail" instantly into the dictionary.
+                        #
+                        # But an 11-hour run must not die of a 5-second outage either: the tunnel
+                        # supervisor reconnects in ~5 s, and the first version of this guard aborted
+                        # before it could. So retry for --reconnect-wait, and abort only if the
+                        # server really is gone.
+                        if not wait_for_server(a.reconnect_wait):
+                            sys.exit(
+                                f"\nABORTING: model unreachable for {a.reconnect_wait}s ({e}). "
+                                f"{n_sent} sentences done, {n_fail} windows had genuinely fallen "
+                                f"back. Nothing written -- fix the connection and re-run; the "
+                                f"cache keeps completed sentences.")
+                        continue
                     except Exception:
                         got = None
                     if got:

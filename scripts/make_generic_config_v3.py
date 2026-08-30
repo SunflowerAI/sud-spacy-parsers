@@ -61,17 +61,27 @@ from make_generic_config_v2 import build as build_v2, feats_inventory   # noqa: 
 #: which is what separates the two variables those two arms confounded.
 AUG_K = {"g3_aug_k25": 0.25, "g3_aug_k40": 0.40, "g3_aug_k55": 0.55, "g3_aug_k75": 0.75}
 
+#: Arms carrying the RELEASED wheel's trainable per-language embedding as well. These are the
+#: FEW-SHOT cells: the embedding refuses an unseen language until one of its spare rows is fitted on
+#: a small annotated sample of it, and that sample is not a leak -- it is what the annotator
+#: produces. The gold trees fit the row and the gloss line fills the lexical channel, from ONE pass
+#: over the same text, which is what interlinear glossed text already is.
+LEMB = {"g3_lemb": False, "g3_lemb_vec": True}      # arm -> does it also carry the lexical channel
+
 ARMS = (("g3_base", "g3_vec", "g3_vec_ctl", "g3_vec_shuf", "g3_vec_aug", "g3_vec_aug2")
-        + tuple(AUG_K))
+        + tuple(AUG_K) + tuple(LEMB))
 
 
 def build(arm, *, vectors, vectors_fill, shift_aug=None, shift_prob=0.0,
           shift_cos=None, **kw):
-    # v2's OWN published baseline: UPOS + FEATS, no typology, NO language embedding.
-    cfg = build_v2("g2_base", **kw)
+    # v2's own published baseline for the zero-shot cells; its released-wheel shape (lang_embed,
+    # 112 rows) for the few-shot ones.
+    cfg = build_v2("g2_langemb" if arm in LEMB else "g2_base", **kw)
     embed = cfg["components"]["tok2vec"]["model"]["embed"]
     if arm == "g3_base":
-        return cfg                                  # untouched: this IS the released arm
+        return cfg                                  # untouched: this IS v2's published baseline
+    if arm == "g3_lemb":
+        return cfg                                  # untouched: the released wheel's shape
     embed["@architectures"] = "sud.GenericEmbed.v3"
     # ⚠ NOT `paths.vectors`. That key is spaCy's own: `[initialize] vectors` interpolates it and
     # tries to load a spaCy Vectors object, so pointing it at this table fails with E884 -- and
@@ -88,6 +98,8 @@ def build(arm, *, vectors, vectors_fill, shift_aug=None, shift_prob=0.0,
         embed["vectors_shuffle"] = True
     elif arm == "g3_vec_aug":
         embed.update({"vectors_shift_aug": shift_aug, "vectors_shift_prob": shift_prob})
+    elif arm == "g3_lemb_vec":
+        pass                                        # lang_embed from v2 + the channel keys above
     elif arm in AUG_K:
         embed.update({"vectors_shift_aug": shift_aug, "vectors_shift_prob": shift_prob,
                       "vectors_shift_cos": shift_cos, "vectors_shift_strength": AUG_K[arm]})
