@@ -140,6 +140,18 @@ def load_vectors(path: str) -> _VecTable:
         return _TABLES[path]
     p = pathlib.Path(path)
     if not p.exists():
+        # ⚠ A PACKAGED MODEL CANNOT USE AN ABSOLUTE BUILD-TIME PATH. spaCy resolves a config path
+        # against the CWD, not the model directory, so a wheel installed anywhere would look for
+        # the table wherever the user happens to be standing. Fall back to the table shipped beside
+        # this module inside the package, and only then give up.
+        here = pathlib.Path(__file__).resolve().parent
+        # In a built wheel the --code modules land in the package root and the model directory is a
+        # SUBDIRECTORY of it, so the table travels one level down from this file, not beside it.
+        for cand in [here / p.name] + sorted(here.glob(f"*/{p.name}")):
+            if cand.exists():
+                p = cand
+                break
+    if not p.exists():
         raise ValueError(
             f"sud.GenericEmbed.v3: no vector table at {path}. The channel has no neutral fallback "
             f"on purpose -- build it with scripts/build_generic_vectors_v3.py, or drop `vectors` "
