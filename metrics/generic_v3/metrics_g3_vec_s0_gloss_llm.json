@@ -1,0 +1,86 @@
+{
+ "model": "training_v3_g3_vec_s0/model-best",
+ "fill": "gloss",
+ "gloss_key": "form",
+ "gloss_mode": "llm",
+ "gloss_debias": null,
+ "split": "test",
+ "pool": "test",
+ "macro_las": 0.6006727788685126,
+ "n_scored": 6,
+ "unscorable": [],
+ "languages": [
+  {
+   "lang": "el",
+   "tokens": 10672,
+   "sents": 456,
+   "uas": 0.8556971514242878,
+   "las": 0.8143740629685158,
+   "sents_f": 0.95361380798274,
+   "gloss_fill": 0.9911,
+   "gloss_source": "llm",
+   "genus": "Greek",
+   "family": "IE"
+  },
+  {
+   "lang": "hu",
+   "tokens": 10448,
+   "sents": 449,
+   "uas": 0.7262633996937213,
+   "las": 0.6651990811638591,
+   "sents_f": 0.8742004264392323,
+   "gloss_fill": 0.9891,
+   "gloss_source": "llm",
+   "genus": "Ugric",
+   "family": "Uralic"
+  },
+  {
+   "lang": "lt",
+   "tokens": 10846,
+   "sents": 684,
+   "uas": 0.6544348146782224,
+   "las": 0.5779089065093121,
+   "sents_f": 0.7997302764666218,
+   "gloss_fill": 0.9876,
+   "gloss_source": "llm",
+   "genus": "Baltic",
+   "family": "IE"
+  },
+  {
+   "lang": "lv",
+   "tokens": 20232,
+   "sents": 1312,
+   "uas": 0.7241498616053776,
+   "las": 0.6626136812969553,
+   "sents_f": 0.8892948483741323,
+   "gloss_fill": 0.9787,
+   "gloss_source": "llm",
+   "genus": "Baltic",
+   "family": "IE"
+  },
+  {
+   "lang": "th",
+   "tokens": 7683,
+   "sents": 363,
+   "uas": 0.5443186255368997,
+   "las": 0.44201483795392427,
+   "sents_f": 0.8977423638778221,
+   "gloss_fill": 0.9961,
+   "gloss_source": "llm",
+   "genus": "Kam-Tai",
+   "family": "Tai-Kadai"
+  },
+  {
+   "lang": "vi",
+   "tokens": 11692,
+   "sents": 800,
+   "uas": 0.5360930550803968,
+   "las": 0.44192610331850835,
+   "sents_f": 0.8095794392523364,
+   "gloss_fill": 0.9808,
+   "gloss_source": "llm",
+   "genus": "Viet-Muong",
+   "family": "Austro-Asiatic"
+  }
+ ]
+}

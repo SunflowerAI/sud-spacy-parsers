@@ -1,0 +1,173 @@
+{
+ "table": "assets_vec/generic_vec_v3.npz",
+ "split": "test",
+ "top": 3,
+ "languages": [
+  {
+   "lang": "aln",
+   "tokens": 15990,
+   "headwords": 22676,
+   "dict_lemma": 0.6329,
+   "rows_lemma": 0.6302,
+   "dict_form": 0.3893,
+   "rows_form": 0.3864,
+   "genus": "Albanian"
+  },
+  {
+   "lang": "cop",
+   "tokens": 10372,
+   "headwords": 2653,
+   "dict_lemma": 0.3083,
+   "rows_lemma": 0.3082,
+   "dict_form": 0.3897,
+   "rows_form": 0.3896,
+   "genus": "Egyptian"
+  },
+  {
+   "lang": "el",
+   "tokens": 10672,
+   "headwords": 36058,
+   "dict_lemma": 0.7643,
+   "rows_lemma": 0.7638,
+   "dict_form": 0.4453,
+   "rows_form": 0.4451,
+   "genus": "Greek"
+  },
+  {
+   "lang": "eu",
+   "tokens": 20164,
+   "headwords": 7517,
+   "dict_lemma": 0.525,
+   "rows_lemma": 0.5243,
+   "dict_form": 0.2486,
+   "rows_form": 0.2461,
+   "genus": "Basque"
+  },
+  {
+   "lang": "grc",
+   "tokens": 13314,
+   "headwords": 36594,
+   "dict_lemma": 0.7469,
+   "rows_lemma": 0.7449,
+   "dict_form": 0.249,
+   "rows_form": 0.2458,
+   "genus": "Greek"
+  },
+  {
+   "lang": "hu",
+   "tokens": 10448,
+   "headwords": 70525,
+   "dict_lemma": 0.6288,
+   "rows_lemma": 0.626,
+   "dict_form": 0.5308,
+   "rows_form": 0.4934,
+   "genus": "Ugric"
+  },
+  {
+   "lang": "hy",
+   "tokens": 10667,
+   "headwords": 18629,
+   "dict_lemma": 0.5933,
+   "rows_lemma": 0.5923,
+   "dict_form": 0.3719,
+   "rows_form": 0.3702,
+   "genus": "Armenian"
+  },
+  {
+   "lang": "ka",
+   "tokens": 10041,
+   "headwords": 23545,
+   "dict_lemma": 0.5482,
+   "rows_lemma": 0.5461,
+   "dict_form": 0.3263,
+   "rows_form": 0.325,
+   "genus": "Kartvelian"
+  },
+  {
+   "lang": "lt",
+   "tokens": 10846,
+   "headwords": 28584,
+   "dict_lemma": 0.5048,
+   "rows_lemma": 0.5018,
+   "dict_form": 0.3158,
+   "rows_form": 0.2854,
+   "genus": "Baltic"
+  },
+  {
+   "lang": "lv",
+   "tokens": 20232,
+   "headwords": 124108,
+   "dict_lemma": 0.532,
+   "rows_lemma": 0.526,
+   "dict_form": 0.4588,
+   "rows_form": 0.4059,
+   "genus": "Baltic"
+  },
+  {
+   "lang": "quc",
+   "tokens": 10013,
+   "headwords": 339,
+   "dict_lemma": 0.1047,
+   "rows_lemma": 0.1037,
+   "dict_form": 0.08,
+   "rows_form": 0.0752,
+   "genus": "Mayan"
+  },
+  {
+   "lang": "th",
+   "tokens": 7683,
+   "headwords": 16718,
+   "dict_lemma": 0.8813,
+   "rows_lemma": 0.8812,
+   "dict_form": 0.8813,
+   "rows_form": 0.8812,
+   "genus": "Kam-Tai"
+  },
+  {
+   "lang": "vi",
+   "tokens": 11692,
+   "headwords": 33526,
+   "dict_lemma": 0.8053,
+   "rows_lemma": 0.8048,
+   "dict_form": 0.8059,
+   "rows_form": 0.8055,
+   "genus": "Viet-Muong"
+  },
+  {
+   "lang": "wo",
+   "tokens": 10403,
+   "headwords": 657,
+   "dict_lemma": 0.121,
+   "rows_lemma": 0.1188,
+   "dict_form": 0.1008,
+   "rows_form": 0.0987,
+   "genus": "Northern Atlantic"
+  },
+  {
+   "lang": "xcl",
+   "tokens": 11195,
+   "headwords": 5554,
+   "dict_lemma": 0.3852,
+   "rows_lemma": 0.3842,
+   "dict_form": 0.3128,
+   "rows_form": 0.3126,
+   "genus": "Armenian"
+  },
+  {
+   "lang": "yo",
+   "tokens": 8243,
+   "headwords": 4558,
+   "dict_lemma": 0.1506,
+   "rows_lemma": 0.1506,
+   "dict_form": 0.1529,
+   "rows_form": 0.1529,
+   "genus": "Defoid"
+  }
+ ],
+ "no_dictionary": [
+  "bor",
+  "ctn",
+  "kpv",
+  "xav"
+ ]
+}

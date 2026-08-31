@@ -1,0 +1,19 @@
+FOUR CELLS -- six held-out languages, delta vs baseline, three seeds
+
+cell                               s0     s1     s2    MEAN   rng
+gloss channel only              +4.31  +4.51  +6.53   +5.12  2.22
+language embedding only         +9.00  +9.90  +9.45   +9.45  0.90
+both, row fitted OOV            +9.82  +9.76 +10.86  +10.15  1.10
+both, row fitted GLOSSED        +9.87  +9.73 +10.87  +10.15  1.14
+
+marginal value of the glosses ON TOP of the embedding: +0.70
+  (was +0.70 with the row fitted OOV)
+if the two were independent: +14.57; observed +10.15
+
+per language, both/glossed vs embedding-only (mean of 3 seeds):
+  el   embedding  +3.84   both  +5.18   marginal +1.35
+  hu   embedding  +3.87   both  +6.85   marginal +2.99
+  lt   embedding  +8.78   both  +9.77   marginal +0.99
+  lv   embedding  +9.53   both +10.52   marginal +0.99
+  th   embedding +19.58   both +16.79   marginal -2.78
+  vi   embedding +11.12   both +11.80   marginal +0.68

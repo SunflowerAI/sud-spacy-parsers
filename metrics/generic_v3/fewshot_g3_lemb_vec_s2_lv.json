@@ -1,0 +1,26 @@
+{
+ "model": "/private/tmp/claude-501/-Users-sivakalyan-Linguistics-Tools-SUD-spaCy/07e019a8-7a45-459c-90c5-553065506e0c/scratchpad/adapt/g3_lemb_vec_s2_lv",
+ "fill": "gloss",
+ "gloss_key": "form",
+ "gloss_mode": "llm",
+ "gloss_debias": null,
+ "split": "test",
+ "pool": "test",
+ "macro_las": 0.7330466587584026,
+ "n_scored": 1,
+ "unscorable": [],
+ "languages": [
+  {
+   "lang": "lv",
+   "tokens": 20232,
+   "sents": 1312,
+   "uas": 0.7943851324634242,
+   "las": 0.7330466587584026,
+   "sents_f": 0.9657250470809793,
+   "gloss_fill": 0.9787,
+   "gloss_source": "llm",
+   "genus": "Baltic",
+   "family": "IE"
+  }
+ ]
+}

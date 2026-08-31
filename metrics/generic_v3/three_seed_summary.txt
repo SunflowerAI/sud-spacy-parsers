@@ -1,0 +1,32 @@
+
+=== SIX with real aligned rows ===
+arm / fill                    s0      s1      s2    MEAN  range
+g3_vec_ctl/lemma           -0.96   +0.43   +1.56   +0.34   2.52
+g3_vec_shuf/lemma          +1.92   +3.69   +2.70   +2.77   1.77
+g3_vec/lemma               +4.51   +5.51   +6.31   +5.44   1.80
+g3_vec/gloss               -0.86   +0.43   +2.03   +0.53   2.89
+g3_vec_aug/lemma           +3.90   +4.68   +5.79   +4.79   1.89
+g3_vec_aug/gloss           +0.74   +1.53   +0.73   +1.00   0.80
+g3_vec_aug2/lemma          +2.58   +4.09   +4.72   +3.80   2.14
+g3_vec_aug2/gloss          -1.57   +1.40   +2.08   +0.64   3.65
+
+=== TEN with no rows (gloss-scorable) ===
+arm / fill                    s0      s1      s2    MEAN  range
+g3_vec_ctl/lemma           -0.89   +0.61   -0.84   -0.37   1.50
+g3_vec_shuf/lemma          -0.58   +0.53   -0.93   -0.33   1.46
+g3_vec/lemma               -1.88   +0.48   -1.25   -0.88   2.36
+g3_vec/gloss               -2.23   +0.16   -1.42   -1.16   2.38
+g3_vec_aug/lemma           -0.21   +0.60   -1.11   -0.24   1.71
+g3_vec_aug/gloss           -0.24   +0.69   -1.01   -0.19   1.70
+g3_vec_aug2/lemma          -1.39   +0.70   -0.09   -0.26   2.09
+g3_vec_aug2/gloss          -1.28   +0.96   +0.20   -0.04   2.24
+
+=== ALL TWENTY (lemma fills) ===
+arm / fill                    s0      s1      s2    MEAN  range
+g3_vec_ctl/lemma           -0.92   +0.43   -0.04   -0.18   1.35
+g3_vec_shuf/lemma          +0.10   +1.11   +0.57   +0.59   1.01
+g3_vec/lemma               +0.17   +1.85   +1.25   +1.09   1.67
+g3_vec_aug/lemma           +0.84   +1.59   +1.23   +1.22   0.75
+g3_vec_aug2/lemma          -0.09   +1.62   +1.37   +0.97   1.71
+
+baseline macro LAS per seed: [54.45, 53.82, 54.45]

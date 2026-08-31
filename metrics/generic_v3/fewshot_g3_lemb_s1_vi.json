@@ -1,0 +1,26 @@
+{
+ "model": "/private/tmp/claude-501/-Users-sivakalyan-Linguistics-Tools-SUD-spaCy/07e019a8-7a45-459c-90c5-553065506e0c/scratchpad/adapt/g3_lemb_s1_vi",
+ "fill": "lemma",
+ "gloss_key": "form",
+ "gloss_mode": "wiktionary",
+ "gloss_debias": null,
+ "split": "test",
+ "pool": "test",
+ "macro_las": 0.5108621279507356,
+ "n_scored": 1,
+ "unscorable": [],
+ "languages": [
+  {
+   "lang": "vi",
+   "tokens": 11692,
+   "sents": 800,
+   "uas": 0.6212795073554567,
+   "las": 0.5108621279507356,
+   "sents_f": 0.8091068301225919,
+   "gloss_fill": 0.0,
+   "gloss_source": null,
+   "genus": "Viet-Muong",
+   "family": "Austro-Asiatic"
+  }
+ ]
+}

@@ -1,0 +1,26 @@
+{
+ "model": "training_v3_g3_vec_aug_s2/model-best",
+ "fill": "gloss",
+ "gloss_key": "form",
+ "gloss_mode": "llm",
+ "gloss_debias": null,
+ "split": "test",
+ "pool": "test",
+ "macro_las": 0.8238380809595203,
+ "n_scored": 1,
+ "unscorable": [],
+ "languages": [
+  {
+   "lang": "el",
+   "tokens": 10672,
+   "sents": 456,
+   "uas": 0.8588830584707646,
+   "las": 0.8238380809595203,
+   "sents_f": 0.9771490750816105,
+   "gloss_fill": 0.9911,
+   "gloss_source": "llm",
+   "genus": "Greek",
+   "family": "IE"
+  }
+ ]
+}

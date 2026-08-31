@@ -1,0 +1,9 @@
+FOUR CELLS -- six held-out languages, delta vs baseline, three seeds
+
+cell                             s0     s1     s2    MEAN   rng
+neither (baseline)            +0.00  +0.00  +0.00   +0.00  0.00
+gloss channel only            +4.31  +4.51  +6.53   +5.12  2.22
+language embedding only       +9.00  +9.90  +9.45   +9.45  0.90
+BOTH                          +9.82  +9.76 +10.86  +10.15  1.10
+
+(for reference, the aligned-vector ceiling on the same six: +5.44)

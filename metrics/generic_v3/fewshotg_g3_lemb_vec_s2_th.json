@@ -1,0 +1,26 @@
+{
+ "model": "/private/tmp/claude-501/-Users-sivakalyan-Linguistics-Tools-SUD-spaCy/07e019a8-7a45-459c-90c5-553065506e0c/scratchpad/adaptg_s2_th",
+ "fill": "gloss",
+ "gloss_key": "form",
+ "gloss_mode": "llm",
+ "gloss_debias": null,
+ "split": "test",
+ "pool": "test",
+ "macro_las": 0.5523883899518417,
+ "n_scored": 1,
+ "unscorable": [],
+ "languages": [
+  {
+   "lang": "th",
+   "tokens": 7683,
+   "sents": 363,
+   "uas": 0.6606794221007419,
+   "las": 0.5523883899518417,
+   "sents_f": 0.9432432432432433,
+   "gloss_fill": 0.9961,
+   "gloss_source": "llm",
+   "genus": "Kam-Tai",
+   "family": "Tai-Kadai"
+  }
+ ]
+}

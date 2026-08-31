@@ -1,0 +1,12 @@
+{
+ "has_aligned_rows": {
+  "n": 6,
+  "mean_lemma_delta": 4.506,
+  "mean_gloss_delta": -0.859
+ },
+ "no_rows": {
+  "n": 14,
+  "mean_lemma_delta": -1.685,
+  "mean_gloss_delta": -2.228
+ }
+}

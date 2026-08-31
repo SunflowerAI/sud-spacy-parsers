@@ -1,0 +1,648 @@
+{
+ "meta": {
+  "aligned44": [
+   "af",
+   "ar",
+   "bg",
+   "bn",
+   "bs",
+   "ca",
+   "cs",
+   "da",
+   "de",
+   "el",
+   "en",
+   "es",
+   "et",
+   "fa",
+   "fi",
+   "fr",
+   "he",
+   "hi",
+   "hr",
+   "hu",
+   "id",
+   "it",
+   "ko",
+   "lt",
+   "lv",
+   "mk",
+   "ms",
+   "nl",
+   "no",
+   "pl",
+   "pt",
+   "ro",
+   "ru",
+   "sk",
+   "sl",
+   "sq",
+   "sv",
+   "ta",
+   "th",
+   "tl",
+   "tr",
+   "uk",
+   "vi",
+   "zh"
+  ],
+  "min_lemma_fill": 0.5,
+  "train": [
+   "af",
+   "ar",
+   "bg",
+   "ca",
+   "cs",
+   "da",
+   "de",
+   "en",
+   "es",
+   "et",
+   "fa",
+   "fi",
+   "fr",
+   "he",
+   "hi",
+   "hr",
+   "id",
+   "it",
+   "ko",
+   "nl",
+   "no",
+   "pl",
+   "pt",
+   "ro",
+   "ru",
+   "sk",
+   "sl",
+   "sv",
+   "ta",
+   "tr",
+   "uk",
+   "zh"
+  ],
+  "test": [
+   "el",
+   "hu",
+   "lt",
+   "lv",
+   "th",
+   "vi"
+  ],
+  "basis_langs": [
+   "af",
+   "ar",
+   "bg",
+   "ca",
+   "cs",
+   "da",
+   "de",
+   "en",
+   "es",
+   "et",
+   "fa",
+   "fi",
+   "fr",
+   "he",
+   "hi",
+   "hr",
+   "id",
+   "it",
+   "ko",
+   "nl",
+   "no",
+   "pl",
+   "pt",
+   "ro",
+   "ru",
+   "sk",
+   "sl",
+   "sv",
+   "ta",
+   "tr",
+   "uk",
+   "zh"
+  ],
+  "note": "key=lemma everywhere except en, which is the deployment lookup and is keyed by form. Test tables carry a frequency head only and no treebank vocabulary."
+ },
+ "languages": {
+  "af": {
+   "vec": "assets_vec/src/align.af.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.af.align)",
+   "corpus": "SUD_Afrikaans-AfriBooms",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Afrikaans-AfriBooms/af_afribooms-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Afrikaans-AfriBooms/af_afribooms-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "ar": {
+   "vec": "assets_vec/src/align.ar.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.ar.align)",
+   "corpus": "LOCAL_Arabic",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_ar/SUD_Arabic-PADT/ar_padt-sud-train.relabeled_ext.conllu",
+    "assets_ar/SUD_Arabic-PADT/ar_padt-sud-dev.relabeled_ext.conllu"
+   ],
+   "key_norm": "ar"
+  },
+  "bg": {
+   "vec": "assets_vec/src/align.bg.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.bg.align)",
+   "corpus": "SUD_Bulgarian-BTB",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Bulgarian-BTB/bg_btb-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Bulgarian-BTB/bg_btb-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "ca": {
+   "vec": "assets_vec/src/align.ca.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.ca.align)",
+   "corpus": "SUD_Catalan-AnCora",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Catalan-AnCora/ca_ancora-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Catalan-AnCora/ca_ancora-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "cs": {
+   "vec": "assets_vec/src/align.cs.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.cs.align)",
+   "corpus": "SUD_Czech-PDTC",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Czech-PDTC/cs_pdtc-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Czech-PDTC/cs_pdtc-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "da": {
+   "vec": "assets_vec/src/align.da.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.da.align)",
+   "corpus": "SUD_Danish-DDT",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Danish-DDT/da_ddt-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Danish-DDT/da_ddt-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "de": {
+   "vec": "assets_vec/src/align.de.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.de.align)",
+   "corpus": "SUD_German-HDT",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_German-HDT/de_hdt-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_German-HDT/de_hdt-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "el": {
+   "vec": "assets_vec/src/align.el.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "test",
+   "src": "fastText aligned (wiki.el.align)",
+   "corpus": "SUD_Greek-GDT",
+   "lemma_fill": 1.0,
+   "treebank": [],
+   "key_norm": null
+  },
+  "en": {
+   "vec": "assets_vec/src/align.en.vec",
+   "route": "hub",
+   "key": "form",
+   "pool": "train",
+   "src": "fastText aligned (wiki.en.align)",
+   "corpus": "LOCAL_English",
+   "lemma_fill": 0.9993,
+   "treebank": [
+    "assets/en_ewt-sud-train.relabeled_ext.conllu",
+    "assets/en_ewt-sud-dev.relabeled_ext.conllu"
+   ],
+   "key_norm": null
+  },
+  "es": {
+   "vec": "assets_vec/src/align.es.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.es.align)",
+   "corpus": "SUD_Spanish-AnCora",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Spanish-AnCora/es_ancora-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Spanish-AnCora/es_ancora-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "et": {
+   "vec": "assets_vec/src/align.et.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.et.align)",
+   "corpus": "SUD_Estonian-EDT",
+   "lemma_fill": 0.9993,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Estonian-EDT/et_edt-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Estonian-EDT/et_edt-sud-dev.conllu"
+   ],
+   "key_norm": "et"
+  },
+  "fa": {
+   "vec": "assets_vec/src/align.fa.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.fa.align)",
+   "corpus": "LOCAL_Persian",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-train.relabeled_ext.conllu",
+    "assets_fa/SUD_Persian-PerDT/fa_perdt-sud-dev.relabeled_ext.conllu"
+   ],
+   "key_norm": null
+  },
+  "fi": {
+   "vec": "assets_vec/src/align.fi.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.fi.align)",
+   "corpus": "SUD_Finnish-TDT",
+   "lemma_fill": 0.9999,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Finnish-TDT/fi_tdt-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Finnish-TDT/fi_tdt-sud-dev.conllu"
+   ],
+   "key_norm": "fi"
+  },
+  "fr": {
+   "vec": "assets_vec/src/align.fr.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.fr.align)",
+   "corpus": "SUD_French-GSD",
+   "lemma_fill": 0.9999,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_French-GSD/fr_gsd-sud-train_A.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_French-GSD/fr_gsd-sud-train_B.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_French-GSD/fr_gsd-sud-train_C.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_French-GSD/fr_gsd-sud-train_D.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_French-GSD/fr_gsd-sud-train_E.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_French-GSD/fr_gsd-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "he": {
+   "vec": "assets_vec/src/align.he.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.he.align)",
+   "corpus": "SUD_Hebrew-HTB",
+   "lemma_fill": 0.9909,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Hebrew-HTB/he_htb-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Hebrew-HTB/he_htb-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "hi": {
+   "vec": "assets_vec/src/align.hi.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.hi.align)",
+   "corpus": "SUD_Hindi-HDTB",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Hindi-HDTB/hi_hdtb-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Hindi-HDTB/hi_hdtb-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "hr": {
+   "vec": "assets_vec/src/align.hr.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.hr.align)",
+   "corpus": "SUD_Croatian-SET",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Croatian-SET/hr_set-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Croatian-SET/hr_set-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "hu": {
+   "vec": "assets_vec/src/align.hu.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "test",
+   "src": "fastText aligned (wiki.hu.align)",
+   "corpus": "SUD_Hungarian-Szeged",
+   "lemma_fill": 1.0,
+   "treebank": [],
+   "key_norm": null
+  },
+  "id": {
+   "vec": "assets_vec/src/align.id.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.id.align)",
+   "corpus": "LOCAL_Indonesian",
+   "lemma_fill": 0.9982,
+   "treebank": [
+    "assets_id/SUD_Indonesian-GSD/id_gsd-sud-train.relabeled_ext.conllu",
+    "assets_id/SUD_Indonesian-GSD/id_gsd-sud-dev.relabeled_ext.conllu"
+   ],
+   "key_norm": null
+  },
+  "it": {
+   "vec": "assets_vec/src/align.it.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.it.align)",
+   "corpus": "SUD_Italian-ISDT",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Italian-ISDT/it_isdt-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Italian-ISDT/it_isdt-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "ko": {
+   "vec": "assets_vec/src/align.ko.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.ko.align)",
+   "corpus": "LOCAL_Korean",
+   "lemma_fill": 0.9998,
+   "treebank": [
+    "assets_ko/SUD_Korean-GSD/ko_gsd-sud-train.relabeled_ext.conllu",
+    "assets_ko/SUD_Korean-GSD/ko_gsd-sud-dev.relabeled_ext.conllu"
+   ],
+   "key_norm": "ko"
+  },
+  "lt": {
+   "vec": "assets_vec/src/align.lt.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "test",
+   "src": "fastText aligned (wiki.lt.align)",
+   "corpus": "SUD_Lithuanian-ALKSNIS",
+   "lemma_fill": 1.0,
+   "treebank": [],
+   "key_norm": null
+  },
+  "lv": {
+   "vec": "assets_vec/src/align.lv.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "test",
+   "src": "fastText aligned (wiki.lv.align)",
+   "corpus": "SUD_Latvian-LVTB",
+   "lemma_fill": 0.9993,
+   "treebank": [],
+   "key_norm": null
+  },
+  "nl": {
+   "vec": "assets_vec/src/align.nl.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.nl.align)",
+   "corpus": "SUD_Dutch-LassySmall",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Dutch-LassySmall/nl_lassysmall-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Dutch-LassySmall/nl_lassysmall-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "no": {
+   "vec": "assets_vec/src/align.no.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.no.align)",
+   "corpus": "SUD_Norwegian-Nynorsk",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Norwegian-Nynorsk/no_nynorsk-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Norwegian-Nynorsk/no_nynorsk-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "pl": {
+   "vec": "assets_vec/src/align.pl.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.pl.align)",
+   "corpus": "SUD_Polish-PDB",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Polish-PDB/pl_pdb-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Polish-PDB/pl_pdb-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "pt": {
+   "vec": "assets_vec/src/align.pt.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.pt.align)",
+   "corpus": "SUD_Portuguese-GSD",
+   "lemma_fill": 0.8184,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Portuguese-GSD/pt_gsd-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Portuguese-GSD/pt_gsd-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "ro": {
+   "vec": "assets_vec/src/align.ro.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.ro.align)",
+   "corpus": "SUD_Romanian-Nonstandard",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Romanian-Nonstandard/ro_nonstandard-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Romanian-Nonstandard/ro_nonstandard-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "ru": {
+   "vec": "assets_vec/src/align.ru.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.ru.align)",
+   "corpus": "SUD_Russian-Taiga",
+   "lemma_fill": 0.9999,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Russian-Taiga/ru_taiga-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Russian-Taiga/ru_taiga-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "sk": {
+   "vec": "assets_vec/src/align.sk.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.sk.align)",
+   "corpus": "SUD_Slovak-SNK",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Slovak-SNK/sk_snk-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Slovak-SNK/sk_snk-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "sl": {
+   "vec": "assets_vec/src/align.sl.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.sl.align)",
+   "corpus": "SUD_Slovenian-SSJ",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Slovenian-SSJ/sl_ssj-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Slovenian-SSJ/sl_ssj-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "sv": {
+   "vec": "assets_vec/src/align.sv.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.sv.align)",
+   "corpus": "SUD_Swedish-Talbanken",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Swedish-Talbanken/sv_talbanken-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Swedish-Talbanken/sv_talbanken-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "ta": {
+   "vec": "assets_vec/src/align.ta.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.ta.align)",
+   "corpus": "LOCAL_Tamil",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_ta/ta_ttb_mwtt-sud-train.conllu",
+    "assets_ta/ta_ttb_mwtt-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "th": {
+   "vec": "assets_vec/src/align.th.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "test",
+   "src": "fastText aligned (wiki.th.align)",
+   "corpus": "SUD_Thai-TUD",
+   "lemma_fill": 0.0,
+   "treebank": [],
+   "key_norm": null
+  },
+  "tr": {
+   "vec": "assets_vec/src/align.tr.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.tr.align)",
+   "corpus": "SUD_Turkish-Penn",
+   "lemma_fill": 0.9998,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Turkish-Penn/tr_penn-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Turkish-Penn/tr_penn-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "uk": {
+   "vec": "assets_vec/src/align.uk.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.uk.align)",
+   "corpus": "SUD_Ukrainian-IU",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_sud218/sud-treebanks-v2.18/SUD_Ukrainian-IU/uk_iu-sud-train.conllu",
+    "assets_sud218/sud-treebanks-v2.18/SUD_Ukrainian-IU/uk_iu-sud-dev.conllu"
+   ],
+   "key_norm": null
+  },
+  "vi": {
+   "vec": "assets_vec/src/align.vi.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "test",
+   "src": "fastText aligned (wiki.vi.align)",
+   "corpus": "SUD_Vietnamese-VTB",
+   "lemma_fill": 1.0,
+   "treebank": [],
+   "key_norm": null
+  },
+  "zh": {
+   "vec": "assets_vec/src/align.zh.vec",
+   "route": "pre",
+   "key": "lemma",
+   "pool": "train",
+   "src": "fastText aligned (wiki.zh.align)",
+   "corpus": "LOCAL_Chinese",
+   "lemma_fill": 1.0,
+   "treebank": [
+    "assets_zh/SUD_Chinese-GSDBoth/zh_gsdboth-sud-train.relabeled_ext.conllu",
+    "assets_zh/SUD_Chinese-GSDBoth/zh_gsdboth-sud-dev.relabeled_ext.conllu"
+   ],
+   "key_norm": null
+  }
+ }
+}

@@ -1,0 +1,17 @@
+SIX in-table held-out languages, delta vs baseline, three seeds
+
+fill                                           s0     s1     s2    MEAN   rng
+real aligned vectors  (the CEILING)         +4.51  +5.51  +6.31   +5.44  1.80
+Wiktionary glosses                          -0.86  +0.43  +2.03   +0.53  2.89
+LLM glosses  (proxy for a human)            +4.31  +4.51  +6.53   +5.12  2.22
+real vectors, augmented arm                 +3.90  +4.68  +5.79   +4.79  1.89
+Wiktionary glosses, augmented               +0.74  +1.53  +0.73   +1.00  0.80
+LLM glosses, augmented                      +3.85  +4.24  +5.44   +4.51  1.59
+
+per-language, g3_vec under LLM glosses (mean of 3 seeds):
+  el   fill 99.1%   wiktionary +0.37   LLM +3.86   ceiling +4.04
+  hu   fill 98.9%   wiktionary -0.42   LLM +3.96   ceiling +4.82
+  lt   fill 98.8%   wiktionary -1.84   LLM +4.95   ceiling +4.65
+  lv   fill 97.9%   wiktionary -2.84   LLM +4.96   ceiling +5.53
+  th   fill 99.6%   wiktionary +5.07   LLM +7.39   ceiling +8.54
+  vi   fill 98.1%   wiktionary +2.86   LLM +5.59   ceiling +5.07

@@ -1,0 +1,18 @@
+=== SIX with real aligned rows: delta vs baseline ===
+arm               cos  LEMMA mean   rng  GLOSS mean   rng
+g3_vec            -         +5.44  1.80       +0.53  2.89
+g3_aug_k25      0.865       +5.07  2.83       +0.15  1.47
+g3_aug_k40      0.784       +5.64  1.90       +0.56  3.07
+g3_aug_k55      0.704       +4.70  2.14       +0.71  3.04
+g3_aug_k75      0.596       +4.71  1.44       +0.44  2.99
+g3_vec_aug2     0.461       +3.80  2.14       +0.64  3.65
+g3_vec_aug      0.704       +4.79  1.89       +1.00  0.80 <- additive, narrow spread
+
+=== ALL TWENTY, lemma fill ===
+  g3_vec          +1.09  range  1.67
+  g3_aug_k25      +1.28  range  0.38
+  g3_aug_k40      +1.58  range  0.66
+  g3_aug_k55      +1.24  range  1.76
+  g3_aug_k75      +1.06  range  0.62
+  g3_vec_aug2     +0.97  range  1.71
+  g3_vec_aug      +1.22  range  0.75
