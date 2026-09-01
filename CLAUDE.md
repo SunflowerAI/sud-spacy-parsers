@@ -114,7 +114,7 @@ all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a mod
 | `docs/packaging-and-release.md` | `package_sud.sh`, wheel contents, the release audits, serverless sizing | **a directory is not a release** |
 | `docs/latin.md` | three treebanks, macrons in and out, orthographic augmentation, `la_macronise`, where the parser's errors actually are | the macron table's lookup key must be orthography-tolerant, least-normalised first; 63 % of attachment errors sit in a non-projective sentence, and no headline metric says so |
 | `docs/sanskrit.md` | the raw-sandhied-text front end, the CSLiser, the sandhi machinery, the joint multi-task arm | an **unset** MORPH and an **empty** one are different inputs (cost 6.8 LAS) |
-| `docs/chinese-family.md` | zh traditional-only + `zh_script`, lzh's restored punctuation and `clause_parser`, yue | `_looks_simplified` cannot be "would `s2t` change it?"; `keep_marks` is coupled to the arm underneath |
+| `docs/chinese-family.md` | zh traditional-only + `zh_script`, lzh's restored punctuation and `clause_parser`, the `sent_join` senter rules, why lzh over-tags PROPN off-treebank and the 異體字 map its tokeniser now applies, the PCA'd SikuBERT vector channel, yue | `_looks_simplified` cannot be "would `s2t` change it?"; `keep_marks` is coupled to the arm underneath; lzh's treebank-unseen characters are RARE BY TYPE but dominated BY TOKEN by a few hundred common variants; and the comma-join rule's SIGN FLIPS between harnesses — `--gold-preproc` can only see over-splitting |
 | `docs/lzh-tokenisation.md` | lzh's multi-character tokens, the trained char segmenter, the Heart Sūtra gold set, and every lexicon/gazetteer route measured | the released lzh tokeniser splits 孔子, and **no standard metric can see it** — `gold_preproc` bypasses the tokeniser |
 | `docs/korean.md` | the eojeol tokenisation, the mecab-ko analyser channel, the sentenciser, the constrained scrambler | 34.5 % of test tokens are unseen STRINGS and parse 29.6 LAS below the rest; the headline never said so |
 | `docs/languages.md` | en's two arms and two licences; id's FEATS and lemma-casing fixes | an arm name is not a language — the two places that confused them both failed silently |
@@ -125,8 +125,11 @@ all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a mod
 
 ## The fourteen wheels
 
-**ja, ko, la and sa are at v0.3.0** and **ta and te are new at 0.1.0**, all six on the `v0.3.0`
-release; the other eight are at v0.2.0 on `v0.2.0`. Published on the GitHub Release, not in git.
+**lzh, ja, ko, la and sa are at v0.3.0** and **ta and te are new at 0.1.0**, all seven on the
+`v0.3.0` release; the other seven are at v0.2.0 on `v0.2.0`. **lzh went to 0.3.0 on 2026-09-01** —
+the 異體字 map applied at the tokeniser, `sent_join`, and the combined multi-field tagger; every
+non-tagger weight byte-identical to the 0.2.0 asset, verified out of the DOWNLOADED wheel
+(`docs/chinese-family.md`). Published on the GitHub Release, not in git.
 
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
 which is why the four above took a version bump instead. Most recently clobbered: **sa at 0.3.0 on 2026-08-23** — the
@@ -157,7 +160,7 @@ gh release view v0.3.0 --json assets -q '.assets[] | "\(.name)  \(.updatedAt)"'
 | sa | `sa_sud_vedic_ufal_dcs` | CC BY-SA 4.0 | `sa.SanskritInputTokenizer.v3` | accepts **raw sandhied** IAST or Devanagari; joint multi-task arm |
 | zh | `zh_sud_gsd` | CC BY-SA 4.0 | char tagger + jackknifed lexicon + jieba BMES off a TRADITIONAL jieba dictionary | traditional-only; vendors a pruned jieba, now without its simplified `dict.txt` (`build_jieba_trad_dict.py` supersedes the `t2s`-the-text channel; **re-clobbered at 0.2.0 on 2026-08-22**, every non-tokeniser weight byte-identical) |
 | yue | `yue_sud_hk` | CC BY-SA 4.0 | pkuseg trained on yue | test-only treebank → deterministic 80/10/10 split |
-| lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) | custom `lzh` language; `clause_parser`; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825) |
+| lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) + 異體字 map | custom `lzh` language; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825). **0.3.0**: the tokeniser normalises 无→無 / 隂→陰 (PROPN on treebank-absent characters 17.56 % → 9.14 %, `token._.lzh_src` recovers the original); `sent_join` keeps quoted spans and comma-separated clauses in one sentence (SENTS_F 90.79 → **95.27**, LAS −0.07); the tagger is four per-field softmaxes PLUS the joint head (TAG −0.15, and `cfg["upos_mask"]=True` makes a hand-corrected UPOS constrain the XPOS, **+3.11 on gold UPOS**) |
 | ja | `ja_sud_gsd` | CC BY-SA 4.0 | SudachiPy | |
 | ko | `ko_sud_gsd` | CC BY-SA 4.0 | eojeol, spaCy's rule tokeniser | requires `python-mecab-ko`: the parser reads the morphemes an eojeol hides (`docs/korean.md`, raw LAS 55.81 → 73.16). Ships a `senter`; no SUD MISC layer |
 | id | `id_sud_gsd` | CC BY-SA 4.0 | char tagger, enclitics SPLIT | `id_lemma_case_fix` after the lemmatiser |
@@ -267,7 +270,16 @@ value**, not as missing — writing `_` for tokens with no gold taught the sandh
 3. **Check the branch is not behind main before building anything** — `git log --oneline
    <branch>..main`. A six-commit-behind branch once rebuilt and uploaded all eleven wheels, shipping
    lzh a generation backwards and eleven empty `License:` fields.
-4. **`gold_preproc` hides tokeniser and sentence-boundary defects.** Gold tokens bypass the
+4. **A CONFIG PATH IS A HOST PATH, AND VERIFYING FROM THE BUILD DIRECTORY CANNOT SEE IT.** A
+   factory argument naming a file is serialised into the packaged config verbatim; a relative one
+   resolves against the CWD. `lzh_sud_kyoto-0.3.0` shipped
+   `tables = "models/lzh_xpos_tables.json"` and died with `FileNotFoundError` on every machine but
+   the build host — Pyodide, whose CWD is the filesystem root, included. **Every local check
+   passed, because every one was run from the repo root.** Load a packaged model from `/tmp` before
+   believing it loads at all; `pkg()` now refuses a config whose path-like values are not inside
+   the model directory. A component must also not READ such a path at construction: the
+   authoritative copy is the one `to_disk` writes into the component directory.
+11. **`gold_preproc` hides tokeniser and sentence-boundary defects.** Gold tokens bypass the
    tokeniser (so `TOK` goes unscored) and every dev example is already one sentence (so `SENTS_F`
    reads 100.00 for a parser that never learned to *start* one). zh shipped both defects. Confirm on
    a raw end-to-end eval, or by typing two sentences at the model.

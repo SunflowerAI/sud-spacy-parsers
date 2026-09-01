@@ -27,10 +27,31 @@ also the right semantics: the model only has to find the boundaries a writer did
 Serialisation is real, not a no-op: `to_disk` writes the segmenter beside the tokenizer entry so a
 packaged wheel keeps it. `from_disk` restores it, and a model whose directory has no segmenter falls
 back to whitespace rather than raising, so a partially-built pipeline still loads.
+
+VARIANT NORMALISATION (`variants.json`, optional, lzh). An 異體字 map is applied to the input BEFORE
+segmentation, so 无 reaches the pipeline as 無 and 徳 as 德. This is the `fa` recipe -- normalise the
+orthography IN rather than train on every spelling -- and it is done here, at ORTH, rather than in a
+NORM-setting pipe, because NORM is only ONE of the encoder's four channels: PREFIX, SUFFIX and SHAPE
+are computed from ORTH and would still carry the variant glyph. Measured on 54 018 tokens of
+kanripo, the NORM-only route moves 无's PROPN count 98 -> 69 while rewriting the glyph takes it to
+ZERO. See docs/chinese-family.md for why this matters (a treebank-unseen character is tagged at
+51.79 % UPOS accuracy with 39.13 % PROPN precision, against 93.13 / 93.79 overall).
+
+⚠ THE MAP MUST BE STRICTLY 1:1 BY CHARACTER and is refused otherwise, because every character
+offset in the doc -- and therefore `token.idx`, and therefore the recovery of the caller's own
+spelling -- depends on the normalised text having the same length as the input. The original is
+never discarded: `doc._.lzh_src_text` holds the caller's string and `token._.lzh_src` slices it, so
+`token._.lzh_src` reads 无 where `token.text` reads 無.
+
+⚠ AND IT REFUSES TO LOAD A MODEL THAT DECLARES A MAP IT CANNOT FIND. `meta.json` beside the
+tokenizer records whether normalisation was bundled; a `from_disk` that shrugged at a missing
+`variants.json` would give a tokeniser that loads, segments, and is wrong on exactly the input the
+map exists for -- CLAUDE.md standing hazards 8 and 11.
 """
+import json
 import pathlib
 
-from spacy.tokens import Doc
+from spacy.tokens import Doc, Token
 from spacy.util import registry
 
 KEEP, BREAK = "=", "= "
@@ -56,6 +77,17 @@ KEEP, BREAK = "=", "= "
 SEG_BATCH = 256
 
 
+# The caller's own orthography, recoverable after normalisation. `lzh_src` is a GETTER, not stored
+# per token: the map is 1:1 by character, so the original is exactly the same slice of the source
+# string, and a derived value cannot drift out of step with the text the way a copied one can.
+if not Doc.has_extension("lzh_src_text"):
+    Doc.set_extension("lzh_src_text", default=None)
+if not Token.has_extension("lzh_src"):
+    Token.set_extension("lzh_src", getter=lambda t: (
+        t.doc._.lzh_src_text[t.idx:t.idx + len(t.text)]
+        if t.doc._.lzh_src_text else t.text))
+
+
 @registry.tokenizers("sud.CharSegTokenizer.v1")
 def create_char_seg_tokenizer():
     def make(nlp):
@@ -64,12 +96,34 @@ def create_char_seg_tokenizer():
 
 
 class CharSegTokenizer:
-    def __init__(self, vocab, model_path=None):
+    def __init__(self, vocab, model_path=None, variants=None):
         self.vocab = vocab
         self.seg = None
         self.lexicon = None
+        self.variants = {}
         if model_path:
             self.load_segmenter(model_path)
+        if variants:
+            self.load_variants(variants)
+
+    def load_variants(self, source):
+        """Install the 異體字 map. `source` is a path to the builder's JSON or a bare dict.
+
+        Refuses anything that is not 1:1 by character: a multi-character replacement would shift
+        every offset after it and silently break `token._.lzh_src`."""
+        if isinstance(source, (str, pathlib.Path)):
+            d = json.loads(pathlib.Path(source).read_text(encoding="utf-8"))
+            m = d.get("map", d)
+        else:
+            m = dict(source)
+        m = {k: v for k, v in m.items() if not k.startswith("__")}
+        bad = {k: v for k, v in m.items() if len(k) != 1 or len(v) != 1}
+        if bad:
+            raise ValueError(
+                f"CharSegTokenizer: the variant map must be 1:1 by character; "
+                f"{len(bad)} entries are not, e.g. {dict(list(bad.items())[:3])}")
+        self.variants = m
+        return self
 
     def load_segmenter(self, path, lexicon=None):
         """Load either a plain character segmenter or a lexicon-feature one.
@@ -132,6 +186,13 @@ class CharSegTokenizer:
     def __call__(self, text):
         if not text.strip():
             return Doc(self.vocab, words=[], spaces=[])
+        # ⚠ NORMALISE BEFORE SEGMENTING, not after. The segmenter is itself a character model
+        # trained on the treebank's orthography, so a variant glyph is as unfamiliar to it as it is
+        # to the tagger; normalising after segmentation would leave that half of the problem in
+        # place. The map is 1:1, so every offset below is unaffected and `src` stays aligned.
+        src = text
+        if self.variants:
+            text = "".join(self.variants.get(c, c) for c in text)
         # chunk on whitespace, remembering whether each chunk was followed by a space
         chunks, spaces, i = [], [], 0
         while i < len(text):
@@ -146,7 +207,7 @@ class CharSegTokenizer:
             i = j
 
         if self.seg is None:                      # no model: whitespace only, never raise
-            return Doc(self.vocab, words=chunks, spaces=spaces)
+            return self._doc(chunks, spaces, src, text)
 
         preds = []
         for i in range(0, len(chunks), SEG_BATCH):
@@ -157,7 +218,15 @@ class CharSegTokenizer:
             for k, part in enumerate(parts):
                 words.append(part)
                 sp.append(trailing if k == len(parts) - 1 else False)
-        return Doc(self.vocab, words=words, spaces=sp)
+        return self._doc(words, sp, src, text)
+
+    def _doc(self, words, spaces, src, normalised):
+        """Build the Doc and record the caller's own spelling when it differs from what the model
+        was handed. Stored ONCE at doc level; `token._.lzh_src` slices it."""
+        doc = Doc(self.vocab, words=words, spaces=spaces)
+        if src != normalised:
+            doc._.lzh_src_text = src
+        return doc
 
     def pipe(self, texts, **kwargs):
         for t in texts:
@@ -172,11 +241,35 @@ class CharSegTokenizer:
             if self.lexicon:                       # bundle the word list beside the weights
                 (p / "segmenter" / "lexicon.txt").write_text(
                     "\n".join(sorted(self.lexicon)), encoding="utf-8")
+        # The regime travels with the weights, and is READ BACK on load: a model built with
+        # normalisation must not come back without it (CLAUDE.md standing hazard 11).
+        if self.variants:
+            (p / "variants.json").write_text(json.dumps(self.variants, ensure_ascii=False),
+                                             encoding="utf-8")
+        (p / "meta.json").write_text(
+            json.dumps({"variant_norm": bool(self.variants), "n_variants": len(self.variants)}),
+            encoding="utf-8")
 
     def from_disk(self, path, **kwargs):
         p = pathlib.Path(path)
         if (p / "segmenter").exists():
             self.load_segmenter(p / "segmenter")
+        meta = {}
+        if (p / "meta.json").is_file():
+            meta = json.loads((p / "meta.json").read_text(encoding="utf-8"))
+        if (p / "variants.json").is_file():
+            self.load_variants(p / "variants.json")
+            if meta.get("n_variants") not in (None, len(self.variants)):
+                raise ValueError(
+                    f"CharSegTokenizer: {p}/meta.json declares {meta['n_variants']} variant "
+                    f"entries but variants.json holds {len(self.variants)}")
+        elif meta.get("variant_norm"):
+            # Refuse rather than segment the unnormalised text. Falling back is exactly how a wheel
+            # ships one input quietly deleted: it would load, segment, and be wrong only on the
+            # orthography the map exists for.
+            raise FileNotFoundError(
+                f"{p}/meta.json declares variant normalisation but {p}/variants.json is missing — "
+                f"refusing to tokenise with an orthography the model was not built for")
         return self
 
     def to_bytes(self, **kwargs):

@@ -705,6 +705,12 @@ using no held-out text).
 2. **Does a head sharing the encoder already predict it?** If so it is linearly present in the
    input. One look at the model tree and `listener_map`.
 
+⚠ **A THIRD WAS ADDED ON 2026-09-01 and it subsumes both**: *does the channel predict the target
+BEYOND the component's own representation?* A plain probe measures information PRESENT; only a
+conditional one measures information ADDITIONAL, and only the second can move a metric. See "The
+morphologiser's TRAINED encoder as a parser channel" below, where a donor beating another by +1.27
+on DEPREL turned out to beat it by **+0.10** once the parser's own encoder was conditioned on.
+
 And one that explains the fourth: **split any probe by the frequency of the thing being backed off
 to.** An aggregate says the channel is informative; the split says whether it is informative where
 it is needed.
@@ -720,6 +726,141 @@ Kept: `sud.LexFieldEmbed.v1` (`sud_lex_embed.py`, both `lexicon` and per-token `
 `shrink_vectors.py`, `init_lzh_vectors.py`, `eval_lex_slices.py` (the frequency-slice harness), and
 `train_xposlex.sh`. Arms: `training_lzh_{xposlex,xposlex_ctl,xposlex_whole,xpostagpred,`
 `xpostagpred_ctl,vec,vec_ctl,vec_s1,vec_ctl_s1,vec_s2,vec_ctl_s2,vec96,vec96_ctl}`.
+
+---
+
+## SikuBERT vectors as a PARSER channel, injected above the frozen encoder (2026-09-01)
+
+The tagger-side arm works: PCA'd SikuBERT static vectors concatenated into the morphologiser's embed
+are +0.25 POS_ACC aggregate over a shuffled control and **+13.33 on tokens holding a character the
+treebank never showed, with the sign never flipping across three seeds** (docs/chinese-family.md).
+The obvious next move is to give the same table to the parser, and the obvious way to do it is the
+one that worked for the conditioned XPOS tagger: inject it ABOVE the encoder rather than into the
+embed. `sud.StaticVecChannel.v1` wraps `spacy.StaticVectors.v2` for `sud.Tok2VecPlusFeats.v1`, so
+the parser reads `concatenate(Tok2VecListener(96), StaticVecChannel(96))` and the shared encoder
+stays frozen and byte-identical. Three seeds, against the shuffled table.
+
+**It does not pay, on any slice.** LAS by train-frequency slice (`eval_lex_slices.py`):
+
+    slice         n     arm mean±sd    control mean±sd       Δ       per-seed Δ        sd(Δ)
+    unseen      392    59.15 ±1.07      57.52 ±1.89      +1.63   -0.26 +4.62 +0.52      2.62
+    1-2         359    67.70 ±0.43      68.91 ±0.74      -1.21   -1.40 -1.96 -0.28      0.86
+    3-10        678    63.41 ±0.23      64.06 ±0.98      -0.65   +0.15 -0.45 -1.66      0.92
+    11-50      2096    66.62 ±0.84      67.00 ±0.05      -0.38   +0.19 -1.38 +0.05      0.87
+    >50       30708    76.92 ±0.20      76.72 ±0.35      +0.20   +0.58 +0.18 -0.16      0.37
+    all       34233    75.44 ±0.12      75.31 ±0.32      +0.13   +0.50 +0.08 -0.18      0.34
+
+**Every slice's mean delta is smaller than the spread of its own per-seed deltas**, and the only
+slice with a consistent SIGN is `1-2`, where the channel is a small LOSS on all three seeds. The
+`unseen` row is the trap: +1.63 looks like the result the arm was built for, and its whole 4.62-point
+seed swing is **eighteen tokens** (one token there is worth 0.26 LAS).
+
+**Why it fails where the tagger arm succeeds, and this is the part worth keeping.** It is not the
+injection point — that was the fix for the XPOS tagger and it is used here. It is not vector quality
+— the same table is worth +13.33 to the morphologiser. It is the TASK. A static type-level vector
+says what kind of lexeme this is; **for the tagger that IS the output**, so the channel speaks
+directly to the decision. For the parser it is only a mediator: attachment depends on syntactic
+configuration, and the category that mediates it is already in the encoder. So the parser gets, at
+best, a slightly better-estimated category for 1.15 % of tokens — which is also exactly what the
+kanripo static-vector arm found (+0.04 LAS mean over three seeds), now reproduced with a different
+vector source AND a different injection point. **Two independent vector families and two injection
+points agree: this parser is not lexicon-limited.**
+
+⚠ **AND THE PRE-FLIGHT ARITHMETIC SAID SO BEFORE THE RUNS.** A channel moves an aggregate only over
+the population it reaches. Unseen forms are 1.15 % of Kyoto test tokens and forms seen twice or
+fewer 2.19 %, so even +15 LAS on the unseen slice is +0.17 aggregate against a ~0.5 seed spread.
+That calculation costs a minute and would have set the expectation correctly for both this arm and
+the kanripo one. It does NOT say the channel is worthless — it says **this test set cannot measure
+it**, and the population where it would show (out-of-domain text, where the unseen-type rate is
+3.1 % on kanripo and higher on a Ming edition) has no gold dependency annotation for lzh.
+
+**The cost of freezing the encoder, for context** — the arm is not comparable to the released
+parser and is not meant to be, but the gap is worth recording since both arms carry it:
+
+    LAS, same harness         unseen    1-2    3-10   11-50    >50     all
+    released, co-trained       59.23  70.59   65.62   67.80  77.89   76.47
+    frozen encoder + vectors   57.95  68.07   63.21   67.13  76.90   75.44
+    frozen encoder + shuffle   58.21  69.47   63.06   66.94  76.32   74.94
+
+Kept: `scripts/sud_static_channel.py`, `make_lzh_parservec_config.py`, `train_lzh_parservec.sh`,
+`configs/config_lzh_parservec{,_ctl}_s{0,1,2}.cfg`, arms `training_lzh_parservec{,_ctl}_s{0,1,2}`.
+Two build-time notes that cost a run each: `sud.StaticVecChannel.v1` must be listed in
+`seg_code.py` (E893 otherwise, the failure that file exists to prevent), and its `dropout` must be
+annotated `Optional[float]` — a bare `float = None` fails confection validation at "Initializing
+pipeline", which looks like a started run.
+
+---
+
+## The morphologiser's TRAINED encoder as a parser channel — and the pre-flight check that was missing (2026-09-01)
+
+The `parservec` arm above handed the parser a raw SikuBERT row and asked it to learn, from parse
+supervision on 1.15 % of tokens, what category that row implies. The obvious repair is to hand over
+the extraction ALREADY DONE: the morphologiser's own encoder — 64 wide, 499 456 params, fitted under
+UPOS supervision over all 460 k training tokens, and demonstrably better at category than anything
+the parser can learn from the treebank alone (73.98 % UPOS on treebank-unseen forms against a
+shuffled control's 66.92). `sud.FrozenPipeTok2Vec.v1` lifts it out and freezes it;
+`sud.Tok2VecPlusFeats.v1` concatenates it above the same frozen shared encoder. Control: the
+identical architecture with a donor trained on the SHUFFLED table, which holds parameter count,
+depth, width, supervision and recipe fixed and varies only the donor's quality.
+
+**It does not pay, and the direction is mildly negative.** LAS by train-frequency slice, three seeds:
+
+    slice         n     arm mean±sd    control mean±sd       Δ       per-seed Δ        sd(Δ)
+    unseen      392    57.69 ±1.43      59.06 ±0.39      -1.37   -2.05 -2.56 +0.51      1.65
+    1-2         359    69.00 ±0.58      69.19 ±1.94      -0.19   -1.96 -0.84 +2.24      2.17
+    3-10        678    63.71 ±0.96      63.76 ±0.71      -0.05   -0.15 -0.90 +0.90      0.90
+    11-50      2096    65.81 ±0.31      66.91 ±0.38      -1.10   -1.53 -1.05 -0.71      0.41
+    >50       30708    76.48 ±0.22      76.96 ±0.20      -0.48   -0.90 -0.31 -0.24      0.36
+    all       34233    74.99 ±0.23      75.53 ±0.23      -0.54   -0.96 -0.43 -0.22      0.38
+
+Same sign on all three seeds for `all`, `>50` and `11-50`; a second harness puts `all` at -0.34, so
+read the ABSENCE OF GAIN as firm and the magnitude as soft. The mechanics were verified per arm and
+are not the explanation: the donor is bit-identical after training (**max |Δ| 0.000e+00 over 499 456
+parameters**, six times) so it is a transfer and not a fine-tune, and zeroing it changes 3-5 arcs of
+17 so the channel is live.
+
+**Two explanations were proposed and DISPROVED, which is why the third is worth trusting.**
+
+1. *"A UPOS-optimised representation has collapsed the lexical detail the parser needs."* No: a
+   linear probe on the frozen donors gives the real-vector one **+1.27 on DEPREL** as well as +0.79
+   on UPOS, with FORM level (-0.73). The channel is MORE informative about the parser's own target.
+2. *"A strong frozen channel is leaned on early and the trainable pathway underfits."* No: the
+   real-donor arms rely on their channel **LESS** — zeroing it costs them 0.66 LAS against the
+   control arms' 0.87.
+
+**THE ANSWER, AND IT IS A PRE-FLIGHT CHECK THIS FILE DID NOT HAVE.** Probe DEPREL from the parser's
+OWN encoder, then from that output CONCATENATED with each donor:
+
+    DEPREL from the parser's own 96-d encoder ALONE      76.00 %
+      + the real-vector donor      76.88 %   increment  +0.87
+      + the shuffled-vector donor  76.78 %   increment  +0.77
+
+The parser's own representation predicts DEPREL at 76.00 %, **better than either donor alone**
+(69.66 / 68.38) — and conditional on it, the better donor's whole advantage collapses from **+1.27
+to +0.10**. The information was there and it was almost entirely REDUNDANT.
+
+⚠ **A PLAIN PROBE MEASURES INFORMATION PRESENT; ONLY A CONDITIONAL PROBE MEASURES INFORMATION
+ADDITIONAL**, and only the second can move a metric. 69.66 % DEPREL from a 64-d channel reads as a
+strong result right up to the moment you condition on what the receiving component already computes.
+This is the third pre-flight check, and it subsumes the two already in this file as special cases:
+
+    1. Is the channel a FUNCTION of something the component already reads?  (identity -> 0 bits)
+    2. Does a head SHARING the encoder already predict it?                  (linearly present)
+    3. Does it predict the target BEYOND the component's own representation? (conditional probe)
+
+Check 3 costs one `LogisticRegression` fit on concatenated features and would have killed this arm,
+the `parservec` arm and the kanripo arm before any of the eighteen training runs between them.
+
+**Three channels, three vector families, three injection points, one conclusion: this parser is not
+lexicon-limited.** kanripo floret vectors in the embed (+0.04 LAS), SikuBERT rows above the encoder
+(nothing on any slice), a UPOS-supervised encoder above the encoder (-0.54). Meanwhile the SAME
+SikuBERT table is worth +13.33 to the morphologiser on its failure slice with the sign never
+flipping. The channel is real; the parser is not what it can help.
+
+Kept: `scripts/sud_frozen_pipe_tok2vec.py`, `check_frozen_pipe_tok2vec.py` (the frozen/live assertion
+— run it on any transfer arm before reading its numbers), `make_lzh_morphenc_config.py`,
+`train_lzh_morphenc.sh`, `probe_lzh_donor_encoders.py`, `configs/config_lzh_morphenc{,_ctl}_s{0,1,2}.cfg`,
+arms `training_lzh_morphenc{,_ctl}_s{0,1,2}`.
 
 ---
 
