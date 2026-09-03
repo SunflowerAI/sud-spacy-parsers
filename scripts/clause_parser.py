@@ -33,6 +33,12 @@ it silently. The sentence-final mark then attaches to the LAST root of the span 
 
 Added as the last pipe: the normal tok2vec/tagger/parser still run once over the whole doc
 (harmless), then this re-parses per sentence and rebuilds the doc with the corrected analysis.
+
+A quoted span is still cut at every sentence-final mark it contains — 「…也。…也。」 comes out as
+two sentences, which is the Kyoto treebank's own convention. To keep such a span in ONE sentence
+with its closing mark, append `sent_join` (scripts/sent_join.py) AFTER this pipe; it works on
+whatever tree it is handed, so it composes with this component and with the segmenting base arm
+that replaced it on lzh alike. The rule is deliberately not duplicated here.
 """
 import unicodedata
 

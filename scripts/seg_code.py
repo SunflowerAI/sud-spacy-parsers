@@ -47,6 +47,15 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            # registers sud.MultiHashEmbedFeats.v1 (one embedding table per morphological FEATURE,
            # rather than one hash of the whole FEATS bundle) -- the XPOS-downstream arms
            "sud_feats_embed.py",
+           # registers sud.StaticVecChannel.v1 (static vectors concatenated ABOVE a frozen encoder
+           # by sud.Tok2VecPlusFeats.v1, rather than mixed into the embed underneath it)
+           "sud_static_channel.py",
+           # registers sud.FrozenPipeTok2Vec.v1 (one component's TRAINED encoder handed to another,
+           # frozen -- e.g. the UPOS-supervised morphologiser encoder as a parser side channel)
+           "sud_frozen_pipe_tok2vec.py",
+           # registers the `multifield_tagger` factory (one softmax per comma-separated XPOS field,
+           # projected onto the attested inventory and masked by the token's UPOS)
+           "sud_multifield_tagger.py",
            # registers sud.LexFieldEmbed.v1 (one table per comma-separated XPOS FIELD, read from a
            # shipped per-form lexicon). The lzh parser runs BEFORE any tagger, so there is no
            # predicted TAG for it to read; the lexicon is what supplies the channel at inference,
@@ -67,6 +76,10 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            "ko_order.py",
            # registers sud.WarmStartTagger.v1 (start a conditioned tagger AS the released one)
            "warm_start_tagger.py",
+           # registers the `sent_join` factory — refuses a sentence boundary inside a balanced
+           # quoted span or after a pause mark. The lzh wheel names it in its config, so anything
+           # loading that arm through this file needs it registered or `spacy.load` raises E893.
+           "sent_join.py",
            # registers sud.CharSegTokenizer.v1 — the treebank-trained character segmenter used as
            # the TOKENIZER for zh (pkuseg 0.8385 -> 0.9202, the last +3 from jieba's segmentation
            # decision as an input channel) and id (enclitic split, 0.9985).
@@ -100,6 +113,17 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            # the RULE variants: la ships sud_shared_rule and lzh sud_subject_rule instead of the
            # trained pipes, so a released arm cannot be opened without them.
            "sud_shared_rule.py", "sud_subject_rule.py", "sud_idiom.py",
+           # lzh_upos_rules sits IN a pipeline (post-morphologiser UPOS repair keyed on the
+           # parser's analysis of a token's children), so an arm carrying it cannot be opened
+           # without this registration -- the same gap that broke ta/te and la above.
+           "lzh_upos_rules.py",
+           # registers lzh_upos_stack -- it sits IN the released pipeline, so an arm carrying it
+           # cannot be opened without this registration.
+           "lzh_upos_stack.py",
+           # registers sud.ArcStructureEmbed.v1 — the parser's arc structure as a tagger channel.
+           "sud_arc_embed.py",
+           # registers sud.HeadArgsTagger.v1 — [own|head|core arg 1-2|other dep 1-2].
+           "sud_head_args.py",
            "sud_reported_rule.py", "sud_reported_data.py",
            # la_macronise sits in the released la PIPELINE, so the la wheel cannot be opened
            # without it -- the third such gap.

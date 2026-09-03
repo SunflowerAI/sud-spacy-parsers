@@ -178,6 +178,33 @@ GUARD
   # So the config is read back and every `sud.*` name in it is resolved to the module that
   # registers it, which is checked against the list actually being passed. A refusal, not a comment
   # asking the next person to remember (standing hazard 2).
+  # ⚠ THE HOST-PATH GUARD. A factory argument naming a file is serialised into the packaged config
+  # verbatim, and a relative one resolves against the CWD -- so it works on the build machine and
+  # raises FileNotFoundError everywhere else. lzh 0.3.0 shipped exactly that
+  # (`tables = "models/lzh_xpos_tables.json"`) and every local verification passed, because they
+  # were all run from the repo root. Any config value that looks like a path to a file that is NOT
+  # inside the model directory is refused.
+  $PY - "$src" <<'PATHGUARD' || { echo "  $arm: config names a HOST PATH — refusing to package"; return; }
+import pathlib, sys, re
+from thinc.api import Config
+src = pathlib.Path(sys.argv[1])
+cfg = Config().from_disk(src / "config.cfg", interpolate=False)
+bad = []
+def walk(d, path=""):
+    if isinstance(d, dict):
+        for k, v in d.items():
+            walk(v, f"{path}/{k}")
+    elif isinstance(d, str) and v_is_path(d):
+        if not (src / d).exists():
+            bad.append((path, d))
+def v_is_path(v):
+    return bool(re.search(r"\.(json|txt|bin|cfg|vec|npz)$", v)) or v.startswith(("/", "./", "../"))
+walk(cfg)
+for p, v in bad:
+    print(f"    {p} = {v!r} is not inside the model directory", file=sys.stderr)
+sys.exit(1 if bad else 0)
+PATHGUARD
+
   $PY - "$src" "$code" <<'GUARD' || { echo "  $arm: --code list is INCOMPLETE — refusing to package"; return; }
 import pathlib, re, sys
 sys.path.insert(0, "scripts")
@@ -625,7 +652,21 @@ case $lang in
        # segmenter-agnostic, and bundle_lzh_charseg.py asserts every component comes out
        # BYTE-IDENTICAL. It also refuses a segmenter whose stamped training corpus is not the
        # traditional one -- the both-scripts model differs by nothing a weight check can see.
-  lzh) $PY scripts/bundle_lzh_charseg.py --src "$base" --seg "${LZH_SEG:-models/lzh_seg_char_trad}" \
+  # THE COMBINED MULTI-FIELD TAGGER. Four per-field softmaxes over the comma-separated XPOS code
+  # PLUS the joint 121-way head, on listener + UPOS/FEATS + PCA'd SikuBERT, all above the encoder.
+  # Costs 0.15 TAG against the shipped tagger (92.72 -> 92.57) and buys per-field confidences and
+  # an editing mode: with `upos_mask` on, a hand-corrected UPOS CONSTRAINS the XPOS, worth +3.11
+  # TAG on gold UPOS (92.72 -> 95.83) and -0.33 on predicted — so it ships OFF and is a runtime
+  # toggle, `nlp.get_pipe("tagger").cfg["upos_mask"] = True`.
+  # ⚠ INSTALLED UNDER THE NAME `tagger` so pkg()'s XPOS-order and silenced-tagger guards still fire.
+  # ⚠ It carries the SikuBERT vector table into the wheel; without it the channel reads zeros.
+  # LZH_MFTAGGER=0 keeps the released single-softmax tagger.
+  lzh) if [ "${LZH_MFTAGGER:-1}" != "0" ] && [ -d "${LZH_MFTAGGER_DONOR:-training_lzh_mftagger/model-best}" ]; then
+         $PY scripts/swap_lzh_mftagger.py "$base" "$work.mft" \
+              --donor "${LZH_MFTAGGER_DONOR:-training_lzh_mftagger/model-best}" >/dev/null 2>&1 \
+              && base="$work.mft" || echo "  lzh: multi-field tagger swap FAILED — keeping the released tagger"
+       fi
+       $PY scripts/bundle_lzh_charseg.py --src "$base" --seg "${LZH_SEG:-models/lzh_seg_char_trad}" \
             --out "$work.tok" --verify >/dev/null 2>&1 \
             || { echo "  lzh: charseg bundling FAILED — skip"; continue; }
        $PY scripts/han_lemma_lut.py --build "$work.tok" "$work.lut" \
@@ -645,9 +686,71 @@ case $lang in
          cp -R "$work.lut" "$work.seg"
        fi
        $PY scripts/add_sud_subject_rule.py "$work.seg" "$work.rule" --lang lzh >/dev/null 2>&1
-       $PY scripts/add_sud_idiom.py "$work.rule" "$work" --drop sud_subject >/dev/null 2>&1
+       $PY scripts/add_sud_idiom.py "$work.rule" "$work.idiom" --drop sud_subject >/dev/null 2>&1
+       # THE 異體字 MAP, AT THE TOKENISER. A character the treebank never showed is tagged at
+       # 51.79 % UPOS accuracy with 39.13 % PROPN precision (93.13 / 93.79 overall), and most such
+       # characters are ordinary words in another glyph — 无=無 occurs 146 685 times in kanripo and
+       # 0 times in Kyoto. The map is applied at ORTH, before segmentation, because NORM is only
+       # one of the encoder's four channels: NORM-only moves 无's PROPN count 98 -> 69, rewriting
+       # the glyph takes it to ZERO. NO RETRAIN — the parser is segmenter-agnostic — and
+       # `--verify` asserts every file outside tokenizer/ is byte-identical AND that treebank
+       # orthography passes through untouched. `token._.lzh_src` gives the caller its own spelling
+       # back. Rebuild the table with scripts/build_lzh_variant_norm.py — it needs assets_unihan/
+       # and a SikuBERT download, so it is NOT rebuilt here: an absent table skips normalisation
+       # rather than failing the build, which is the right asymmetry for an artefact a build
+       # machine may not be able to produce.
+       if [ "${LZH_VARIANT_NORM:-1}" != "0" ] && [ -f "${LZH_VARIANTS:-models/lzh_variant_norm.json}" ]; then
+         $PY scripts/bundle_lzh_variants.py --src "$work.idiom" \
+              --variants "${LZH_VARIANTS:-models/lzh_variant_norm.json}" \
+              --out "$work.var" --verify >/dev/null 2>&1 \
+              || { echo "  lzh: variant bundling FAILED — skip"; continue; }
+       else
+         cp -R "$work.idiom" "$work.var"
+       fi
+       # SENTENCE JOINING. The base arm IS the senter (no `senter` pipe, no clause_parser — see
+       # above), so it inherits Kyoto's 句讀 segmentation: reported speech comes apart (5 944 of
+       # 59 215 training blocks have UNBALANCED 「」) and clauses break at commas. `sent_join`
+       # imposes the reading convention instead, re-heading the roots the parser opened inside a
+       # balanced quoted span or after a pause mark. The relation is HARVESTED, not chosen: inside
+       # a quote a further clause takes the SAME governor and relation as the span's first clause
+       # (Kyoto gives 1 743 of 1 755 spans exactly one external attachment, `comp:obj` of 曰);
+       # elsewhere it comes from build_lzh_sent_joins.py's (mark kind, previous-head UPOS) table.
+       # ⚠ IT GOES LAST, AFTER sud_idiom: it rewrites arcs, and every sud_* pipe reads the tree, so
+       # an earlier position would change their input and couple this to that layer.
+       # ⚠ AND ITS SIGN FLIPS BETWEEN HARNESSES. Over 10-sentence documents the gold uses the
+       # other convention on both counts (31.2 % of its blocks END at a pause mark) and it costs
+       # LAS 74.93 -> 71.67 / SENTS_F 80.41 -> 55.08. Under `--gold-preproc` every document IS one
+       # gold sentence, so the only available error is OVER-splitting and it BUYS SENTS_F
+       # 90.79 -> 95.18 for LAS 76.46 -> 76.30. docs/chinese-family.md has the full table.
+       # LZH_SENT_JOIN=0 leaves it out; LZH_SENT_JOIN_ARGS passes --no-pause-join etc.
+       if [ "${LZH_SENT_JOIN:-1}" != "0" ]; then
+         # The join table is derived from the treebank in seconds and lives under the gitignored
+         # models/, so build it rather than fail on a fresh checkout — unlike the variant map, this
+         # one needs nothing a build machine lacks.
+         :   # nothing to build: the clause rule is in the code, not in a harvested table
+         $PY scripts/add_sent_join.py "$work.var" "$work.sj" \
+              ${LZH_SENT_JOIN_ARGS:-} >/dev/null 2>&1 \
+              || { echo "  lzh: add_sent_join FAILED — skip"; continue; }
+       else
+         cp -R "$work.var" "$work.sj"
+       fi
+       # `lzh_upos_rules`: post-morphologiser UPOS repair from the parser's view of a token's
+       # CHILDREN and HEAD -- the family the morphologiser's own DEP channel cannot see. On the arm
+       # that ships: UPOS 91.66 -> 92.69, 之 58.42 -> 89.36, NOUN/VERB unchanged (86.78 -> 86.77).
+       # It carries NO weights, so every model file stays byte-identical; only config/meta change.
+       # ⚠ IT EMITS A UPOS THE 0.3.0 WHEEL NEVER DID -- genitive 之 becomes PART, not SCONJ. That is
+       # the traditional analysis and the point of the layer, but it is a BEHAVIOURAL change for
+       # anything keyed on the old output, hence a version bump rather than a clobber.
+       # ⚠ NOT MUTED, for the reason recorded just below: a swallowed registration failure once
+       # shipped a broken wheel.
+       if [ "${LZH_UPOS_RULES:-1}" != "0" ]; then
+         $PY scripts/add_lzh_upos_rules.py "$work.sj" "$work" \
+              || { echo "  lzh: add_lzh_upos_rules FAILED — skip"; continue; }
+       else
+         cp -R "$work.sj" "$work"
+       fi
        pkg lzh "$work" sud_kyoto \
-            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/han_lemma_lut.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py" ;;
+            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/sent_join.py,scripts/lzh_upos_rules.py,scripts/han_lemma_lut.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py,scripts/sud_multifield_tagger.py,scripts/sud_static_channel.py,scripts/sud_feats_embed.py" ;;
        # sa: Subject is too sparse to ship (142 train / 14 test); the idiom layer still applies.
        # sa_compound must stay FIRST (the encoder reads MORPH); clause_parser before sud_idiom.
        # sa: the whole front end (CSLiser + de-CSLizer + de-sandhifier + Devanagari rendering)
