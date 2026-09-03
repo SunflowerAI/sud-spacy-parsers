@@ -113,6 +113,17 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            # the RULE variants: la ships sud_shared_rule and lzh sud_subject_rule instead of the
            # trained pipes, so a released arm cannot be opened without them.
            "sud_shared_rule.py", "sud_subject_rule.py", "sud_idiom.py",
+           # lzh_upos_rules sits IN a pipeline (post-morphologiser UPOS repair keyed on the
+           # parser's analysis of a token's children), so an arm carrying it cannot be opened
+           # without this registration -- the same gap that broke ta/te and la above.
+           "lzh_upos_rules.py",
+           # registers lzh_upos_stack -- it sits IN the released pipeline, so an arm carrying it
+           # cannot be opened without this registration.
+           "lzh_upos_stack.py",
+           # registers sud.ArcStructureEmbed.v1 — the parser's arc structure as a tagger channel.
+           "sud_arc_embed.py",
+           # registers sud.HeadArgsTagger.v1 — [own|head|core arg 1-2|other dep 1-2].
+           "sud_head_args.py",
            "sud_reported_rule.py", "sud_reported_data.py",
            # la_macronise sits in the released la PIPELINE, so the la wheel cannot be opened
            # without it -- the third such gap.

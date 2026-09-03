@@ -728,14 +728,29 @@ case $lang in
          # models/, so build it rather than fail on a fresh checkout — unlike the variant map, this
          # one needs nothing a build machine lacks.
          :   # nothing to build: the clause rule is in the code, not in a harvested table
-         $PY scripts/add_sent_join.py "$work.var" "$work" \
+         $PY scripts/add_sent_join.py "$work.var" "$work.sj" \
               ${LZH_SENT_JOIN_ARGS:-} >/dev/null 2>&1 \
               || { echo "  lzh: add_sent_join FAILED — skip"; continue; }
        else
-         cp -R "$work.var" "$work"
+         cp -R "$work.var" "$work.sj"
+       fi
+       # `lzh_upos_rules`: post-morphologiser UPOS repair from the parser's view of a token's
+       # CHILDREN and HEAD -- the family the morphologiser's own DEP channel cannot see. On the arm
+       # that ships: UPOS 91.66 -> 92.69, 之 58.42 -> 89.36, NOUN/VERB unchanged (86.78 -> 86.77).
+       # It carries NO weights, so every model file stays byte-identical; only config/meta change.
+       # ⚠ IT EMITS A UPOS THE 0.3.0 WHEEL NEVER DID -- genitive 之 becomes PART, not SCONJ. That is
+       # the traditional analysis and the point of the layer, but it is a BEHAVIOURAL change for
+       # anything keyed on the old output, hence a version bump rather than a clobber.
+       # ⚠ NOT MUTED, for the reason recorded just below: a swallowed registration failure once
+       # shipped a broken wheel.
+       if [ "${LZH_UPOS_RULES:-1}" != "0" ]; then
+         $PY scripts/add_lzh_upos_rules.py "$work.sj" "$work" \
+              || { echo "  lzh: add_lzh_upos_rules FAILED — skip"; continue; }
+       else
+         cp -R "$work.sj" "$work"
        fi
        pkg lzh "$work" sud_kyoto \
-            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/sent_join.py,scripts/han_lemma_lut.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py,scripts/sud_multifield_tagger.py,scripts/sud_static_channel.py,scripts/sud_feats_embed.py" ;;
+            "$CODE_BASE,$CODE_SHARED,scripts/sud_tagger.py,scripts/lzh_tokenizer.py,scripts/clause_parser.py,scripts/sent_join.py,scripts/lzh_upos_rules.py,scripts/han_lemma_lut.py,scripts/sud_subject_rule.py,scripts/sud_subject_frames.py,scripts/char_seg_tokenizer.py,scripts/sa_presegment.py,scripts/sa_presegment_lex.py,scripts/sud_multifield_tagger.py,scripts/sud_static_channel.py,scripts/sud_feats_embed.py" ;;
        # sa: Subject is too sparse to ship (142 train / 14 test); the idiom layer still applies.
        # sa_compound must stay FIRST (the encoder reads MORPH); clause_parser before sud_idiom.
        # sa: the whole front end (CSLiser + de-CSLizer + de-sandhifier + Devanagari rendering)
