@@ -99,7 +99,13 @@ REDUP_DEP = "compound@redup"
 # Residual error is ~10 %, almost all PART<->SCONJ, and it tracks the HEAD being mis-tagged
 # (歡 "joy", 哀 "grief" read as verbs) -- i.e. it routes through zero derivation, not through 之.
 ZHI = "之"
-ZHI_CLAUSAL = {"VERB", "AUX"}
+# ⚠ ADJ JOINED THIS SET when the morphologizer started emitting it (recode_lzh_adj.py: VERB with
+# Degree=Pos -- classical Chinese's stative predicates, e.g. 大/賢/高 -- recoded from VERB to ADJ).
+# A 之-marked clause can be headed by a stative predicate exactly as it can by an ordinary verb
+# ("其大之善" etc.), so leaving ADJ out would silently regress every such case: the head's category
+# changed under this rule's feet, and the rule must move with it or it starts calling genuine
+# clausal 之 a PART because its head no longer reads as "VERB".
+ZHI_CLAUSAL = {"VERB", "AUX", "ADJ"}
 
 
 @Language.factory(

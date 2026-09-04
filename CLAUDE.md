@@ -125,10 +125,27 @@ all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a mod
 
 ## The fourteen wheels
 
-**lzh, ja, ko, la and sa are at v0.3.0** and **ta and te are new at 0.1.0**, all seven on the
-`v0.3.0` release; the other seven are at v0.2.0 on `v0.2.0`. **lzh went to 0.3.0 on 2026-09-01** —
-the 異體字 map applied at the tokeniser, `sent_join`, and the combined multi-field tagger; every
-non-tagger weight byte-identical to the 0.2.0 asset, verified out of the DOWNLOADED wheel
+**lzh is at v0.3.2** and **ja, ko, la and sa are at v0.3.0** and **ta and te are new at 0.1.0**;
+lzh's three releases are each on their own tag (`v0.3.0`, `v0.3.1`, `v0.3.2`), the other six of the
+seven on `v0.3.0`; the other seven languages are at v0.2.0 on `v0.2.0`. **lzh went to 0.3.0 on
+2026-09-01** — the 異體字 map applied at the tokeniser, `sent_join`, and the combined multi-field
+tagger; every non-tagger weight byte-identical to the 0.2.0 asset, verified out of the DOWNLOADED wheel
+(`docs/chinese-family.md`). **lzh went to 0.3.1 on 2026-09-03** — `lzh_upos_rules` (four lexeme
+rules plus 之 disambiguation from the parse, plus reduplication agreement), UPOS 91.66 → 92.69,
+之 58.42 → 89.36; a CODE-ONLY change, every weight byte-identical to 0.3.0 (`docs/release-notes.md`).
+**lzh went to 0.3.2 on 2026-09-04** — the Kyoto tagset has no ADJ: classical Chinese's stative
+predicates (大/賢/高/...) are annotated as VERB with `Degree=Pos`, distinguished from ordinary verbs
+only by that feature. `scripts/recode_lzh_adj.py` recodes VERB+Degree=Pos → ADJ (17 816/109 706
+training VERB tokens, 16.2 %) and every UPOS-conditioned component downstream was retrained on the
+corrected gold: the morphologiser (source of the label), the combined multi-field tagger (reads
+UPOS+FEATS+SikuBERT), and `sud_shared` (reads POS+MORPH directly in its embed). The frozen
+components (`tok2vec`, `parser`) are BYTE-IDENTICAL, verified on the downloaded wheel; UAS/LAS/SENT-F
+are unchanged to two decimal places (82.00/76.39/95.27 → 81.99/76.38/95.27) and POS jumps
+88.57 → **91.71** (v0.3.1 measured against the SAME corrected gold, since it has no ADJ to predict
+at all). `lzh_upos_rules.ZHI_CLAUSAL` gained `"ADJ"` alongside `{"VERB", "AUX"}`, since a stative
+predicate heads a 之-marked clause exactly as an ordinary verb does. `models/lzh_sent_joins.json`
+and `scripts/sud_subject_frames.py` were checked for UPOS-keyed content and rebuilt/re-verified;
+neither's decisions moved (the affected lemmas don't intersect their thresholded cells).
 (`docs/chinese-family.md`). Published on the GitHub Release, not in git.
 
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
