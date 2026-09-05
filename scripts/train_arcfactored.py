@@ -806,6 +806,18 @@ def main():
                     help="disable the signed-distance buckets")
     ap.add_argument("--bilstm", action="store_true",
                     help="MultiHashEmbed -> BiLSTM encoder instead of the CNN (--joint only)")
+    ap.add_argument("--flat", action="store_true",
+                    help="--joint only: use the fresh embed's OWN output directly as X, with NO "
+                         "contextualiser on top at all (neither --bilstm's LSTM nor the default "
+                         "MaxoutWindowEncoder) -- overrides --bilstm. Built to isolate whether the "
+                         "seed-to-seed instability the multi-seed sweep found (la/lzh --joint "
+                         "runs landing 11-15 LAS below their own single-seed 'champion' numbers, "
+                         "NEGATIVE-RESULTS.md) comes from the embed's own random init (HashEmbed "
+                         "tables, the embed's internal Maxout combine -- la's LemmaVecFeatsEmbed.v1 "
+                         "already carries fastText lemma vectors, so this DOESN'T remove that "
+                         "channel) or from the much larger, cross-token-recurrent BiLSTM stacked on "
+                         "top of it, which every --joint run so far has always had one of (BiLSTM or "
+                         "MaxoutWindowEncoder), never neither.")
     ap.add_argument("--save", default="", help="directory to write the best model into")
     ap.add_argument("--joint", action="store_true",
                     help="train a fresh encoder jointly with the biaffine instead of freezing")
@@ -931,7 +943,13 @@ def main():
               f"({cfg['joint_embed']['kwargs'].get('attrs')}"
               f"{', feats=' + str(cfg['joint_embed']['kwargs']['feats']) if cfg['joint_embed']['kwargs'].get('feats') else ''})",
               flush=True)
-        if a.bilstm:
+        if a.flat:
+            # ⚠ NO CONTEXTUALISER AT ALL -- the embed's own List[Doc] -> List[Floats2d] output IS
+            # already the right shape for X (LemmaVecFeatsEmbed.v1/MultiHashEmbed.v2 etc. all end in
+            # `with_array(...)`/`ragged2list()`), so `enc = embed` needs no adapter. See --flat's
+            # own help text for why this exists.
+            enc = embed
+        elif a.bilstm:
             # ⚠ THINC'S NATIVE LSTM, NOT `spacy.TorchBiLSTMEncoder.v1` -- torch is 437 MB installed
             # against this project's 250 MB serverless budget (docs/packaging-and-release.md).
             from thinc.api import LSTM, with_padded
@@ -941,7 +959,8 @@ def main():
             enc = _chain(embed, registry.architectures.get("spacy.MaxoutWindowEncoder.v2")(
                 width=96, depth=4, window_size=1, maxout_pieces=3))
         enc.initialize(X=plain_tr[:64])
-        print(f"  JOINT: training a fresh {'BiLSTM (depth 2)' if a.bilstm else 'MaxoutWindowEncoder (depth 4)'}"
+        print(f"  JOINT: training a fresh "
+              f"{'FLAT (no contextualiser)' if a.flat else 'BiLSTM (depth 2)' if a.bilstm else 'MaxoutWindowEncoder (depth 4)'}"
               f" width-96 encoder with the biaffine", flush=True)
         Xtr = Xte = None
         w = 96
