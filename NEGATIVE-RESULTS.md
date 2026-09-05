@@ -1219,6 +1219,36 @@ to be much smaller — `morph_hash_buckets`' 64 buckets being fine for MORPH bun
 about whether the same count would work for token/lemma identity, a qualitatively larger and more
 skewed space.
 
+**ERRATUM (2026-09-05, later the same day): "every other hyperparameter identical" above was
+false, and the comparison this whole entry rests on is confounded.** `lzh_arcfactored_pron` (and
+every other real, non-smoke arc-factored run this session, confirmed by re-reading their saved
+`train_*.log` files) was trained with `--decay 0.95`; the `--lemhash` and `--lemhash-dep` launches
+were not, because their recipe was copied from a checkpoint's `meta.json` (which does not record
+the learning-rate schedule) rather than from an actual training log. Without decay, `lr` stays at
+a constant 2e-3 for all 20 epochs instead of falling to ~7.5e-4 by epoch 19 — and `lzh_arcfactored_lemhash_v2`
+(4096 buckets, still no decay) showed a diagnostic symptom of exactly this: **loss rose
+monotonically** from epoch 3 onward (1.12 → 1.33) while LAS never recovered past epoch 3's 61.67,
+a shape neither this entry's "collision noise" explanation nor a converging optimisation would
+produce, but a constant-LR overshoot would. `la_arcfactored_lemhashdep` (a completely different
+term, different language, different axis — dependent-side, not head-side) showed the identical
+rising-loss shape from epoch 1, which is what actually surfaced the missing flag: two unrelated
+terms failing the same way was the tell that the shared launch condition, not either mechanism,
+was the cause. Both runs were killed and relaunched with `--decay 0.95`
+(`lzh_arcfactored_lemhash_v3`, `la_arcfactored_lemhashdep_v2`) — results pending.
+
+**What survives this correction and what doesn't**: the corpus statistics are unaffected by
+training hyperparameters — lzh really does have 9,018 distinct types crowding 512 buckets, and la
+really does have 81.1% Case-less ambiguous tokens where the dependent's own lemma is the stronger
+signal. Those facts motivated `--lemhash`/`--lemhash-dep` and remain the reason to test them. What
+does NOT survive is the causal claim that the 512-bucket collision, specifically, explains the
+14-point collapse — that run also lacked decay, so some unknown fraction of the -14.18 may belong
+to the missing schedule rather than to collision. The 4096-bucket "fix" was never a clean test of
+the collision hypothesis, and neither was any comparison to `lzh_arcfactored_pron`'s LAS trajectory.
+**Always read the actual training log for the LR schedule when replicating a "best recipe" from a
+checkpoint's meta.json — the meta does not carry hyperparameters that were not saved into it, and a
+plausible-looking mechanism-level explanation for a large delta can be entirely wrong if a launch
+condition differs and nobody checked.**
+
 ### Beam training: refuted on its own mechanism, which is the interesting part
 
 `beam_parser`, width 8, `beam_update_prob = 0.5` -- the settings from `config_sa_mp2_beam.cfg`,
