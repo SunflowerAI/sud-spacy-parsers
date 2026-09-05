@@ -538,6 +538,24 @@ LANGS = {
                 "feat_rows": [64, 16, 32, 32, 16, 32, 16, 16, 64, 32, 64, 16],
             },
         },
+        # ⚠ THE PRETRAINED, TASK-NEUTRAL ENCODER (--pretrain). Char-hash + fastText lemma vectors,
+        # deliberately WITHOUT `joint_embed`'s own per-feature morphology channel -- this embed is
+        # trained via a TAGGING objective (scripts/pretrain_lemvec_encoder.py, predicting UPOS from
+        # gold), and reading PREDICTED Case/Number/etc as an input to the very model predicting tags
+        # would be circular. Morphological signal for the arc-factored decoder still arrives via the
+        # existing LATE bias terms (--agreement/--feat), which already correctly read PREDICTED
+        # morphology from a separate upstream tagger, not baked into this shared encoder at all.
+        # `sud.LemmaVecEmbed.v1`, not `...Feats...`, for exactly this reason -- same table, same
+        # char-hash attrs/rows as `joint_embed` above, so a pretrained checkpoint's shapes are
+        # comparable across la and lzh even though their `joint_embed` architectures differ.
+        "pretrain_embed": {
+            "arch": "sud.LemmaVecEmbed.v1",
+            "kwargs": {
+                "width": 96, "attrs": ["NORM", "PREFIX", "SUFFIX", "SHAPE"],
+                "rows": [5000, 1000, 2500, 2500], "include_static_vectors": False,
+                "vectors": "scripts/la_lemmavec_96.npz", "vector_dim": 96,
+            },
+        },
     },
     "sa": {
         "src": "training_sa_mp2_sub_s1/model-best",       # SA_BASE in package_sud.sh
@@ -581,17 +599,35 @@ LANGS = {
                 "rows": [5000, 1000, 2500, 2500], "include_static_vectors": False,
             },
         },
+        # ⚠ SEE la's OWN `pretrain_embed` COMMENT for the full rationale. For lzh specifically this
+        # is also the FIRST time fastText lemma vectors enter the shared encoder at all -- lzh's
+        # `joint_embed` above is bare char-hash, `--lemvec` only ever injects the table as a late
+        # biaffine bias, never as something the encoder itself sees.
+        "pretrain_embed": {
+            "arch": "sud.LemmaVecEmbed.v1",
+            "kwargs": {
+                "width": 96, "attrs": ["NORM", "PREFIX", "SUFFIX", "SHAPE"],
+                "rows": [5000, 1000, 2500, 2500], "include_static_vectors": False,
+                "vectors": "scripts/lzh_lemmavec_96.npz", "vector_dim": 96,
+            },
+        },
     },
 }
+
+
+def build_embed_from_spec(spec):
+    """(arch, kwargs) -> the constructed thinc Model -- the one place both `build_joint_embed`
+    (LANGS[lang]['joint_embed']) and the --pretrain path (LANGS[lang]['pretrain_embed']) go through,
+    so a checkpoint built from either spec is reconstructed identically everywhere."""
+    from spacy.util import registry
+    return registry.architectures.get(spec["arch"])(**spec["kwargs"])
 
 
 def build_joint_embed(cfg):
     """The --joint embed layer, from LANGS[lang]['joint_embed'] -- one place, so the trainer and
     every analysis/diagnostic script build the IDENTICAL architecture rather than each hand-rolling
     its own reconstruction and drifting out of sync with the others."""
-    from spacy.util import registry
-    spec = cfg["joint_embed"]
-    return registry.architectures.get(spec["arch"])(**spec["kwargs"])
+    return build_embed_from_spec(cfg["joint_embed"])
 
 
 def build_joint_embed_from_meta(meta):
@@ -818,6 +854,19 @@ def main():
                          "channel) or from the much larger, cross-token-recurrent BiLSTM stacked on "
                          "top of it, which every --joint run so far has always had one of (BiLSTM or "
                          "MaxoutWindowEncoder), never neither.")
+    ap.add_argument("--pretrain", default="",
+                    help="--joint only: path to an embed checkpoint from "
+                         "scripts/pretrain_lemvec_encoder.py (LANGS[lang]['pretrain_embed']'s "
+                         "architecture, char-hash + fastText, trained via a TAGGING objective on "
+                         "gold UPOS) -- loads it into the embed after enc.initialize() sets every "
+                         "shape, so only the embed starts mature; the contextualiser (BiLSTM/"
+                         "MaxoutWindowEncoder/none under --flat) and the biaffine stay fresh, seeded "
+                         "by --seed as usual. The middle ground between --joint alone (everything "
+                         "fresh, seed-unstable, NEGATIVE-RESULTS.md) and a fully frozen deployed "
+                         "tok2vec (la_frozen: stable but capped ~65 LAS, and co-adapted to the "
+                         "TRANSITION parser's own objective, not neutral) -- built to test whether a "
+                         "neutral, tagging-pretrained encoder gets the stability of the former "
+                         "without inheriting either parser's own bias.")
     ap.add_argument("--save", default="", help="directory to write the best model into")
     ap.add_argument("--joint", action="store_true",
                     help="train a fresh encoder jointly with the biaffine instead of freezing")
@@ -938,10 +987,18 @@ def main():
     if a.joint:
         from spacy.util import registry
         from thinc.api import chain as _chain
-        embed = build_joint_embed(cfg)
-        print(f"  JOINT: fresh {cfg['joint_embed']['arch']} embed "
-              f"({cfg['joint_embed']['kwargs'].get('attrs')}"
-              f"{', feats=' + str(cfg['joint_embed']['kwargs']['feats']) if cfg['joint_embed']['kwargs'].get('feats') else ''})",
+        # ⚠ --pretrain SWITCHES WHICH SPEC BUILDS THE EMBED, not just which weights load into it --
+        # LANGS[lang]['pretrain_embed'] (char-hash + fastText, no per-feature morphology) has a
+        # DIFFERENT parameter tree shape than ['joint_embed'] (which for la/sa also carries feat
+        # hash tables) -- see --pretrain's own help text for why the two must differ. Loading a
+        # pretrain_embed checkpoint's bytes into a joint_embed-shaped Model would fail on shape
+        # mismatch, not silently do the wrong thing, but building from the right spec from the start
+        # avoids ever hitting that.
+        embed_spec = cfg["pretrain_embed"] if a.pretrain else cfg["joint_embed"]
+        embed = build_embed_from_spec(embed_spec)
+        print(f"  JOINT: fresh {embed_spec['arch']} embed "
+              f"({embed_spec['kwargs'].get('attrs')}"
+              f"{', feats=' + str(embed_spec['kwargs']['feats']) if embed_spec['kwargs'].get('feats') else ''})",
               flush=True)
         if a.flat:
             # ⚠ NO CONTEXTUALISER AT ALL -- the embed's own List[Doc] -> List[Floats2d] output IS
@@ -959,9 +1016,20 @@ def main():
             enc = _chain(embed, registry.architectures.get("spacy.MaxoutWindowEncoder.v2")(
                 width=96, depth=4, window_size=1, maxout_pieces=3))
         enc.initialize(X=plain_tr[:64])
+        if a.pretrain:
+            # ⚠ AFTER enc.initialize(), NOT BEFORE -- initialize() is what allocates the embed's
+            # real parameter arrays (HashEmbed table shapes, the internal Maxout's weight matrix),
+            # and `embed` is the SAME object `enc`'s chain holds (chain composes references, never
+            # copies), so overwriting its bytes here reaches into `enc` directly. The contextualiser
+            # stacked after it (BiLSTM/MaxoutWindowEncoder/nothing under --flat) keeps whatever
+            # enc.initialize() already gave it -- only the embed becomes pretrained.
+            with open(a.pretrain, "rb") as f:
+                embed.from_bytes(f.read())
+            print(f"  PRETRAIN: loaded embed weights from {a.pretrain}", flush=True)
         print(f"  JOINT: training a fresh "
               f"{'FLAT (no contextualiser)' if a.flat else 'BiLSTM (depth 2)' if a.bilstm else 'MaxoutWindowEncoder (depth 4)'}"
-              f" width-96 encoder with the biaffine", flush=True)
+              f" width-96 encoder with the biaffine"
+              f"{' on a PRETRAINED (tagging-objective) embed' if a.pretrain else ''}", flush=True)
         Xtr = Xte = None
         w = 96
     else:
