@@ -767,8 +767,13 @@ case $lang in
        $PY scripts/add_sud_reported_rule.py "$work.front" "$work.rep" --lang sa \
          || { echo "  sa: add_sud_reported_rule FAILED"; return; }
        add_idiom "$work.rep" "$work"
+       # sa's `parser` may be the arc-factored decoder (sud.ArcFactoredParser.v1) rather than the
+       # standard TransitionBasedParser -- SA_BASE names which; these three travel unconditionally,
+       # the same "inert if unused, missing if needed" call already made for ko's analyser channel
+       # above, since the alternative is an E893 the missing---code guard exists specifically to
+       # catch before it reaches a user.
        pkg sa  "$work" sud_vedic_ufal_dcs \
-            "$CODE_REP,scripts/sa_tokenizer.py,scripts/clause_parser.py,scripts/sa_presegment.py,scripts/sud_unsandhi.py,scripts/sud_affix_embed.py,scripts/sa_devanagari.py,scripts/sud_analyser_embed.py" ;;
+            "$CODE_REP,scripts/sa_tokenizer.py,scripts/clause_parser.py,scripts/sa_presegment.py,scripts/sud_unsandhi.py,scripts/sud_affix_embed.py,scripts/sa_devanagari.py,scripts/sud_analyser_embed.py,scripts/sud_arcfactored_parser.py,scripts/sud_joint_biaffine.py,scripts/train_arcfactored.py,scripts/sud_cle.py" ;;
        # yue ships NO Shared layer: trained F 21.5 at P 27.7 on 74 test tokens, with the candidate
        # mask reaching 28.4 % of gold. The trained pipe is DROPPED rather than left in place, so
        # the wheel carries no weights it never uses -- and so `Shared` keeps coming out of the

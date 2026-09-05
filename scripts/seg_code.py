@@ -139,5 +139,11 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            # package_sud.sh's `>/dev/null 2>&1` swallowed the error and shipped the old pipeline.
            "han_lemma_lut.py",
            # registers sud.SplitTok2Vec.v1 — the part-learned/part-frozen encoder
-           "sud_split_tok2vec.py"):
+           "sud_split_tok2vec.py",
+           # registers the `sud_arcfactored_parser` factory -- the graph-based (biaffine + Chu-Liu/
+           # Edmonds) decoder that replaces `parser` in the sa arc-factored arm. Its own top-level
+           # `import sud_joint_biaffine` / `import train_arcfactored` resolve normally through
+           # `sys.path` (already includes this directory, line 15), so neither needs its own entry
+           # here -- only the factory registration itself does.
+           "sud_arcfactored_parser.py"):
     _load(_f)
