@@ -125,9 +125,31 @@ all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a mod
 
 ## The fourteen wheels
 
-**lzh is at v0.3.2** and **ja, ko, la and sa are at v0.3.0** and **ta and te are new at 0.1.0**;
-lzh's three releases are each on their own tag (`v0.3.0`, `v0.3.1`, `v0.3.2`), the other six of the
-seven on `v0.3.0`; the other seven languages are at v0.2.0 on `v0.2.0`. **lzh went to 0.3.0 on
+**sa is at v0.4.0**, **lzh is at v0.3.2**, **ja, ko and la are at v0.3.0**, and **ta and te are new
+at 0.1.0**; sa's release is on its own tag (`v0.4.0`), lzh's three releases are each on their own
+tag (`v0.3.0`, `v0.3.1`, `v0.3.2`), the other five of the seven on `v0.3.0`; the other seven
+languages are at v0.2.0 on `v0.2.0`.
+
+**sa went to 0.4.0 on 2026-09-05** — `parser` is no longer `spacy.TransitionBasedParser.v2`. It is
+now an ARC-FACTORED (graph-based) decoder: a biaffine scorer over EVERY candidate (head, dependent,
+label) triple jointly (`sud_joint_biaffine.JointBiaffine`), decoded by Chu-Liu/Edmonds MST rather
+than a transition system's stack/buffer actions. The shipped checkpoint trains five bias terms on
+top of the distance prior: Case/Number/Gender agreement, head-precedes/follows direction, (head
+UPOS, dep UPOS) compatibility, a head static-lemma-vector readout, and one independent bias per
+morphological feature (Case, Number, Gender, Person). Measured through the FULL deployed pipeline (`sa_compound`,
+`clause_parser`, `sa_deva`, `sud_reported_rule`, `sud_idiom` all included, not just the bare parser):
+LAS 52.99 against the RETIRED transition arm's 44.69 on the SAME test set, gap **+8.30** — the
+DECISIVE result across three languages this decoder was tried on (`docs/sanskrit.md` has the
+comparison against la and lzh, where it did NOT yet beat the transition parser and so was not
+shipped). One measured, disclosed cost: `clause_parser`'s post-parse per-clause re-parse costs the
+new arm MORE than the old one (LAS 54.80 -> 52.99, -1.81) where the transition arm barely moved
+(44.55 -> 44.69, +0.14) — a real asymmetry, not yet root-caused, that does not change the shipping
+decision but is worth a follow-up look. `sud_arcfactored_parser.py` is a new spaCy pipe wrapper
+(the decoder's forward/decode pass is hand-rolled numpy, not a thinc `Model`), sealing every weight
+it reads — including the lemma-vector table, a repo-relative path at build time — into its own
+`to_disk`/`from_disk` bytes (CLAUDE.md hazard 4), verified by installing the wheel into a clean venv
+and running it from a directory with no relation to this repo. `tok2vec`/`tagger`/`morphologizer`/
+`lemmatizer` and the whole frontend are UNCHANGED; only `parser` differs. **lzh went to 0.3.0 on
 2026-09-01** — the 異體字 map applied at the tokeniser, `sent_join`, and the combined multi-field
 tagger; every non-tagger weight byte-identical to the 0.2.0 asset, verified out of the DOWNLOADED wheel
 (`docs/chinese-family.md`). **lzh went to 0.3.1 on 2026-09-03** — `lzh_upos_rules` (four lexeme
@@ -174,7 +196,7 @@ gh release view v0.3.0 --json assets -q '.assets[] | "\(.name)  \(.updatedAt)"'
 | ar | `ar_sud_padt` | CC BY-NC-SA 4.0 | rule + `ar_tokenizer` | vocalisation-augmented; ships the `Vform` table and a trained Idiom pipe |
 | fa | `fa_sud_perdt` | CC BY-SA 4.0 | rule + `sud.FaNormTokenizer.v1` | normalises Arabic letterforms **in**; ships ezāfe rules without the GPL lexicon |
 | la | `la_sud_ittb_proiel_perseus` | CC BY-NC-SA 4.0 | rule + `-que` split | orthography-augmented; parser reads predicted lemma vectors + per-feature morphology (LAS 71.72 → 73.23), table **sealed** into the bytes; `la_macronise` ships without its data |
-| sa | `sa_sud_vedic_ufal_dcs` | CC BY-SA 4.0 | `sa.SanskritInputTokenizer.v3` | accepts **raw sandhied** IAST or Devanagari; joint multi-task arm |
+| sa | `sa_sud_vedic_ufal_dcs` | CC BY-SA 4.0 | `sa.SanskritInputTokenizer.v3` | accepts **raw sandhied** IAST or Devanagari; joint multi-task tok2vec/tagger/morphologizer/lemmatizer, but `parser` is the ARC-FACTORED decoder as of 0.4.0 (`sud_arcfactored_parser.py`), not `TransitionBasedParser` |
 | zh | `zh_sud_gsd` | CC BY-SA 4.0 | char tagger + jackknifed lexicon + jieba BMES off a TRADITIONAL jieba dictionary | traditional-only; vendors a pruned jieba, now without its simplified `dict.txt` (`build_jieba_trad_dict.py` supersedes the `t2s`-the-text channel; **re-clobbered at 0.2.0 on 2026-08-22**, every non-tokeniser weight byte-identical) |
 | yue | `yue_sud_hk` | CC BY-SA 4.0 | pkuseg trained on yue | test-only treebank → deterministic 80/10/10 split |
 | lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) + 異體字 map | custom `lzh` language; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825). **0.3.0**: the tokeniser normalises 无→無 / 隂→陰 (PROPN on treebank-absent characters 17.56 % → 9.14 %, `token._.lzh_src` recovers the original); `sent_join` keeps quoted spans and comma-separated clauses in one sentence (SENTS_F 90.79 → **95.27**, LAS −0.07); the tagger is four per-field softmaxes PLUS the joint head (TAG −0.15, and `cfg["upos_mask"]=True` makes a hand-corrected UPOS constrain the XPOS, **+3.11 on gold UPOS**) |
