@@ -1528,11 +1528,47 @@ still lose to `mod` — a near-symmetric ~200/~200 split, the same shape reporte
 bias). Overall LAS moved -0.04 against `la_arcfactored_feat` and is still well short of both
 `la_arcfactored_lexical` (73.46, la's arc-factored best) and the shipped transition parser (73.92).
 
-**Why a mechanistically well-motivated bilinear term still didn't move the needle is not fully
-explained** (unlike the agreement-input negative result above, no mechanism check was run to see
-whether `lemcase`'s OWN readout separates the two classes on held-out lemma x Case pairs it saw
-in training) — but the practical implication is direct: this specific interaction, encoded this way,
-is not the missing piece for la's mod/comp:obl trade, and the arc-factored decoder still does not
-beat the transition parser on Latin. `--lemcase` remains in `sud_joint_biaffine.py` (gradient-checked,
-loadable) for any future revisit, but no la checkpoint using it should be considered better than
-`la_arcfactored_lexical` without new evidence.
+**Root cause found, after the fact, by asking whether the premise held in the gold data at all**
+(the check that should have been run BEFORE building the term, not after). `--lemcase` conditions on
+the DEPENDENT's own Case value. Restricting to the 1,315 ambiguous VERB-headed lemmas and asking what
+fraction of their `mod`/`comp:obl` dependents even HAVE a Case value:
+
+    slice                                        n        % of ambiguous mass    majority-vote accuracy
+    Case present (a bare case-marked NP)      12,743              18.9 %                97.20 %
+    Case = _NONE_ (no Case morphology)        54,533              81.1 %                67.5 % (~= the case-blind lemma baseline)
+
+**81.1 % of the tokens `--lemcase` was built to disambiguate have NO Case value at all**, because the
+dependent is not a bare case-marked noun — it is headed by something case-less: ADP 56.4 % (a
+prepositional phrase, where Case lives on the NOUN INSIDE the PP, one level below the token
+`--lemcase` looks at), ADV 24.6 %, SCONJ 17.2 % (a subordinate clause). Case genuinely predicts the
+label almost perfectly WHEN PRESENT (97.2 % vs. a 67.5 % lemma-only baseline on the same slice,
+confirming the premise wasn't wrong, just under-scoped) — but that clean signal only reaches 19 % of
+the confusion mass, so its contribution to the OVERALL average is diluted down near the +8.5-point
+theoretical ceiling computed across the whole ambiguous population, and apparently the trained model
+did not even fully realise that ceiling.
+
+**The real predictor for the 81 % majority is a DIFFERENT lexical axis than the one `--lemcase`
+encodes**: the DEPENDENT's own lemma identity (which preposition/adverb/subordinator it is), not the
+verb's Case government. Within the Case=_NONE_ slice, dependent-lemma-alone majority-vote accuracy is
+**88.75 %** (1,217 distinct dependent lemmas) — e.g. `per`/`si`/`secundum`/`non`/`sicut`/`nisi`/`sic`
+sit at or near 100 % one label, `cum`/`quia`/`ut` above 93 %, while `in`/`ad`/`ex` remain genuinely
+mixed (69–87 %, the true residual ambiguity, arguably resolved only by the CASE OF THE PP's OWN
+OBJECT — a feature no la arc-factored bias yet reads). Adding the verb lemma back in (verb-lemma x
+dependent-lemma pair) lifts this only to 92.45 %, confirming the dependent's identity carries most of
+the signal.
+
+**So `--lemcase` targeted the wrong 19 % of the problem.** The fix already exists in the codebase
+under a different flag, never yet tried ALONE for this: `--lemvec-dep` (dependent-side static lemma
+vector) was only ever tried IN COMBINATION with `--feat` for la (`la_arcfactored_lvd`, worse than
+`--feat` alone) — never in isolation, and never as a DISCRETE dependent-lemma hash (the `--lemhash`
+mechanism, built for lzh, applied to the wrong AXIS for la: `--lemhash` is head-side, this problem
+needs the dependent side, i.e. `morph_hash_buckets`'s dlin2 reduction with lemma identity instead of
+a MORPH bundle). Given the closed, mostly-deterministic nature of the top dependent lemmas above, a
+discrete lookup is likely to fit this signal more cleanly than a continuous vector space, and the
+inventory (~1,217 types within this slice, overwhelmingly closed-class ADP/ADV/SCONJ) is small enough
+that hash collision — the failure mode measured separately for lzh's head-side `--lemhash` below — is
+much less of a risk here. Not yet built or tried; the next concrete step for la's mod/comp:obl trade.
+
+`--lemcase` remains in `sud_joint_biaffine.py` (gradient-checked, loadable) for any future revisit,
+but no la checkpoint using it should be considered better than `la_arcfactored_lexical` without new
+evidence.

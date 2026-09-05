@@ -377,6 +377,39 @@ def lemma_hash_buckets(doc, n_buckets=LEMHASH_BUCKETS):
     return ids
 
 
+# ⚠ DEPENDENT-LEMMA HASH BIAS (--joint-label --lemhash-dep), `lemma_hash_buckets`' mirror image on
+# the DEPENDENT axis -- (n,)-shaped like `morph_hash_buckets`, not (n+1,)-shaped like the head-side
+# version (a dependent is never the virtual root). Built after `--lemcase` (verb x dependent-Case)
+# measurably FAILED to close la's mod/comp:obl trade: checking whether the premise held at all found
+# 81.1% of the ambiguous mass has NO Case value at all (the dependent is an ADP/ADV/SCONJ heading a
+# PP/adverbial/clause, not a bare case-marked noun -- Case lives one level down, on the PP's own
+# object, which no la bias reads). Within that Case-less 81%, the DEPENDENT's own lemma identity
+# predicts the label at 88.75% (per/si/secundum/non/sicut/nisi/sic sit at ~100% one label; in/ad/ex
+# remain genuinely mixed), dwarfing the ~67.5% lemma-blind baseline -- `lemvec_dep` already asks this
+# question but CONTINUOUSLY; this asks it DISCRETELY, since the top offenders are a largely closed,
+# near-deterministic class that a hash table can fit more cleanly than a distributional vector space.
+#
+# ⚠ SIZE THE BUCKET COUNT AGAINST THE ACTUAL VOCABULARY, MEASURED, not copied from a smaller
+# precedent's count -- `--lemhash` (this table's head-side sibling) first shipped at 512 buckets for
+# lzh's 9,018 distinct types and collapsed LAS 14 points from hash collision (NEGATIVE-RESULTS.md);
+# la's corpus has 16,501 distinct (lemma_ or text) types, so this starts at a bucket count sized for
+# that from the outset rather than repeating the mistake.
+LEMHASHDEP_BUCKETS = 16384
+N_LEMHASHDEP_BINS = LEMHASHDEP_BUCKETS + 1          # +1: bucket 0 reserved for an empty/unknown lemma
+
+
+def lemma_hash_buckets_dep(doc, n_buckets=LEMHASHDEP_BUCKETS):
+    """(n,) int bucket ids, one per DEPENDENT -- head-INDEPENDENT (see the module note), so this is
+    a per-dependent vector like `morph_hash_buckets`, not the (n+1,) head-indexed shape
+    `lemma_hash_buckets` uses. Same crc32 mechanism/caveat as both of those."""
+    ids = np.zeros(len(doc), dtype=np.int64)
+    for i, t in enumerate(doc):
+        s = t.lemma_ or t.text
+        if s:
+            ids[i] = 1 + (zlib.crc32(s.encode("utf-8")) % n_buckets)
+    return ids
+
+
 # ⚠ PER-FEATURE SPLIT OF morphhash (--joint-label --feat). Hashing the WHOLE morph bundle into one
 # bucket mixed Case together with Number/Gender/..., which diluted exactly the distinction that
 # would separate la's `subj` (nominative) from `comp:obj` (accusative) -- morphhash's own
@@ -842,6 +875,13 @@ def main():
                          "languages with no Case morphology (lzh), where --lemcase cannot apply: a "
                          "discrete counterpart to --lemvec's continuous readout, built for lzh's "
                          "comp:obj/parataxis matrix-verb closed class")
+    ap.add_argument("--lemhash-dep", action="store_true", dest="lemhashdep",
+                    help="--joint-label only: add a per-label bias on a HASH of the DEPENDENT's own "
+                         "lemma IDENTITY (lemma_hash_buckets_dep) -- built for la after --lemcase "
+                         "failed: 81.1%% of la's mod/comp:obl ambiguous mass has no Case value at "
+                         "all (the dependent is an ADP/ADV/SCONJ, not a bare case-marked noun), and "
+                         "within that slice the DEPENDENT's own lemma (per/si/secundum/cum/... vs. "
+                         "the mixed in/ad/ex) predicts the label far better than lemma-blind chance")
     ap.add_argument("--presegment", action="store_true",
                     help="explode whole docs into one gold SENTENCE per training/eval item, so the "
                          "encoder never carries state across a sentence boundary -- see "
@@ -929,7 +969,8 @@ def main():
                            n_lemvec_dep_dim=lemvec_dep_dim,
                            n_lemcase_dim=(lemvec_dim if a.lemcase else 0),
                            n_lemcase_bins=(lemcase_bins if a.lemcase else 0),
-                           n_lemhash_bins=(N_LEMHASH_BINS if a.lemhash else 0))
+                           n_lemhash_bins=(N_LEMHASH_BINS if a.lemhash else 0),
+                           n_lemhashdep_bins=(N_LEMHASHDEP_BINS if a.lemhashdep else 0))
         # ⚠ sud_joint_biaffine.py deliberately keeps float64 (precision for its OWN gradient
         # check); thinc's optimiser and the rest of this file are float32 throughout.
         for kk in m.p:
@@ -946,7 +987,8 @@ def main():
               + (" + per-label preverbal-pronoun bias" if a.pron else "")
               + (" + per-label dependent-lemma-vector bias" if a.lemvec_dep else "")
               + (" + per-label head-lemma x dependent-Case BILINEAR bias" if a.lemcase else "")
-              + (" + per-label head-lemma-identity-hash bias" if a.lemhash else ""),
+              + (" + per-label head-lemma-identity-hash bias" if a.lemhash else "")
+              + (" + per-label dependent-lemma-identity-hash bias" if a.lemhashdep else ""),
               flush=True)
     else:
         m = Biaffine(w, a.hidden, len(labs))
@@ -1002,6 +1044,10 @@ def main():
     if a.joint_label and a.lemhash:
         lemhash_tr = [lemma_hash_buckets(d) for d in plain_tr]
         lemhash_te = [lemma_hash_buckets(d) for d in plain_te]
+    lemhashdep_tr = lemhashdep_te = None
+    if a.joint_label and a.lemhashdep:
+        lemhashdep_tr = [lemma_hash_buckets_dep(d) for d in plain_tr]
+        lemhashdep_te = [lemma_hash_buckets_dep(d) for d in plain_te]
     drng = np.random.default_rng(1234)
     best = (-1.0, -1)
     for ep in range(a.epochs):
@@ -1033,7 +1079,8 @@ def main():
                     pron_tr[di] if pron_tr is not None else None,
                     lemvec_dep_tr[di] if lemvec_dep_tr is not None else None,
                     lemcase_tr[di] if lemcase_tr is not None else None,
-                    lemhash_tr[di] if lemhash_tr is not None else None)
+                    lemhash_tr[di] if lemhash_tr is not None else None,
+                    lemhashdep_tr[di] if lemhashdep_tr is not None else None)
                 tot += loss / max(n, 1)
                 if bp_enc is not None:
                     dX_b.append(dXin.astype("float32"))
@@ -1098,7 +1145,8 @@ def main():
                     pron_te[te_i] if pron_te is not None else None,
                     lemvec_dep_te[te_i] if lemvec_dep_te is not None else None,
                     lemcase_te[te_i] if lemcase_te is not None else None,
-                    lemhash_te[te_i] if lemhash_te is not None else None)
+                    lemhash_te[te_i] if lemhash_te is not None else None,
+                    lemhashdep_te[te_i] if lemhashdep_te is not None else None)
             else:
                 S, *_ = m.arc_scores(X, a.window)      # eval: no dropout
             # `mst` takes a SQUARE matrix over [virtual root | tokens]; arc_scores/decode_scores
@@ -1152,6 +1200,7 @@ def main():
                  "lemcase_vocab": ([list(v) for v in lemcase_vocab]
                                    if (a.joint_label and a.lemcase) else None),
                  "lemhash": bool(a.joint_label and a.lemhash),
+                 "lemhashdep": bool(a.joint_label and a.lemhashdep),
                  "joint_embed": cfg["joint_embed"] if a.joint else None,
                  "upstream": upstream}, ensure_ascii=False, indent=1))
             print(f"    saved -> {a.save} (best LAS {las*100/ntok:.2f})", flush=True)

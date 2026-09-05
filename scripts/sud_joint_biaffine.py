@@ -48,7 +48,8 @@ class JointBiaffine:
     def __init__(self, w, h, nlab, n_dist_bins, dist_buckets_fn, n_agree_bins=0,
                  n_dir_bins=0, dir_buckets_fn=None, n_pos_bins=0, n_lemvec_dim=0,
                  n_morphhash_bins=0, feat_bins=None, n_pron_bins=0, n_lemvec_dep_dim=0,
-                 n_lemcase_dim=0, n_lemcase_bins=0, n_lemhash_bins=0, seed=0):
+                 n_lemcase_dim=0, n_lemcase_bins=0, n_lemhash_bins=0, n_lemhashdep_bins=0,
+                 seed=0):
         r = np.random.default_rng(seed)
         s = lambda *d: (r.normal(size=d) * (1.0 / np.sqrt(d[0]))).astype("float64")
         self.p = {"Wh": s(w, h), "bh": np.zeros(h), "Wd": s(w, h), "bd": np.zeros(h),
@@ -167,13 +168,27 @@ class JointBiaffine:
         # is for the dependent side, crossed the other way.
         if n_lemhash_bins:
             self.p["lemhash"] = np.zeros((nlab, n_lemhash_bins))
+        # ⚠ DISCRETE DEPENDENT-LEMMA IDENTITY -- `lemhash`'s mirror image, crossed the other way
+        # again: `lemhash` is head-side discrete, this is DEPENDENT-side discrete (dlin2-shaped,
+        # like morphhash/feat/lemvec_dep). Built after `lemcase` (verb x dependent-Case) measurably
+        # FAILED to close la's mod/comp:obl trade -- checking whether the premise held at all found
+        # 81.1% of the ambiguous mass has NO Case value (the dependent is an ADP/ADV/SCONJ, not a
+        # bare case-marked noun -- Case lives one level down, on the PP's own object, which no la
+        # bias yet reads). Within that Case-less 81%, the DEPENDENT's own lemma identity predicts
+        # the label at 88.75% (per/si/secundum/non/sicut/nisi/sic are ~100% one label; cum/quia/ut
+        # above 93%), dwarfing the ~67.5% lemma-blind baseline -- `lemvec_dep` already asks this
+        # question but CONTINUOUSLY (a linear readout of a distributional vector); this asks it
+        # DISCRETELY, the same swap `lemhash` made on the head side, motivated the same way (a
+        # largely closed, near-deterministic class doesn't need a vector space to separate it).
+        if n_lemhashdep_bins:
+            self.p["lemhashdep"] = np.zeros((nlab, n_lemhashdep_bins))
         self.h, self.nlab = h, nlab
         self.dist_buckets_fn = dist_buckets_fn
         self.dir_buckets_fn = dir_buckets_fn
 
     def forward(self, X, k, agree_bkt=None, pos_bkt=None, lemvec=None, morph_bkt=None,
                 feat_bkt=None, pron_bkt=None, lemvec_dep=None, lemcase_bkt=None,
-                lemhash_bkt=None):
+                lemhash_bkt=None, lemhashdep_bkt=None):
         p = self.p
         n = X.shape[0]
         H = np.maximum(X @ p["Wh"] + p["bh"], 0)
@@ -233,6 +248,9 @@ class JointBiaffine:
         if lemhash_bkt is not None and "lemhash" in p:
             lemhash_term = p["lemhash"][:, lemhash_bkt].T                      # (n+1, nlab)
             combined = combined + lemhash_term[:, None, :]
+        if lemhashdep_bkt is not None and "lemhashdep" in p:
+            lemhashdep_term = p["lemhashdep"].T[lemhashdep_bkt]                # (n, nlab)
+            combined = combined + lemhashdep_term[None, :, :]
         dbkt = None
         if self.dir_buckets_fn is not None and "direction" in p:
             dbkt = self.dir_buckets_fn(n, k)                                  # (n+1, n)
@@ -245,11 +263,11 @@ class JointBiaffine:
 
     def loss_and_backward(self, X, k, gold_h, gold_l, agree_bkt=None, pos_bkt=None, lemvec=None,
                            morph_bkt=None, feat_bkt=None, pron_bkt=None, lemvec_dep=None,
-                           lemcase_bkt=None, lemhash_bkt=None):
+                           lemcase_bkt=None, lemhash_bkt=None, lemhashdep_bkt=None):
         """gold_h: (n,) int in [0,n] (0 = virtual root). gold_l: (n,) int label id.
         Returns (loss, grads_dict, dX). dX is the gradient wrt the ENCODER's output (for --joint)."""
         combined, c = self.forward(X, k, agree_bkt, pos_bkt, lemvec, morph_bkt, feat_bkt, pron_bkt,
-                                    lemvec_dep, lemcase_bkt, lemhash_bkt)
+                                    lemvec_dep, lemcase_bkt, lemhash_bkt, lemhashdep_bkt)
         n, nlab = c["n"], self.nlab
         # joint softmax over (h, l) per dependent d
         Z = combined.transpose(1, 0, 2).reshape(n, -1)                       # (n, (n+1)*nlab)
@@ -361,6 +379,13 @@ class JointBiaffine:
             np.add.at(hscat, lemhash_bkt, dlin1)
             g["lemhash"] = hscat.T
 
+        # -- lemhashdep_by_label: SAME reduction as morphhash's (dlin2, broadcasts over h
+        # identically) -- lemhash's mirror image again, this time on the dependent side.
+        if lemhashdep_bkt is not None and "lemhashdep" in p:
+            hdscat = np.zeros((p["lemhashdep"].shape[1], nlab), dtype=p["lemhashdep"].dtype)
+            np.add.at(hdscat, lemhashdep_bkt, dlin2)
+            g["lemhashdep"] = hdscat.T
+
         # -- pron_by_label: a FULL (n+1, n) grid scatter like pos/agree/direction, not a
         # head-independent one like feat/morphhash -- the preverbal-pronoun signal is a property
         # of the (head, dependent) PAIR (does the head follow this dependent), not of the
@@ -393,18 +418,19 @@ class JointBiaffine:
 
     def decode_scores(self, X, k, agree_bkt=None, pos_bkt=None, lemvec=None, morph_bkt=None,
                        feat_bkt=None, pron_bkt=None, lemvec_dep=None, lemcase_bkt=None,
-                       lemhash_bkt=None):
+                       lemhash_bkt=None, lemhashdep_bkt=None):
         """For eval: returns (best_label_score[h,d], chosen_label[h,d]) -- best_label_score feeds
         `sud_cle.mst` exactly like the two-stage scorer's `S`; chosen_label is read off for
         whichever arc CLE actually selects."""
         combined, _ = self.forward(X, k, agree_bkt, pos_bkt, lemvec, morph_bkt, feat_bkt, pron_bkt,
-                                    lemvec_dep, lemcase_bkt, lemhash_bkt)
+                                    lemvec_dep, lemcase_bkt, lemhash_bkt, lemhashdep_bkt)
         return combined.max(-1), combined.argmax(-1)
 
 
 def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
                          use_morphhash=False, use_feat=False, use_pron=False,
-                         use_lemvec_dep=False, use_lemcase=False, use_lemhash=False, seed=0):
+                         use_lemvec_dep=False, use_lemcase=False, use_lemhash=False,
+                         use_lemhashdep=False, seed=0):
     """Tiny random example, no windowing edge cases (k large enough to matter, small n) -- finite
     differences against every parameter AND against X (needed for --joint's encoder backprop).
     `use_agree=True` also exercises the agreement-bias path (a second, independent scatter-add
@@ -432,12 +458,17 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
     `use_lemvec` (the separate, additive head-only term) is off. `use_lemhash=True` exercises the
     ELEVENTH path, a discrete HEAD-side scatter (dlin1-shaped, like lemvec's derivation) -- the
     missing cell crossing morphhash's "discrete" with lemvec's "head-side", built for lzh where
-    `lemcase` cannot apply (no Case morphology) but a head-lemma-IDENTITY signal still can."""
+    `lemcase` cannot apply (no Case morphology) but a head-lemma-IDENTITY signal still can.
+    `use_lemhashdep=True` exercises the TWELFTH path, `lemhash`'s mirror image on the dependent
+    side (dlin2-shaped, like morphhash's derivation) -- built for la after `lemcase` failed to
+    close the mod/comp:obl trade: the dependent's own lemma identity (which preposition/adverb/
+    subordinator), not the verb's Case government, turned out to carry the real signal."""
     rng = np.random.default_rng(seed)
     n, w, h, nlab, nbins, k = 5, 6, 4, 3, 4, 10
     nabins, ndbins, npbins, nlvdim, nmbins, nprbins, nlvddim = 5, 3, 7, 6, 8, 4, 5
     nlcbins = 5   # lemcase reuses nlvdim for its head-vector dim, like the real usage does
     nhhbins = 9
+    nhdbins = 11
     feat_bins = {"f1": 5, "f2": 3} if use_feat else None
 
     def buckets_fn(n_, k_):
@@ -466,7 +497,8 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
                        n_lemvec_dep_dim=(nlvddim if use_lemvec_dep else 0),
                        n_lemcase_dim=(nlvdim if use_lemcase else 0),
                        n_lemcase_bins=(nlcbins if use_lemcase else 0),
-                       n_lemhash_bins=(nhhbins if use_lemhash else 0), seed=seed + 1)
+                       n_lemhash_bins=(nhhbins if use_lemhash else 0),
+                       n_lemhashdep_bins=(nhdbins if use_lemhashdep else 0), seed=seed + 1)
     for key in m.p:
         m.p[key] = rng.normal(size=m.p[key].shape) * 0.5
     X = rng.normal(size=(n, w))
@@ -486,13 +518,15 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
     lemvec_dep = rng.normal(size=(n, nlvddim)) if use_lemvec_dep else None
     lemcase_bkt = rng.integers(0, nlcbins, size=n) if use_lemcase else None
     lemhash_bkt = rng.integers(0, nhhbins, size=n + 1) if use_lemhash else None
+    lemhashdep_bkt = rng.integers(0, nhdbins, size=n) if use_lemhashdep else None
 
     loss0, g, dX = m.loss_and_backward(X, k, gold_h, gold_l, agree_bkt, pos_bkt, lemvec, morph_bkt,
-                                        feat_bkt, pron_bkt, lemvec_dep, lemcase_bkt, lemhash_bkt)
+                                        feat_bkt, pron_bkt, lemvec_dep, lemcase_bkt, lemhash_bkt,
+                                        lemhashdep_bkt)
 
     def loss_at(Xp):
         combined, _ = m.forward(Xp, k, agree_bkt, pos_bkt, lemvec, morph_bkt, feat_bkt, pron_bkt,
-                                 lemvec_dep, lemcase_bkt, lemhash_bkt)
+                                 lemvec_dep, lemcase_bkt, lemhash_bkt, lemhashdep_bkt)
         Z = combined.transpose(1, 0, 2).reshape(n, -1)
         Z = Z - Z.max(1, keepdims=True)
         P = np.exp(Z); P /= P.sum(1, keepdims=True)
@@ -532,7 +566,7 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
                                        ("lemvec", use_lemvec), ("morphhash", use_morphhash),
                                        ("feat", use_feat), ("pron", use_pron),
                                        ("lemvec_dep", use_lemvec_dep), ("lemcase", use_lemcase),
-                                       ("lemhash", use_lemhash)]
+                                       ("lemhash", use_lemhash), ("lemhashdep", use_lemhashdep)]
                       if on]) or "plain")
     print(f"[{tag}] worst relative error: {worst:.2e}  (loss0={loss0:.4f})")
     # ⚠ 1e-4 is too strict for a ReLU network: across seeds the worst entry lands EITHER at
@@ -566,10 +600,13 @@ if __name__ == "__main__":
                          use_morphhash=False, use_lemcase=True)
     _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
                          use_morphhash=False, use_lemhash=True)
+    _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
+                         use_morphhash=False, use_lemhashdep=True)
     _numeric_grad_check(use_agree=True, use_dir=True, use_pos=True, use_lemvec=True,
                          use_morphhash=True, use_feat=True, use_pron=True, use_lemvec_dep=True,
-                         use_lemcase=True, use_lemhash=True)
+                         use_lemcase=True, use_lemhash=True, use_lemhashdep=True)
     for s in range(1, 6):
         _numeric_grad_check(use_agree=True, use_dir=True, use_pos=True, use_lemvec=True,
                              use_morphhash=True, use_feat=True, use_pron=True,
-                             use_lemvec_dep=True, use_lemcase=True, use_lemhash=True, seed=s)
+                             use_lemvec_dep=True, use_lemcase=True, use_lemhash=True,
+                             use_lemhashdep=True, seed=s)

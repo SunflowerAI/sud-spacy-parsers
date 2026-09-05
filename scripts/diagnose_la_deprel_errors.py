@@ -60,7 +60,7 @@ def decode(meta, P, X, doc=None):   # doc unused: only the joint-label agreement
 
 
 def decode_joint_label(meta, P, X, doc=None):
-    """MUST STAY IN SYNC with sud_joint_biaffine.JointBiaffine.forward/decode_scores (including the lemcase bilinear term).
+    """MUST STAY IN SYNC with sud_joint_biaffine.JointBiaffine.forward/decode_scores (including the lemcase bilinear term and the lemhash/lemhashdep discrete identity hashes).
 
     `doc` is required when meta["agreement"], meta["pos"], meta["feat_names"] or meta["pron"] is
     true -- see analyse_arcfactored.py's twin function for why skipping it would silently evaluate
@@ -123,6 +123,10 @@ def decode_joint_label(meta, P, X, doc=None):
         assert doc is not None, "lemhash-enabled checkpoint needs the doc to compute the bias"
         lh_bkt = tr.lemma_hash_buckets(doc)
         combined = combined + P["lemhash"].T[lh_bkt][:, None, :]
+    if meta.get("lemhashdep") and "lemhashdep" in P:
+        assert doc is not None, "lemhashdep-enabled checkpoint needs the doc to compute the bias"
+        lhd_bkt = tr.lemma_hash_buckets_dep(doc)
+        combined = combined + P["lemhashdep"].T[lhd_bkt][None, :, :]
     mask = window_mask(n, meta["window"]).T
     combined = np.where(mask[:, :, None], combined, NEG)
     S, chosen = combined.max(-1), combined.argmax(-1)

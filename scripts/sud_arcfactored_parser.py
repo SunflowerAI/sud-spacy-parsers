@@ -144,6 +144,9 @@ class ArcFactoredParser:
         if meta.get("lemhash") and "lemhash" in P:
             lh_bkt = _tr.lemma_hash_buckets(doc)
             combined = combined + P["lemhash"].T[lh_bkt][:, None, :]
+        if meta.get("lemhashdep") and "lemhashdep" in P:
+            lhd_bkt = _tr.lemma_hash_buckets_dep(doc)
+            combined = combined + P["lemhashdep"].T[lhd_bkt][None, :, :]
         mask = _window_mask(n, meta["window"]).T
         combined = np.where(mask[:, :, None], combined, NEG)
         S, chosen = combined.max(-1), combined.argmax(-1)
