@@ -526,6 +526,18 @@ two different arms into a headline column.
   distinction the model was learning from.
 - **Multi-seed or don't claim it.** zh raw LAS spreads ~6 points off a 0.22-point token-F spread;
   single-run comparisons produced at least one wrong claim in this repo's history.
+- **A hand-rolled training loop does not inherit `spacy train`'s seed discipline for free.**
+  `train_arcfactored.py`'s `--joint` encoder (`enc.initialize`) drew from thinc's global RNG,
+  unfixed, for the whole session the arc-factored decoder existed — `JointBiaffine`'s own weights
+  were always deterministic (`seed=0` hardcoded), which made the OVERALL run look reproducible
+  enough that nobody checked. Two runs of an identical recipe could show a large early-epoch gap
+  (measured: `--seed 42` vs `--seed 7` on an identical tiny config differs by 1.7 LAS at epoch 0)
+  from init luck alone, confounded with whatever flag actually differed between two experiments.
+  `--seed` (`fix_random_seed` + threading the same value into `JointBiaffine`) now controls both.
+  Any script that builds a thinc `Model` outside `spacy train`'s own CLI needs this checked, not
+  assumed — the tell was several single-seed comparisons this session that never lined up with
+  their own "everything else held constant" framing (see the `--lemhash`/`--lemhash-dep` erratum
+  above).
 - **Audit before building.** The `unk` and typo/raising/reported findings each avoided a whole
   gold/bench/relabel build.
 - **Never compare numbers from two different harnesses.** The lzh merge was reported as costing
