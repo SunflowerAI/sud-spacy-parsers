@@ -135,6 +135,15 @@ class ArcFactoredParser:
         if meta.get("lemvec_dep") and "lemvec_dep" in P:
             lvd = self._lemma_vecs_dep(doc)
             combined = combined + (lvd @ P["lemvec_dep"].T)[None, :, :]
+        if meta.get("lemcase") and "lemcase" in P:
+            lv_lc = self._lemma_vecs(doc)
+            lc_vocab_idx = {tuple(v): i for i, v in enumerate(meta["lemcase_vocab"])}
+            lc_bkt = _tr.feat_buckets(doc, "Case", lc_vocab_idx)
+            Mlc = np.einsum("hk,lkc->hlc", lv_lc, P["lemcase"], optimize=True)
+            combined = combined + Mlc[:, :, lc_bkt].transpose(0, 2, 1)
+        if meta.get("lemhash") and "lemhash" in P:
+            lh_bkt = _tr.lemma_hash_buckets(doc)
+            combined = combined + P["lemhash"].T[lh_bkt][:, None, :]
         mask = _window_mask(n, meta["window"]).T
         combined = np.where(mask[:, :, None], combined, NEG)
         S, chosen = combined.max(-1), combined.argmax(-1)

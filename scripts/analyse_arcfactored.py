@@ -34,7 +34,7 @@ direction to be wrong in, not a thumb on the scale for this decoder.
 
 ⚠ MUST STAY IN SYNC with `train_arcfactored.py`'s scorer (LANGS table, window_mask, dist_buckets,
 agreement_buckets, direction_buckets, pos_buckets, morph_hash_buckets, feat_buckets,
-preverbal_buckets).
+preverbal_buckets, lemma_vecs, lemma_vecs_dep, lemma_hash_buckets).
 """
 import argparse, json, pathlib, sys, collections
 import numpy as np
@@ -154,6 +154,17 @@ def predict_from_X_joint_label(meta, P, X, doc=None):
         assert doc is not None, "lemvec_dep-enabled checkpoint needs the doc to compute the bias"
         lvd = _tr.lemma_vecs_dep(doc, meta["lemvec_table"])
         combined = combined + (lvd @ P["lemvec_dep"].T)[None, :, :]
+    if meta.get("lemcase") and "lemcase" in P:
+        assert doc is not None, "lemcase-enabled checkpoint needs the doc to compute the bias"
+        lv_lc = _tr.lemma_vecs(doc, meta["lemvec_table"])
+        lc_vocab_idx = {tuple(v): i for i, v in enumerate(meta["lemcase_vocab"])}
+        lc_bkt = _tr.feat_buckets(doc, "Case", lc_vocab_idx)
+        Mlc = np.einsum("hk,lkc->hlc", lv_lc, P["lemcase"], optimize=True)
+        combined = combined + Mlc[:, :, lc_bkt].transpose(0, 2, 1)
+    if meta.get("lemhash") and "lemhash" in P:
+        assert doc is not None, "lemhash-enabled checkpoint needs the doc to compute the bias"
+        lh_bkt = _tr.lemma_hash_buckets(doc)
+        combined = combined + P["lemhash"].T[lh_bkt][:, None, :]
     mask = window_mask(n, meta["window"]).T
     combined = np.where(mask[:, :, None], combined, NEG)
     S, chosen = combined.max(-1), combined.argmax(-1)

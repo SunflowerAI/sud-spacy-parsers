@@ -336,6 +336,35 @@ def morph_hash_buckets(doc, n_buckets=MORPHHASH_BUCKETS):
     return ids
 
 
+# ⚠ LEMMA-IDENTITY HASH BIAS (--joint-label --lemhash), HEAD-SIDE, DISCRETE. `--lemcase` (verb-lemma
+# x dependent-Case bilinear) cannot apply to lzh -- lzh has no Case morphology at all (the same fact
+# that ruled out --agreement for lzh), so lemcase_bkt would collapse to one dead bucket. This is the
+# lexically-specific term that DOES fit lzh's grammar: a discrete, hashed bias on the HEAD's lemma
+# IDENTITY -- not the continuous `lemvec` (a distributional vector, coarse/collocational for single
+# characters per build_lemma_vectors.py --report) and not `lemcase` (needs Case) -- built for lzh's
+# `comp:obj`/`parataxis`, dominated by a small closed set of matrix verbs (曰謂使有無爲如以得知 alone
+# cover 28.3%% of comp:obj) that `lemvec`'s continuous readout only lifted modestly. Broadcasts over
+# the dependent axis exactly like `lemvec` does (a per-HEAD bias, independent of which dependent),
+# but via a hash table instead of a linear readout of a pretrained vector -- so it needs no external
+# lemma-vector table and degrades gracefully on an unseen lemma via collision, the same contract
+# `morph_hash_buckets` already has for the dependent side.
+LEMHASH_BUCKETS = 512
+N_LEMHASH_BINS = LEMHASH_BUCKETS + 1                # +1: bucket 0 reserved for an empty/unknown lemma
+
+
+def lemma_hash_buckets(doc, n_buckets=LEMHASH_BUCKETS):
+    """(n+1,) int bucket ids, one per HEAD position INCLUDING the virtual root (row 0, always
+    bucket 0) -- unlike morph_hash_buckets' (n,) dependent-only shape, this is indexed by a head
+    position exactly like `lemvec`'s (n+1, dim) table is. Same crc32 mechanism/caveat as
+    morph_hash_buckets (NOT Python's hash(), which is randomised per process)."""
+    ids = np.zeros(len(doc) + 1, dtype=np.int64)
+    for i, t in enumerate(doc):
+        s = t.lemma_ or t.text
+        if s:
+            ids[i + 1] = 1 + (zlib.crc32(s.encode("utf-8")) % n_buckets)
+    return ids
+
+
 # ⚠ PER-FEATURE SPLIT OF morphhash (--joint-label --feat). Hashing the WHOLE morph bundle into one
 # bucket mixed Case together with Number/Gender/..., which diluted exactly the distinction that
 # would separate la's `subj` (nominative) from `comp:obj` (accusative) -- morphhash's own
@@ -788,6 +817,19 @@ def main():
                          "pretrained static lemma vector -- the dependent-side counterpart of "
                          "--lemvec, built for la's mod/comp:obl trade (does this dependent word, by "
                          "its own distributional profile, look oblique-like or modifier-like)")
+    ap.add_argument("--lemcase", action="store_true",
+                    help="--joint-label only: add a BILINEAR per-label term, head lemma vector x "
+                         "dependent Case bucket -- unlike every other bias here, genuinely "
+                         "multiplicative, built because `dico` ('say') alone governs 2332 mod + "
+                         "1682 comp:obl tokens (a ~58/42 split WITHIN ONE LEMMA): the choice is "
+                         "verb + Case together, not verb alone (lemvec) or Case alone (feat), and "
+                         "an additive sum of the two cannot express that interaction")
+    ap.add_argument("--lemhash", action="store_true",
+                    help="--joint-label only: add a per-label bias on a HASH of the HEAD's own "
+                         "lemma IDENTITY (lemma_hash_buckets) -- the lexically-specific term for "
+                         "languages with no Case morphology (lzh), where --lemcase cannot apply: a "
+                         "discrete counterpart to --lemvec's continuous readout, built for lzh's "
+                         "comp:obj/parataxis matrix-verb closed class")
     ap.add_argument("--presegment", action="store_true",
                     help="explode whole docs into one gold SENTENCE per training/eval item, so the "
                          "encoder never carries state across a sentence boundary -- see "
@@ -841,7 +883,7 @@ def main():
         w = Xtr[0].shape[1]
     if a.joint_label:
         lemvec_dim = 0
-        if a.lemvec:
+        if a.lemvec or a.lemcase:
             _, _lv = load_lemvec_table(cfg["lemvec_table"])
             lemvec_dim = _lv.shape[1]
         lemvec_dep_dim = 0
@@ -857,6 +899,12 @@ def main():
                   flush=True)
         feat_vocabs = {name: build_feat_vocab(plain_tr, name) for name in feat_names}
         feat_bins = {name: 1 + len(v) for name, v in feat_vocabs.items()}
+        # `lemcase` reuses feat_buckets' own vocabulary-building machinery for its Case side --
+        # it is not part of `--feat`'s own channel list (a.lemcase can be used without --feat),
+        # so its vocabulary is built and stored separately even though the underlying function is
+        # identical.
+        lemcase_vocab = build_feat_vocab(plain_tr, "Case") if a.lemcase else []
+        lemcase_bins = 1 + len(lemcase_vocab)
         m = JointBiaffine(w, a.hidden, len(labs), N_DIST_BINS, dist_buckets,
                            n_agree_bins=(N_AGREE_BINS if a.agreement else 0),
                            n_dir_bins=(N_DIR_BINS if a.direction else 0),
@@ -866,7 +914,10 @@ def main():
                            n_morphhash_bins=(N_MORPHHASH_BINS if a.morphhash else 0),
                            feat_bins=(feat_bins if feat_names else None),
                            n_pron_bins=(N_PRON_BINS if a.pron else 0),
-                           n_lemvec_dep_dim=lemvec_dep_dim)
+                           n_lemvec_dep_dim=lemvec_dep_dim,
+                           n_lemcase_dim=(lemvec_dim if a.lemcase else 0),
+                           n_lemcase_bins=(lemcase_bins if a.lemcase else 0),
+                           n_lemhash_bins=(N_LEMHASH_BINS if a.lemhash else 0))
         # ⚠ sud_joint_biaffine.py deliberately keeps float64 (precision for its OWN gradient
         # check); thinc's optimiser and the rest of this file are float32 throughout.
         for kk in m.p:
@@ -881,7 +932,9 @@ def main():
               + (" + per-label dependent-morph-hash bias" if a.morphhash else "")
               + (f" + per-label bias for each of {feat_names}" if feat_names else "")
               + (" + per-label preverbal-pronoun bias" if a.pron else "")
-              + (" + per-label dependent-lemma-vector bias" if a.lemvec_dep else ""),
+              + (" + per-label dependent-lemma-vector bias" if a.lemvec_dep else "")
+              + (" + per-label head-lemma x dependent-Case BILINEAR bias" if a.lemcase else "")
+              + (" + per-label head-lemma-identity-hash bias" if a.lemhash else ""),
               flush=True)
     else:
         m = Biaffine(w, a.hidden, len(labs))
@@ -903,7 +956,9 @@ def main():
         pos_tr = [pos_buckets(d) for d in plain_tr]
         pos_te = [pos_buckets(d) for d in plain_te]
     lemvec_tr = lemvec_te = None
-    if a.joint_label and a.lemvec:
+    if a.joint_label and (a.lemvec or a.lemcase):
+        # shared by BOTH the additive head-only `lemvec` bias and the bilinear `lemcase` term --
+        # same table, same lookup, one array threaded to both.
         lemvec_tr = [lemma_vecs(d, cfg["lemvec_table"]) for d in plain_tr]
         lemvec_te = [lemma_vecs(d, cfg["lemvec_table"]) for d in plain_te]
     morph_tr = morph_te = None
@@ -926,6 +981,15 @@ def main():
     if a.joint_label and a.lemvec_dep:
         lemvec_dep_tr = [lemma_vecs_dep(d, cfg["lemvec_table"]) for d in plain_tr]
         lemvec_dep_te = [lemma_vecs_dep(d, cfg["lemvec_table"]) for d in plain_te]
+    lemcase_tr = lemcase_te = None
+    if a.joint_label and a.lemcase:
+        lemcase_vocab_idx = {v: i for i, v in enumerate(lemcase_vocab)}
+        lemcase_tr = [feat_buckets(d, "Case", lemcase_vocab_idx) for d in plain_tr]
+        lemcase_te = [feat_buckets(d, "Case", lemcase_vocab_idx) for d in plain_te]
+    lemhash_tr = lemhash_te = None
+    if a.joint_label and a.lemhash:
+        lemhash_tr = [lemma_hash_buckets(d) for d in plain_tr]
+        lemhash_te = [lemma_hash_buckets(d) for d in plain_te]
     drng = np.random.default_rng(1234)
     best = (-1.0, -1)
     for ep in range(a.epochs):
@@ -955,7 +1019,9 @@ def main():
                     morph_tr[di] if morph_tr is not None else None,
                     feat_tr[di] if feat_tr is not None else None,
                     pron_tr[di] if pron_tr is not None else None,
-                    lemvec_dep_tr[di] if lemvec_dep_tr is not None else None)
+                    lemvec_dep_tr[di] if lemvec_dep_tr is not None else None,
+                    lemcase_tr[di] if lemcase_tr is not None else None,
+                    lemhash_tr[di] if lemhash_tr is not None else None)
                 tot += loss / max(n, 1)
                 if bp_enc is not None:
                     dX_b.append(dXin.astype("float32"))
@@ -1018,7 +1084,9 @@ def main():
                     morph_te[te_i] if morph_te is not None else None,
                     feat_te[te_i] if feat_te is not None else None,
                     pron_te[te_i] if pron_te is not None else None,
-                    lemvec_dep_te[te_i] if lemvec_dep_te is not None else None)
+                    lemvec_dep_te[te_i] if lemvec_dep_te is not None else None,
+                    lemcase_te[te_i] if lemcase_te is not None else None,
+                    lemhash_te[te_i] if lemhash_te is not None else None)
             else:
                 S, *_ = m.arc_scores(X, a.window)      # eval: no dropout
             # `mst` takes a SQUARE matrix over [virtual root | tokens]; arc_scores/decode_scores
@@ -1056,7 +1124,8 @@ def main():
                  "pos": bool(a.joint_label and a.pos),
                  "lemvec": bool(a.joint_label and a.lemvec),
                  "lemvec_table": cfg.get("lemvec_table")
-                                 if (a.joint_label and (a.lemvec or a.lemvec_dep)) else None,
+                                 if (a.joint_label and (a.lemvec or a.lemvec_dep or a.lemcase))
+                                 else None,
                  "morphhash": bool(a.joint_label and a.morphhash),
                  "feat_names": feat_names if (a.joint_label and feat_names) else None,
                  # ⚠ MUST TRAVEL WITH THE CHECKPOINT: the vocabulary's ORDER is what feat_buckets
@@ -1067,6 +1136,10 @@ def main():
                                 if (a.joint_label and feat_names) else None),
                  "pron": bool(a.joint_label and a.pron),
                  "lemvec_dep": bool(a.joint_label and a.lemvec_dep),
+                 "lemcase": bool(a.joint_label and a.lemcase),
+                 "lemcase_vocab": ([list(v) for v in lemcase_vocab]
+                                   if (a.joint_label and a.lemcase) else None),
+                 "lemhash": bool(a.joint_label and a.lemhash),
                  "joint_embed": cfg["joint_embed"] if a.joint else None,
                  "upstream": upstream}, ensure_ascii=False, indent=1))
             print(f"    saved -> {a.save} (best LAS {las*100/ntok:.2f})", flush=True)
