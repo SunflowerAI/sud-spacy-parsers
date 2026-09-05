@@ -348,7 +348,19 @@ def morph_hash_buckets(doc, n_buckets=MORPHHASH_BUCKETS):
 # but via a hash table instead of a linear readout of a pretrained vector -- so it needs no external
 # lemma-vector table and degrades gracefully on an unseen lemma via collision, the same contract
 # `morph_hash_buckets` already has for the dependent side.
-LEMHASH_BUCKETS = 512
+#
+# ⚠ 512 BUCKETS WAS TOO FEW, MEASURED: unlike `morph_hash_buckets`'s DEPENDENT-only, small-cardinality
+# MORPH-bundle space (a few dozen real values, so 64 buckets is near-1:1), `lemma_hash_buckets` hashes
+# EVERY token's own identity, since every token is a candidate HEAD, not just a closed verb class --
+# lzh's presegmented training corpus has 9,018 distinct (lemma_ or text) types, ~17.6 per bucket at
+# 512, and the distribution is sharply Zipfian (`。` 31,915 tokens, `，` 24,483, `之` 12,763, ...). A
+# handful of massively frequent types dominate whichever bucket they collide into, since this term
+# BROADCASTS additively over every dependent of a given head -- corrupting the score for every arc
+# that head could plausibly govern, not just the rare lemma sharing its bucket. First measured at 512:
+# `lzh_arcfactored_lemhash` (direction+pos+lemvec+pron+lemhash) collapsed to LAS 61.13 against
+# `lzh_arcfactored_pron`'s 75.31 on the identical recipe minus lemhash -- see NEGATIVE-RESULTS.md.
+# 4096 cuts the average collision load to ~2.2 types/bucket.
+LEMHASH_BUCKETS = 4096
 N_LEMHASH_BINS = LEMHASH_BUCKETS + 1                # +1: bucket 0 reserved for an empty/unknown lemma
 
 

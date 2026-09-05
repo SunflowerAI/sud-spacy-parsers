@@ -1178,6 +1178,47 @@ because it requires all three of Case, Number and Gender, which no verb has). A 
 for verbs, or a narrower reach, are different experiments. The measured 0.70 UAS ceiling does not
 justify them.
 
+
+## `--lemhash` at 512 buckets collapsed lzh 14 LAS points -- root cause found and fixed (2026-09-05)
+
+`--lemhash` (discrete head-lemma-IDENTITY hash, the lexically-specific fix for lzh's Case-less
+grammar, since `--lemcase` needs Case) was trained on lzh's best-known recipe
+(direction+pos+lemvec+pron, `lzh_arcfactored_pron`'s 75.31 LAS) plus `--lemhash`, 20 epochs, at
+`LEMHASH_BUCKETS = 512`:
+
+    checkpoint                          overall LAS (best epoch)
+    lzh_arcfactored_pron (recipe alone)      75.31  (epoch 19)
+    lzh_arcfactored_lemhash @512 buckets     61.13  (epoch 17)     delta -14.18
+
+A 14-point collapse from adding ONE more additive bias term, with every other hyperparameter and
+the corpus identical, is too large to be "the signal isn't there" -- it is the collision-noise
+failure mode hashing exists to avoid. Measured directly: lzh's presegmented training corpus has
+**9,018 distinct (lemma_ or text) types**, so 512 buckets average **17.6 colliding types each**, and
+the distribution is sharply Zipfian (`。` 31,915 occurrences, `，` 24,483, `之` 12,763, `不` 7,412,
+`而` 6,267, ... — the top handful alone account for a large share of all tokens). `morph_hash_buckets`
+(dependent-side, 64 buckets) never hit this failure mode because a MORPH bundle's value space is
+intrinsically small — a few dozen real combinations, near-1:1 with its buckets. `lemma_hash_buckets`
+is different in kind: it hashes EVERY token's own identity, since every token is a candidate HEAD,
+not a small closed verb class the way the original motivation (comp:obj's 曰謂使有無爲如以得知)
+implied. Because this term BROADCASTS additively over every dependent of a given head (the same
+reduction pattern `lemvec` uses via `dlin1`), a bucket dominated by a massively frequent function
+word or punctuation mark corrupts the score for every arc that head could plausibly govern, not
+just the rare lemma unlucky enough to share its bucket.
+
+**Fixed, not abandoned**: `LEMHASH_BUCKETS` raised 512 -> 4096, cutting the average collision load
+to ~2.2 types/bucket. Re-running as `lzh_arcfactored_lemhash_v2` to measure whether the underlying
+idea (a discrete, hashed matrix-verb-identity signal) has value once the collision-noise artefact is
+removed -- not yet resolved as of this entry. If 4096 buckets still doesn't clear `lzh_arcfactored_pron`'s
+75.31, the more targeted fix (restricting the term to VERB-headed positions only, matching the
+original comp:obj motivation, rather than hashing every token that can serve as a head) is the next
+thing to try before concluding the underlying idea itself is a dead end.
+
+**The general lesson**: a hash table's bucket count must be sized against the ACTUAL cardinality
+and frequency skew of what it hashes, not copied from a working precedent whose value space happens
+to be much smaller — `morph_hash_buckets`' 64 buckets being fine for MORPH bundles said nothing
+about whether the same count would work for token/lemma identity, a qualitatively larger and more
+skewed space.
+
 ### Beam training: refuted on its own mechanism, which is the interesting part
 
 `beam_parser`, width 8, `beam_update_prob = 0.5` -- the settings from `config_sa_mp2_beam.cfg`,
