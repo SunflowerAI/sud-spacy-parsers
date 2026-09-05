@@ -1460,3 +1460,38 @@ they are the wrong instrument for anything under a couple of LAS.
 The MISC layer was re-measured on the candidate base per standing hazard 5: Idiom F 56.25 → 55.50,
 InIdiom 61.17 → 59.80, `sud_reported_rule` unchanged at 68.79. All still above their ship bars, none
 improved — more of the same noise, and another reason the release bought nothing.
+
+
+## `--lemcase`, the bilinear verb-lemma x dependent-Case term, for the arc-factored decoder's la mod/comp:obl trade (2026-09-05)
+
+The arc-factored decoder (`sud_joint_biaffine.JointBiaffine`, `scripts/train_arcfactored.py`) trades
+`mod` against `comp:obl` under EVERY purely structural bias tried (agreement, direction, pos, feat)
+— `diagnose_la_deprel_errors.py` shows each label's dominant label-only confusion is the other one,
+in both directions, no matter which of those biases is on. Real corpus statistics motivated a
+genuinely bilinear fix rather than another additive one: 1,315 la verb lemmas govern BOTH `mod` and
+`comp:obl` tokens (95.6 % / 99.0 % of each label's tokens sit under an ambiguous lemma), and even the
+single most frequent one (`dico`, "say") splits ~58/42 WITHIN itself — i.e. the choice is a verb x
+Case INTERACTION no additive sum of `lemvec` (verb alone) or `feat` (Case alone) can express.
+
+`--lemcase` adds exactly that interaction: a per-label BILINEAR term, head lemma vector x dependent
+Case bucket (`M[h,l,c] = lemvec[h] · W[l,:,c]`), gradient-checked to 1.15e-06. Trained on la's best
+known recipe (agreement+direction+pos+lemvec+morphhash) plus `--lemcase`, 20 epochs:
+
+    checkpoint                  overall LAS   mod acc   mod label-only-as-comp:obl   comp:obl acc   comp:obl label-only-as-mod
+    la_arcfactored_feat (prior)      73.03      62.96                 --                  67.69                 --
+    la_arcfactored_lemcase (new)     72.99      63.23                195 / 10172 n           65.66                199 / 2219 n
+
+**The confusion the term was built to break is still there, at essentially the same size, in both
+directions** (195 `mod`-labelled tokens still lose to `comp:obl`, 199 `comp:obl`-labelled tokens
+still lose to `mod` — a near-symmetric ~200/~200 split, the same shape reported for every prior
+bias). Overall LAS moved -0.04 against `la_arcfactored_feat` and is still well short of both
+`la_arcfactored_lexical` (73.46, la's arc-factored best) and the shipped transition parser (73.92).
+
+**Why a mechanistically well-motivated bilinear term still didn't move the needle is not fully
+explained** (unlike the agreement-input negative result above, no mechanism check was run to see
+whether `lemcase`'s OWN readout separates the two classes on held-out lemma x Case pairs it saw
+in training) — but the practical implication is direct: this specific interaction, encoded this way,
+is not the missing piece for la's mod/comp:obl trade, and the arc-factored decoder still does not
+beat the transition parser on Latin. `--lemcase` remains in `sud_joint_biaffine.py` (gradient-checked,
+loadable) for any future revisit, but no la checkpoint using it should be considered better than
+`la_arcfactored_lexical` without new evidence.
