@@ -1614,3 +1614,62 @@ much less of a risk here. Not yet built or tried; the next concrete step for la'
 `--lemcase` remains in `sud_joint_biaffine.py` (gradient-checked, loadable) for any future revisit,
 but no la checkpoint using it should be considered better than `la_arcfactored_lexical` without new
 evidence.
+
+
+## The multi-seed sweep: `--lemhash`/`--lemhash-dep` show no effect, AND every reported arc-factored "champion" number for la/lzh looks like a seed outlier (2026-09-06)
+
+After fixing the missing `--decay` (above) and the missing `--seed` (`sud-arcfactored-decoder`
+memory / commit `c970cfa`), a proper controlled comparison became possible: 4 conditions (la
+baseline / la+`--lemhash-dep` / lzh baseline / lzh+`--lemhash`) x 3 seeds (0/1/2) = 12 full 20-epoch
+runs, launched on `skmm` (a second machine, to avoid further loading the primary dev box) once data
+integrity and cross-machine determinism were both directly verified (byte-identical corpora/models
+by hash; a `--seed 0` run reproduced the SAME loss trajectory to 4 decimal places on a completely
+different machine, ruling out any environment-specific artifact before trusting the results below).
+
+    condition            seed 0   seed 1   seed 2     mean    range
+    la baseline           60.60    62.10    61.01     61.24     1.50
+    la +lemhash-dep        61.23    61.48    61.77     61.49     0.54
+    lzh baseline           62.59    61.11    61.75     61.82     1.48
+    lzh +lemhash           62.06    62.39    61.57     62.01     0.82
+
+**Both terms: no real effect.** la's `+lemhash-dep` delta is +0.26, lzh's `+lemhash` delta is +0.19
+— both far inside the ~1.5-point seed-to-seed spread each baseline shows on its own. Individual
+seeds even flip sign (la: `--lemhash-dep` is +0.63 at seed 0 but -0.62 at seed 1) — the textbook
+signature of a term with nothing real to contribute, exactly what multi-seed discipline exists to
+catch and what a single-seed comparison (which is all either term got before today) cannot.
+
+**The bigger finding is what ALL TWELVE runs have in common, not what distinguishes them.** Every
+run, both languages, both recipe variants, lands in the SAME narrow band: 60.60-62.59, a 2-point
+spread across the entire sweep. But the checkpoints these recipes were supposed to reproduce or
+extend -- `la_arcfactored_lexical` (LAS 73.46) and `lzh_arcfactored_pron` (LAS 75.31), both cited
+all session as "close to the transition parser" -- sit 11-15 points ABOVE this entire band, on
+IDENTICAL recipes. Those two checkpoints were never seeded (the `--seed` flag didn't exist yet when
+they were trained), so they drew whatever thinc's global RNG state happened to be at the time. Three
+independent seeds per language, all landing within a tight 1.5-point band, all far from 73-75,
+is strong evidence that **73.46 and 75.31 were themselves favourable-seed outliers, not the typical
+or expected performance of this architecture** -- not that seed 0/1/2 are unlucky. (A 4th, 5th seed
+might yet land near 75 and settle this more completely; 3 tightly-clustered seeds is suggestive of
+the true typical range, not airtight proof no lucky seed exists.)
+
+**This retroactively undercuts the whole session's "arc-factored is close to competitive on la/lzh"
+narrative**, which was built entirely on single, unseeded runs: `la_arcfactored_lexical`'s -0.46 gap
+and `lzh_arcfactored_pron`'s -2.90 gap against the transition parser were the two numbers used
+throughout to justify continued investment in mod/comp:obl-fixing terms (`--lemcase`, `--lemhash`,
+`--lemhash-dep`) and to frame la/lzh as "almost there." Properly seeded, the typical gap is closer
+to -12 to -13 LAS for both languages -- a completely different, much less promising starting point.
+sa's shipped win (`docs/sanskrit.md`, +8.30 LAS full-pipeline gap) is comparatively much more robust
+to this risk, since its transition baseline (44.55-44.69) is so much weaker that even the LOW end of
+plausible seed variance would likely still clear it (sa's own best epoch was reached by epoch 3,
+suggesting the architecture needs to do far less work to win there) -- but this has NOT been verified
+with a multi-seed sweep either, and should be before leaning further on that number.
+
+**The general lesson, sharpened by this specific case**: a single-seed "best checkpoint" number is
+not just imprecise, it can be systematically unrepresentative in the FAVOURABLE direction if that
+was the run that got reported (the checkpoint that gets kept and cited is, by construction, the
+best one seen) -- the multi-seed spread is not optional context, it is sometimes the whole answer to
+whether a method works at all. `CLAUDE.md`'s "Multi-seed or don't claim it" meta-lesson (zh raw LAS
+spread ~6 points off a 0.22-point token-F spread) undersold how large this effect can get for a
+from-scratch joint architecture specifically: `--joint`'s freshly-initialized encoder has no anchor
+pulling different seeds toward the same solution the way a frozen or lightly-perturbed encoder would,
+so its seed variance is a different, larger animal than the more familiar "which epoch got saved"
+variance this project usually worries about.
