@@ -887,7 +887,23 @@ def main():
                          "encoder never carries state across a sentence boundary -- see "
                          "explode_sentences() for why (diagnose_la_longdist.py's finding). Gives up "
                          "self-discovered sentence roots: every item has exactly one root.")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="⚠ --joint's fresh embed+BiLSTM (enc.initialize) was NEVER seeded before "
+                         "this flag existed -- it drew from thinc's global RNG state, uncontrolled "
+                         "across separate process invocations, while JointBiaffine's own weights "
+                         "were always deterministic (seed=0 hardcoded as the constructor default). "
+                         "Two runs of an otherwise-IDENTICAL recipe could show a large early-epoch "
+                         "LAS gap from encoder-init luck alone, indistinguishable from a real effect "
+                         "of whatever flag differed -- exactly the single-seed trap CLAUDE.md/"
+                         "NEGATIVE-RESULTS.md already warn about elsewhere in this project, which "
+                         "`spacy train`'s own CLI avoids automatically (via its own seed handling) "
+                         "but this hand-rolled loop bypassed entirely. Now fixes BOTH thinc's global "
+                         "RNG (via fix_random_seed) AND JointBiaffine's own seed to this one value, "
+                         "so the same --seed reproduces a run exactly, and different --seed values "
+                         "give a real, comparable, multi-seed spread.")
     a = ap.parse_args()
+    from thinc.api import fix_random_seed
+    fix_random_seed(a.seed)
     cfg = LANGS[a.lang]
     a.src = a.src or cfg["src"]
     a.window = a.window or cfg["window"]
@@ -970,7 +986,8 @@ def main():
                            n_lemcase_dim=(lemvec_dim if a.lemcase else 0),
                            n_lemcase_bins=(lemcase_bins if a.lemcase else 0),
                            n_lemhash_bins=(N_LEMHASH_BINS if a.lemhash else 0),
-                           n_lemhashdep_bins=(N_LEMHASHDEP_BINS if a.lemhashdep else 0))
+                           n_lemhashdep_bins=(N_LEMHASHDEP_BINS if a.lemhashdep else 0),
+                           seed=a.seed)
         # ⚠ sud_joint_biaffine.py deliberately keeps float64 (precision for its OWN gradient
         # check); thinc's optimiser and the rest of this file are float32 throughout.
         for kk in m.p:
