@@ -94,6 +94,7 @@ from spacy.tokens import DocBin, Doc
 from thinc.api import Adam, NumpyOps
 from sud_cle import mst
 from sud_joint_biaffine import JointBiaffine
+from sud_self_attention import SelfAttentionMixer
 
 NEG = -1e4
 
@@ -1032,6 +1033,23 @@ def main():
                          "Koo & Collins grandparent factor. Same two-pass, predicted-never-gold "
                          "discipline as --sibling; when both flags are on, the first-order decode "
                          "runs ONCE and both bucket grids are read off it.")
+    ap.add_argument("--attn", action="store_true",
+                    help="add ONE trainable single-head self-attention layer (sud_self_attention."
+                         "SelfAttentionMixer) between X (the encoder's output, frozen OR --joint) "
+                         "and the scorer -- the GENERAL alternative to --sibling/--grandparent's "
+                         "growing chain of hand-picked higher-order terms: diagnosis found the LAS "
+                         "gap monotonic in arc length despite the biaffine's own candidate window "
+                         "never excluding those arcs, meaning the deficiency is in X's own RICHNESS "
+                         "(la_frozen's tok2vec is a shallow CNN-style encoder whose receptive field "
+                         "may not reach the distances where the gap plateaus), not in the scoring "
+                         "formula sitting on top of it. Unmasked, whole-sentence attention (unlike "
+                         "the biaffine's own --window, which only restricts decoding CANDIDATES); "
+                         "residual with Wo zero-initialised, so this starts as an exact no-op and "
+                         "can only add capability, never regress below not having it. Works with "
+                         "EITHER --joint-label or the legacy two-stage Biaffine, and with EITHER a "
+                         "frozen or a --joint encoder (its own gradient flows further into bp_enc "
+                         "when one exists). Gradient-checked to 3.88e-08 across 6 seeds -- see "
+                         "sud_self_attention.py's own module docstring for the full rationale.")
     ap.add_argument("--presegment", action="store_true",
                     help="explode whole docs into one gold SENTENCE per training/eval item, so the "
                          "encoder never carries state across a sentence boundary -- see "
@@ -1125,6 +1143,15 @@ def main():
         Xtr = batched_predict(encoder, plain_tr)
         Xte = batched_predict(encoder, plain_te)
         w = Xtr[0].shape[1]
+    # ⚠ --attn IS INDEPENDENT of --joint-label -- it transforms X itself, before EITHER scorer
+    # (JointBiaffine or the legacy two-stage Biaffine) ever sees it, so it is constructed here,
+    # once, rather than inside the `if a.joint_label:` block below.
+    attn = SelfAttentionMixer(w, seed=a.seed) if a.attn else None
+    if attn is not None:
+        for kk in attn.p:
+            attn.p[kk] = attn.p[kk].astype("float32")
+        print(f"  ATTN: one trainable single-head self-attention layer ({w}x{w} Wq/Wk/Wv/Wo, "
+              f"{4 * w * w} params) between X and the scorer, residual + zero-init Wo", flush=True)
     if a.joint_label:
         lemvec_dim = 0
         if a.lemvec or a.lemcase:
@@ -1261,9 +1288,15 @@ def main():
                 Xs_b, bp_enc = enc([plain_tr[j] for j in chunk], is_train=True)
             else:
                 Xs_b, bp_enc = [Xtr[j] for j in chunk], None
-            gacc = {}; dX_b = []
+            gacc = {}; gacc_attn = {}; dX_b = []
+            need_dX_base = bp_enc is not None or attn is not None
             for bslot, di in enumerate(chunk):
-              X = Xs_b[bslot]
+              X_raw = Xs_b[bslot]
+              attn_cache = None
+              if attn is not None:
+                  X, attn_cache = attn.forward(X_raw)
+              else:
+                  X = X_raw
               gh, gl = gold_tr[di]; n = X.shape[0]
               if a.joint_label:
                 # JointBiaffine encapsulates the whole forward+backward -- no hand-unrolled chain
@@ -1299,8 +1332,6 @@ def main():
                 loss, g, dXin = m.loss_and_backward(
                     X, a.window, gh, gl, *bias_args, sib_bkt_di, grand_bkt_di)
                 tot += loss / max(n, 1)
-                if bp_enc is not None:
-                    dX_b.append(dXin.astype("float32"))
               else:
                 S, H, D, Hr = m.arc_scores(X, a.window, a.dropout, drng)
                 loss, dS = softmax_ce(S, gh)
@@ -1333,9 +1364,22 @@ def main():
                 src = gh - 1; ok = gh > 0
                 np.add.at(dLH, src[ok], dhv[ok])
                 g["Lh"] = X.T @ (dLH * (LH > 0)); g["Ld"] = X.T @ (dLD * (LD > 0))
-                if bp_enc is not None:
+                if need_dX_base:
                   dXin = m.backprop_inputs(dH, dD, dLH, dLD, H, D, LH, LD)
-                  dX_b.append(dXin.astype("float32"))
+              # ⚠ SHARED TAIL, both branches: `dXin` here is the gradient wrt X -- attn's OUTPUT if
+              # --attn is on (else the encoder's own output directly). Route it through attn's own
+              # backward FIRST (updating attn's params via gacc_attn, exactly like every other
+              # per-doc gradient accumulates into gacc), THEN forward whatever comes out the other
+              # side (attn's own dX_in, or dXin unchanged if attn is off) into bp_enc, unchanged from
+              # every other encoder-input gradient this file already threads.
+              if need_dX_base:
+                if attn is not None:
+                    ga, dXraw = attn.backward(dXin, attn_cache)
+                    for kk in ga:
+                        gacc_attn[kk] = gacc_attn.get(kk, 0) + ga[kk]
+                    dXin = dXraw
+                if bp_enc is not None:
+                    dX_b.append(dXin.astype("float32"))
               for kk in g:
                 gacc[kk] = gacc.get(kk, 0) + g[kk]
             # ⚠ ONE optimiser step PER BATCH, after accumulating every doc's gradient.
@@ -1344,13 +1388,18 @@ def main():
                 enc.finish_update(opt)
             for kk in gacc:
                 m.p[kk], _ = opt(("bi", kk), m.p[kk], (gacc[kk] / len(chunk)).astype("float32"))
+            if attn is not None:
+                for kk in gacc_attn:
+                    attn.p[kk], _ = opt(("attn", kk),
+                                         attn.p[kk], (gacc_attn[kk] / len(chunk)).astype("float32"))
             if c and c % 1500 == 0:
                 print(f"    ep{ep} {c}/{len(tr)} loss {tot/(c+1):.4f} "
                       f"({time.time()-t0:.0f}s)", flush=True)
         # ---- evaluate with CLE ----
         uas = las = ntok = 0
         Xte_ep = ([enc.predict([pd])[0] for pd in plain_te] if enc is not None else Xte)
-        for te_i, (d, X) in enumerate(zip(te, Xte_ep)):
+        for te_i, (d, X_raw) in enumerate(zip(te, Xte_ep)):
+            X = attn.forward(X_raw)[0] if attn is not None else X_raw
             n = X.shape[0]
             if a.joint_label:
                 eval_bias_args = (agree_te[te_i] if agree_te is not None else None,
@@ -1404,6 +1453,8 @@ def main():
             np.savez(out / "biaffine.npz", **{k: v for k, v in m.p.items()})
             if enc is not None:
                 (out / "encoder.bin").write_bytes(enc.to_bytes())
+            if attn is not None:
+                np.savez(out / "attn.npz", **{k: v for k, v in attn.p.items()})
             (out / "meta.json").write_text(json.dumps(
                 {"lang": a.lang, "src": a.src, "labels": labs, "window": a.window,
                  "hidden": a.hidden, "epoch": ep, "uas": uas*100/ntok, "las": las*100/ntok,
@@ -1433,6 +1484,7 @@ def main():
                  "sibling": bool(a.joint_label and a.sibling),
                  "grandparent": bool(a.joint_label and a.grandparent),
                  "lemhashdep": bool(a.joint_label and a.lemhashdep),
+                 "attn": bool(a.attn),
                  "joint_embed": cfg["joint_embed"] if a.joint else None,
                  "upstream": upstream}, ensure_ascii=False, indent=1))
             print(f"    saved -> {a.save} (best LAS {las*100/ntok:.2f})", flush=True)

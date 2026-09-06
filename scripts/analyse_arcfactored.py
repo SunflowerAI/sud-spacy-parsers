@@ -35,7 +35,9 @@ direction to be wrong in, not a thumb on the scale for this decoder.
 ⚠ MUST STAY IN SYNC with `train_arcfactored.py`'s scorer (LANGS table, window_mask, dist_buckets,
 agreement_buckets, direction_buckets, pos_buckets, morph_hash_buckets, feat_buckets,
 preverbal_buckets, lemma_vecs, lemma_vecs_dep, lemma_hash_buckets, lemma_hash_buckets_dep,
-sibling_buckets, grandparent_buckets).
+sibling_buckets, grandparent_buckets) AND with `sud_self_attention.SelfAttentionMixer.forward`
+(`_apply_attn` below reimplements its math against the loaded weight dict, matching this whole
+module's own style of never importing the trainable classes for prediction).
 """
 import argparse, json, pathlib, sys, collections
 import numpy as np
@@ -65,6 +67,15 @@ def window_mask(n, k):
 def load_arcfactored(path, plain_probe):
     meta = json.loads((pathlib.Path(path) / "meta.json").read_text())
     P = dict(np.load(pathlib.Path(path) / "biaffine.npz"))
+    # ⚠ ATTN WEIGHTS ARE PREFIXED (attn_Wq, ...) into the SAME dict, not returned separately -- no
+    # key collision with the biaffine's own params (Wh/Wd/U/u/Lh/Ld/V/v/cb/dist/...), and every
+    # downstream caller already threads P through unchanged, so this needs no new return value or
+    # call-site plumbing; `_apply_attn` reads them back out by the same prefixed names.
+    if meta.get("attn"):
+        attn_npz = pathlib.Path(path) / "attn.npz"
+        assert attn_npz.exists(), f"meta.json says attn=true but {attn_npz} is missing"
+        for k, v in np.load(attn_npz).items():
+            P[f"attn_{k}"] = v
     if meta.get("joint"):
         from thinc.api import chain as _c
         embed = _tr.build_joint_embed_from_meta(meta)
@@ -82,7 +93,22 @@ def load_arcfactored(path, plain_probe):
     return meta, P, enc
 
 
+def _apply_attn(P, X):
+    """Reimplements SelfAttentionMixer.forward's math against the loaded weight dict, exactly the
+    style every other term in this module already uses. MUST STAY IN SYNC with
+    sud_self_attention.py's own forward()."""
+    Wq, Wk, Wv, Wo = P["attn_Wq"], P["attn_Wk"], P["attn_Wv"], P["attn_Wo"]
+    w = Wq.shape[0]
+    Q = X @ Wq; K = X @ Wk; V = X @ Wv
+    scores = (Q @ K.T) * (1.0 / np.sqrt(w))
+    scores = scores - scores.max(1, keepdims=True)
+    E = np.exp(scores); A = E / E.sum(1, keepdims=True)
+    return X + (A @ V) @ Wo
+
+
 def predict_from_X(meta, P, X, doc=None):   # doc unused: only the joint-label agreement term needs it
+    if meta.get("attn") and "attn_Wq" in P:
+        X = _apply_attn(P, X)
     n = X.shape[0]; h = meta["hidden"]
     H = np.maximum(X @ P["Wh"] + P["bh"], 0)
     D = np.maximum(X @ P["Wd"] + P["bd"], 0)
@@ -108,6 +134,8 @@ def predict_from_X_joint_label(meta, P, X, doc=None):
     `doc` is required (and used) when meta["agreement"], meta["pos"], meta["feat_names"] or
     meta["pron"] is true -- all are computed from the doc's tokens, not from X, so skipping it here
     would silently evaluate the checkpoint one or more terms short of what it was trained with."""
+    if meta.get("attn") and "attn_Wq" in P:
+        X = _apply_attn(P, X)
     n = X.shape[0]; h = meta["hidden"]; nlab = len(meta["labels"])
     H = np.maximum(X @ P["Wh"] + P["bh"], 0)
     D = np.maximum(X @ P["Wd"] + P["bd"], 0)
