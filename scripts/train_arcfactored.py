@@ -495,6 +495,41 @@ def preverbal_buckets(doc, window):
     return dbkt * 2 + is_pron[None, :]
 
 
+def sibling_buckets(heads0, labels0, n):
+    """(n+1, n) int bucket ids: for candidate head h and dependent d, `1 + label id of whichever
+    OTHER dependent of h (from a first-order PRE-DECODE, `heads0`/`labels0`) would immediately
+    PRECEDE d BY POSITION if d attached to h -- 0 if h currently has no such dependent.
+
+    ⚠ THE ONLY BUCKET IN THIS FILE COMPUTED FROM A MODEL DECODE, not from the doc alone. Every other
+    bucket function here (agreement_buckets, pos_buckets, ...) needs nothing but token attributes
+    and positions, all knowable before any parsing happens -- exactly why they can be precomputed
+    ONCE per doc, outside the training loop. This one needs to know "who are h's OTHER dependents",
+    which is a property of a DECODED TREE, not an input feature -- so it must be recomputed EVERY
+    training step (and at eval time) from that step's OWN first-order decode, using PREDICTED
+    structure throughout, never gold (the same "predicted, never gold" discipline this project
+    already applies to every other bucket, extended to a bucket whose source is the model's own
+    first-order self rather than an external tagger). See `sud_joint_biaffine.py`'s `sib` term.
+
+    `bisect_left` on a SORTED, DISTINCT list of positions places `d` at its own index if `d` is
+    already a member (which it is, exactly when `h == heads0[d]`) -- so `deps[idx-1]` is correctly
+    d's immediate predecessor whether or not d itself is currently one of h's dependents, with no
+    separate self-exclusion needed."""
+    import bisect
+    import collections as _collections
+    dep_of = _collections.defaultdict(list)
+    for d2 in range(n):
+        dep_of[int(heads0[d2])].append(d2)
+    for h in dep_of:
+        dep_of[h].sort()
+    bkt = np.zeros((n + 1, n), dtype=np.int64)
+    for h, deps in dep_of.items():
+        for d in range(n):
+            idx = bisect.bisect_left(deps, d)
+            if idx > 0:
+                bkt[h, d] = 1 + int(labels0[deps[idx - 1]])
+    return bkt
+
+
 # Per-language config. `src` MUST be the arm that actually ships/is-current -- not merely one with
 # the right component names -- because `encoder_and_upstream()` reads the parser's *actual*
 # architecture off it.
@@ -943,6 +978,22 @@ def main():
                          "all (the dependent is an ADP/ADV/SCONJ, not a bare case-marked noun), and "
                          "within that slice the DEPENDENT's own lemma (per/si/secundum/cum/... vs. "
                          "the mixed in/ad/ex) predicts the label far better than lemma-blind chance")
+    ap.add_argument("--sibling", action="store_true",
+                    help="--joint-label only: add a per-label SECOND-ORDER sibling bias -- error-"
+                         "analysing la_frozen_full (the deterministic, reliable checkpoint) found "
+                         "the LAS gap to the transition parser concentrated in long-distance "
+                         "attachment and conj:coord/subj specifically, while label accuracy given a "
+                         "correct head was nearly identical (91.14 vs 92.46) -- an ATTACHMENT "
+                         "problem first-order scoring has no mechanism for, since each candidate arc "
+                         "is scored independently of a head's OTHER dependents (gold: "
+                         "conj:coord -> punct at P=0.985 over 2,580 occurrences). Exact second-order "
+                         "MST decoding is NP-hard for non-projective graphs, so this trains a real, "
+                         "gradient-backed sib_bkt bias via a TWO-PASS forward per training step: "
+                         "decode first-order (no sibling term), compute sibling_buckets() from THAT "
+                         "predicted tree, then rerun forward+backward with the bias included -- "
+                         "PREDICTED sibling context throughout, at both train and eval time, never "
+                         "gold, so there is no train/inference skew despite this being the first "
+                         "bucket in this file that needs a decode rather than just the doc.")
     ap.add_argument("--presegment", action="store_true",
                     help="explode whole docs into one gold SENTENCE per training/eval item, so the "
                          "encoder never carries state across a sentence boundary -- see "
@@ -1060,6 +1111,7 @@ def main():
         # identical.
         lemcase_vocab = build_feat_vocab(plain_tr, "Case") if a.lemcase else []
         lemcase_bins = 1 + len(lemcase_vocab)
+        n_sib_bins = 1 + len(labs) if a.sibling else 0
         m = JointBiaffine(w, a.hidden, len(labs), N_DIST_BINS, dist_buckets,
                            n_agree_bins=(N_AGREE_BINS if a.agreement else 0),
                            n_dir_bins=(N_DIR_BINS if a.direction else 0),
@@ -1074,6 +1126,7 @@ def main():
                            n_lemcase_bins=(lemcase_bins if a.lemcase else 0),
                            n_lemhash_bins=(N_LEMHASH_BINS if a.lemhash else 0),
                            n_lemhashdep_bins=(N_LEMHASHDEP_BINS if a.lemhashdep else 0),
+                           n_sib_bins=n_sib_bins,
                            seed=a.seed)
         # ⚠ sud_joint_biaffine.py deliberately keeps float64 (precision for its OWN gradient
         # check); thinc's optimiser and the rest of this file are float32 throughout.
@@ -1092,7 +1145,8 @@ def main():
               + (" + per-label dependent-lemma-vector bias" if a.lemvec_dep else "")
               + (" + per-label head-lemma x dependent-Case BILINEAR bias" if a.lemcase else "")
               + (" + per-label head-lemma-identity-hash bias" if a.lemhash else "")
-              + (" + per-label dependent-lemma-identity-hash bias" if a.lemhashdep else ""),
+              + (" + per-label dependent-lemma-identity-hash bias" if a.lemhashdep else "")
+              + (" + per-label SECOND-ORDER sibling bias (two-pass)" if a.sibling else ""),
               flush=True)
     else:
         m = Biaffine(w, a.hidden, len(labs))
@@ -1174,17 +1228,31 @@ def main():
                 # JointBiaffine encapsulates the whole forward+backward -- no hand-unrolled chain
                 # rule needed here, unlike the two-stage Biaffine below (see sud_joint_biaffine.py,
                 # gradient-checked to 3.55e-4 worst relative error across 10 seeds).
+                bias_args = (agree_tr[di] if agree_tr is not None else None,
+                             pos_tr[di] if pos_tr is not None else None,
+                             lemvec_tr[di] if lemvec_tr is not None else None,
+                             morph_tr[di] if morph_tr is not None else None,
+                             feat_tr[di] if feat_tr is not None else None,
+                             pron_tr[di] if pron_tr is not None else None,
+                             lemvec_dep_tr[di] if lemvec_dep_tr is not None else None,
+                             lemcase_tr[di] if lemcase_tr is not None else None,
+                             lemhash_tr[di] if lemhash_tr is not None else None,
+                             lemhashdep_tr[di] if lemhashdep_tr is not None else None)
+                sib_bkt_di = None
+                if a.sibling:
+                    # ⚠ TWO-PASS: the sibling bucket needs a DECODED tree, which needs a forward
+                    # pass first -- pass 1 runs with sib_bkt=None (every OTHER bias term already
+                    # included), decodes it via the SAME CLE used everywhere else in this file, and
+                    # `sibling_buckets` turns that PREDICTED (never gold) tree into the (n+1, n)
+                    # bucket grid pass 2 actually trains against.
+                    combined0, _ = m.forward(X, a.window, *bias_args, sib_bkt=None)
+                    S0, chosen0 = combined0.max(-1), combined0.argmax(-1)
+                    Sq0 = np.full((n + 1, n + 1), NEG, dtype="float64"); Sq0[:, 1:] = S0
+                    heads0 = mst(Sq0)[1:]
+                    labels0 = chosen0[heads0, np.arange(n)]
+                    sib_bkt_di = sibling_buckets(heads0, labels0, n)
                 loss, g, dXin = m.loss_and_backward(
-                    X, a.window, gh, gl, agree_tr[di] if agree_tr is not None else None,
-                    pos_tr[di] if pos_tr is not None else None,
-                    lemvec_tr[di] if lemvec_tr is not None else None,
-                    morph_tr[di] if morph_tr is not None else None,
-                    feat_tr[di] if feat_tr is not None else None,
-                    pron_tr[di] if pron_tr is not None else None,
-                    lemvec_dep_tr[di] if lemvec_dep_tr is not None else None,
-                    lemcase_tr[di] if lemcase_tr is not None else None,
-                    lemhash_tr[di] if lemhash_tr is not None else None,
-                    lemhashdep_tr[di] if lemhashdep_tr is not None else None)
+                    X, a.window, gh, gl, *bias_args, sib_bkt_di)
                 tot += loss / max(n, 1)
                 if bp_enc is not None:
                     dX_b.append(dXin.astype("float32"))
@@ -1240,17 +1308,26 @@ def main():
         for te_i, (d, X) in enumerate(zip(te, Xte_ep)):
             n = X.shape[0]
             if a.joint_label:
-                S, chosen = m.decode_scores(
-                    X, a.window, agree_te[te_i] if agree_te is not None else None,
-                    pos_te[te_i] if pos_te is not None else None,
-                    lemvec_te[te_i] if lemvec_te is not None else None,
-                    morph_te[te_i] if morph_te is not None else None,
-                    feat_te[te_i] if feat_te is not None else None,
-                    pron_te[te_i] if pron_te is not None else None,
-                    lemvec_dep_te[te_i] if lemvec_dep_te is not None else None,
-                    lemcase_te[te_i] if lemcase_te is not None else None,
-                    lemhash_te[te_i] if lemhash_te is not None else None,
-                    lemhashdep_te[te_i] if lemhashdep_te is not None else None)
+                eval_bias_args = (agree_te[te_i] if agree_te is not None else None,
+                                   pos_te[te_i] if pos_te is not None else None,
+                                   lemvec_te[te_i] if lemvec_te is not None else None,
+                                   morph_te[te_i] if morph_te is not None else None,
+                                   feat_te[te_i] if feat_te is not None else None,
+                                   pron_te[te_i] if pron_te is not None else None,
+                                   lemvec_dep_te[te_i] if lemvec_dep_te is not None else None,
+                                   lemcase_te[te_i] if lemcase_te is not None else None,
+                                   lemhash_te[te_i] if lemhash_te is not None else None,
+                                   lemhashdep_te[te_i] if lemhashdep_te is not None else None)
+                sib_bkt_te = None
+                if a.sibling:
+                    # ⚠ SAME two-pass procedure as training -- PREDICTED sibling context at eval
+                    # time too, never gold, so there is no train/inference skew.
+                    S0, chosen0 = m.decode_scores(X, a.window, *eval_bias_args, sib_bkt=None)
+                    Sq0 = np.full((n + 1, n + 1), NEG, dtype="float64"); Sq0[:, 1:] = S0
+                    heads0 = mst(Sq0)[1:]
+                    labels0 = chosen0[heads0, np.arange(n)]
+                    sib_bkt_te = sibling_buckets(heads0, labels0, n)
+                S, chosen = m.decode_scores(X, a.window, *eval_bias_args, sib_bkt_te)
             else:
                 S, *_ = m.arc_scores(X, a.window)      # eval: no dropout
             # `mst` takes a SQUARE matrix over [virtual root | tokens]; arc_scores/decode_scores
@@ -1304,6 +1381,7 @@ def main():
                  "lemcase_vocab": ([list(v) for v in lemcase_vocab]
                                    if (a.joint_label and a.lemcase) else None),
                  "lemhash": bool(a.joint_label and a.lemhash),
+                 "sibling": bool(a.joint_label and a.sibling),
                  "lemhashdep": bool(a.joint_label and a.lemhashdep),
                  "joint_embed": cfg["joint_embed"] if a.joint else None,
                  "upstream": upstream}, ensure_ascii=False, indent=1))
