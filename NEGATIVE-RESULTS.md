@@ -1731,3 +1731,50 @@ multi-seed baseline itself) explains why `la_arcfactored_lexical` ever reported 
 recipe -- the balance of evidence now favours that number having been a genuine, non-reproducible
 favourable-seed outlier, not evidence of a reachable configuration this session simply hasn't found
 yet.
+
+
+## Second-order sibling reranking on `la_frozen_full`: a real but tiny effect, and not on the label it was built for (2026-09-06)
+
+Error-analysing `la_frozen_full` (the deterministic, reliable arc-factored checkpoint -- no seed
+variance, so its errors are actually interpretable) found the LAS gap to the transition parser
+(64.64 vs 73.92) concentrated almost entirely in long-distance attachment (gap -5.75 at arc length 1,
+-20.61 at length 5, -21.23 at length 7) and in `conj:coord`/`subj` specifically, while label accuracy
+GIVEN a correct head was nearly identical between the two systems (91.14 vs 92.46) -- an attachment
+problem arc-factored (first-order) scoring has no structural mechanism to address, since each
+candidate arc is scored independently of which OTHER dependents its head already has. Checking la's
+gold training trees confirmed real sibling structure a first-order model cannot see:
+`conj:coord -> punct` (a coordinated conjunct followed by punctuation, same head) at P=0.985 over
+2,580 occurrences; `punct -> cc` at lift 9.07 over 5,681 occurrences.
+
+**Exact second-order MST decoding is NP-hard for general (non-projective) graphs** -- the Matrix-Tree
+theorem that makes first-order non-projective decoding tractable does not extend to sibling/
+grandparent factors, and Latin is 37% non-projective (the whole reason this project uses CLE, not
+Eisner's projective-only DP, which DOES have an exact second-order extension). Built the standard
+tractable compromise instead (`scripts/sud_sibling_score.py`): a sibling table `table[l1,l2] =
+log(P(l2|l1,consecutive)/P(l2))` estimated directly from gold corpus counts (a statistic, not a
+gradient-trained parameter -- costs nothing to try against an ALREADY-TRAINED checkpoint, no
+retraining needed), then LOCAL-SEARCH reranking on top of the existing first-order CLE decode: for
+each dependent, try its top-k alternative heads, accept a swap if the combined (arc score + sibling
+bonus) improves, reject anything that would create a cycle.
+
+**At the table's raw scale (PMI clipped to +-3, comparable to the biaffine's own dist/pos bias
+magnitudes) the net effect was NEGATIVE** (-4.63 LAS on a subset) -- the sibling bonus was easily
+large enough to override CORRECT first-order decisions, not just fix wrong ones, and `conj:coord`
+itself got WORSE (-12.29), the opposite of the motivating goal. Sweeping a scale factor on the table
+found the mechanism genuinely works, just needed to be much more conservative: at `--sib-weight 0.15`
+(effective PMI range +-0.45), full test set, LAS improved 64.64 -> 64.76 (**+0.12**), robust to more
+exploration (k=10, 5 passes: identical +0.12) -- a small but real, stable, non-artifactual effect
+(sanity check: `--sib-weight 0` reproduces the baseline exactly, confirming the reranker correctly
+degenerates to first-order decoding when the second-order term is switched off).
+
+**But `conj:coord` itself is STILL slightly negative at the working weight (-0.26)** -- the net gain
+comes from elsewhere (ROOT +0.93, `subj` +0.55, `discourse` +0.47, `det` +0.40, `mod@cmp` +1.06), not
+the label the whole mechanism was built to fix. The premise (real sibling structure exists, a
+first-order model can't see it) was correct; the specific implementation (greedy single-pass local
+search, order-dependent, comparing an estimated PMI statistic against biaffine logits with no
+principled joint calibration) recovers only a fraction of the available signal, and what it does
+recover isn't concentrated where the diagnosis pointed. A genuinely stronger second-order treatment
+would need either an OPTIMAL decoding algorithm for the local neighbourhood (not greedy coordinate
+ascent) or a JOINTLY-TRAINED sibling term (learned end to end with the biaffine, properly calibrated
+against its own scale, the way every OTHER bias term in this project is) rather than a bolted-on
+gold-statistic table -- a substantially larger undertaking than this session's scope covered.
