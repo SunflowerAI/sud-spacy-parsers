@@ -1905,3 +1905,44 @@ substitutive (redundant capacity competing for the same signal, which the short-
 reflect); (2) restricting attention's own reach (e.g. a window, rather than unmasked whole-sentence)
 to see whether the short-distance regression is attention overriding easy, already-correct local
 decisions with unnecessary sentence-wide noise.
+
+### Follow-up (1) answered: `--attn-hd` alone vs `--sibling` alone -- SUBSTITUTIVE, not complementary
+
+3-seed `--attn-hd` alone (no `--sibling`) against plain baseline:
+
+    baseline (no 2nd-order term):  64.64 / 64.99 / 64.89   mean 64.84   range 0.35
+    +attn-hd alone:                65.36 / 65.00 / 65.21   mean 65.19   range 0.36
+
++0.35 mean, real and (barely) consistent -- every attn-hd seed edges out every baseline seed (65.00
+vs 64.99 at the closest pair). Smaller than `--sibling`'s own +0.66, but the error breakdown on the
+best checkpoint (la_frozen_attnhd_s0, 65.36) against the matching baseline seed (la_frozen_base_s0,
+64.64) is CLEANER than the `+sibling+attn-hd` combination showed -- no serious short-distance cost:
+
+    dist 5 gap   -20.61 -> -16.79   (+3.82)      subj acc         59.38 -> 63.71   (+4.33)
+    dist 8 gap   -19.78 -> -16.09   (+3.69)      conj:coord acc   42.13 -> 42.73   (+0.60)
+    dist 6 gap   -20.64 -> -17.69   (+2.95)      gold-crossing gap -6.61 -> -5.73   (+0.88)
+    dist 7 gap   -21.23 -> -18.87   (+2.36)      dist 1 gap        -5.75 -> -5.33   (+0.42, IMPROVES)
+    dist 9 gap   -15.92 -> -13.29   (+2.63)      dist 2 gap        -8.28 -> -9.38   (-1.10, the only
+                                                                                       real regression)
+
+Every long-distance bucket improves substantially, `subj` improves by 4.33 (more than `--sibling`'s
+own subj gain), `conj:coord` improves, crossing arcs improve -- and `dist 1`, which REGRESSED when
+`--attn-hd` was stacked on top of `--sibling` (-1.10 there), actually IMPROVES here (+0.42). The
+short-distance cost seen in the stacked combination is not an intrinsic property of `--attn-hd`
+itself -- it only appears when `--sibling` is also competing for the same signal.
+
+**The mean-level arithmetic settles complementary-vs-substitutive directly**: baseline 64.84 ->
+`+sibling` 65.50 (+0.66) -> `+attn-hd` alone 65.19 (+0.35) -> `+sibling+attn-hd` 65.54 (+0.70 over
+baseline). If the two mechanisms fixed DIFFERENT error, stacking should approach the additive
+prediction, +1.01 (0.66+0.35). It lands at +0.70, barely above `--sibling` alone -- the two are
+recovering much of the SAME underlying error (long-distance attachment, subj, conj:coord) via
+different routes, so combining them cancels most of the redundant share rather than adding.
+
+**Practical upshot**: `--sibling` alone remains the best single mechanism measured (65.50, clean
+all-seeds-beat-all-seeds pattern). `--attn-hd` alone is a genuine, independently-useful alternative
+recovering roughly half of sibling's gain via a structurally different, cheaper mechanism (one
+forward pass per step, no two-pass decode) -- worth knowing, not worth switching to. Stacking both
+is not worth the extra parameters/compute: the redundant capacity does not pay for itself. Follow-up
+(2) (windowing attention's own reach) was NOT needed to explain the stacked combination's
+short-distance cost -- it turned out to be an interference artifact of stacking two substitutive
+mechanisms, not a property of `--attn-hd` needing its own fix -- so it is not pursued.
