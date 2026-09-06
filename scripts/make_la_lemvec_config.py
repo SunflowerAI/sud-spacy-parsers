@@ -50,6 +50,21 @@ the PREDICTED morphology this arm actually reads, 60.8 points of that 79.9-point
 though `config_la_lemvec.cfg` is very nearly one already: the block adds a single Linear(64, 12),
 832 parameters, against the ~50 000 extra embedding rows that made the morphfirst control decisive.
 
+--verbdist ADDS THE VERB-DISTANCE BLOCK (`sud.LemmaVecFeatsVerbDistEmbed.v1`, five dims documented
+in scripts/sud_lemmavec_embed.py) -- the transition-parser counterpart of the arc-factored research
+decoder's `--clausegap` term. Checking actual conj:coord errors under that decoder found the
+dominant signal is whether a VERB/AUX sits between a candidate head and dependent (18.68% accuracy
+crossing a verb vs 51.15% not), and a follow-up check found the TRANSITION parser has the SAME
+qualitative weakness (66.13% vs 34.00%, an almost identical ~32-point relative gap) -- so this is a
+shared weakness, not one the transition parser's own stack state already closes. Weaker than a
+direct port, though: the transition parser has no clean insertion point for a PAIRWISE "does this
+specific arc cross a verb" fact the way the arc-factored decoder's explicit (head, dependent, label)
+scoring does, so this instead gives each token its OWN distance to the nearest VERB/AUX in each
+direction, from which the parser's state-composition MLP could in principle reconstruct crossing
+information across two stack/buffer positions -- real signal, but an indirect bet, not a certainty.
+`--verbdist --control-verbdist` is the exact capacity control: identical Linear(64, 5), 325+64
+parameters, POS never read.
+
 --beam SWAPS THE GREEDY PARSER FOR `beam_parser`, for one measured reason. Latin discontinuity is
 where this arm loses: 37.4 % of test sentences carry a crossing arc, those arcs are 5 % of tokens
 but 16 % of all attachment errors, and the parser recovers only 28.4 % of them as non-projective at
@@ -104,6 +119,11 @@ def main() -> None:
                     help="how far the any-left/any-right/n-compat dims reach. 20 is roughly a "
                          "Latin sentence, and it has to exceed the +-4 offsets or hyperbaton -- "
                          "the construction the block exists for -- falls outside the window")
+    ap.add_argument("--verbdist", action="store_true",
+                    help="add the verb-distance block (transition-parser counterpart of the "
+                         "arc-factored decoder's --clausegap)")
+    ap.add_argument("--control-verbdist", action="store_true",
+                    help="with --verbdist: keep the block's Linear, hand every token five zeros")
     ap.add_argument("--beam", action="store_true",
                     help="train the parser as spacy's `beam_parser`")
     ap.add_argument("--beam-width", type=int, default=8)
@@ -136,11 +156,15 @@ def main() -> None:
                            "path": f"{args.labels_dir.rstrip('/')}/{name}.json", "require": True}
 
     # 2. the embed
+    if args.agree and args.verbdist:
+        raise SystemExit("--agree and --verbdist together need a THIRD registered architecture "
+                          "combining both blocks, which does not exist yet -- one at a time")
     embed = cfg["components"]["tok2vec"]["model"]["embed"]
     attrs = list(embed["attrs"])
     rows = list(embed["rows"])
     new = {
         "@architectures": ("sud.LemmaVecFeatsAgreeEmbed.v1" if args.agree
+                           else "sud.LemmaVecFeatsVerbDistEmbed.v1" if args.verbdist
                            else "sud.LemmaVecFeatsEmbed.v1"),
         "width": embed["width"],
         "include_static_vectors": False,
@@ -163,6 +187,10 @@ def main() -> None:
         new["agree_constant"] = bool(args.control_agree)
     elif args.control_agree:
         raise SystemExit("--control-agree only means anything with --agree")
+    if args.verbdist:
+        new["verbdist_constant"] = bool(args.control_verbdist)
+    elif args.control_verbdist:
+        raise SystemExit("--control-verbdist only means anything with --verbdist")
     cfg["components"]["tok2vec"]["model"]["embed"] = new
 
     # 3. the decoder. `beam_parser` takes the same model and the same labels; it changes how the
@@ -181,6 +209,9 @@ def main() -> None:
     if args.agree:
         bits.append("agreement block (zeros)" if args.control_agree
                     else f"agreement block (near={args.agree_near})")
+    if args.verbdist:
+        bits.append("verb-distance block (zeros)" if args.control_verbdist
+                    else "verb-distance block")
     if args.beam:
         bits.append(f"beam_parser width={args.beam_width} update_prob={args.beam_update_prob}")
     print(f"wrote {args.out}  ({'; '.join(bits)}; frozen+annotating from {args.source})")

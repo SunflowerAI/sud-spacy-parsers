@@ -408,3 +408,131 @@ def LemmaVecFeatsAgreeEmbed(
     max_out: Model[Ragged, Ragged] = with_array(
         Maxout(width, concat_size, nP=3, dropout=0.0, normalize=True))
     return chain(concatenate(*pieces), max_out, ragged2list())
+
+
+# --------------------------------------------------------------------------------------------
+# VERB-DISTANCE AS AN INPUT, the transition-parser counterpart of the arc-factored decoder's
+# `--clausegap` (train_arcfactored.py / NEGATIVE-RESULTS.md's "does this arc cross a clause
+# boundary" entry).
+#
+# WHY. Checking actual conj:coord errors under the arc-factored decoder found the dominant signal
+# is not arc length but whether a VERB/AUX sits between the candidate head and dependent: gold
+# conj:coord arcs crossing a verb score 18.68% (n=653) vs 51.15% (n=1863) when they don't, and a
+# follow-up check found the TRANSITION parser has the SAME qualitative weakness (66.13% vs 34.00%,
+# an almost identical ~32-point relative gap) -- so this is not an arc-factored-specific hole the
+# transition parser already closes via its stack state; it is a shared weakness worth targeting.
+#
+# WHY THIS IS A WEAKER, INDIRECT VERSION of --clausegap, not a straight port. `--clausegap` reads a
+# genuinely PAIRWISE fact (how many verbs sit between THIS SPECIFIC candidate arc's two endpoints),
+# which the arc-factored decoder's scorer can read directly because it scores every (head,
+# dependent, label) triple explicitly. The transition parser has no equivalent insertion point --
+# it scores ACTIONS from a state built out of a handful of stack/buffer token POSITIONS, each
+# contributing only its own per-token vector, inside spaCy's compiled transition system. There is no
+# clean way to hand it "does the candidate arc I am about to take cross a verb" without patching
+# spaCy's own internals. What CAN be done at the ordinary config level is give each token its OWN
+# distance to the nearest VERB/AUX in each direction, as part of its embedding -- from which the
+# parser's state-composition MLP could, in principle, reconstruct crossing information (a verb sits
+# between two tokens i < j exactly when i's distance-to-next-verb or j's distance-to-previous-verb
+# is <= j - i), but only if it learns to compose two different stack positions' own features that
+# way. This is real information, not zero, but a weaker bet than --clausegap's direct pairwise
+# read -- worth measuring, not assuming.
+#
+# THE DIMENSIONS. Five:
+#   0   reciprocal distance to the nearest PRECEDING VERB/AUX (1/(1+d)), 0 if none exists
+#   1   reciprocal distance to the nearest FOLLOWING VERB/AUX (1/(1+d)), 0 if none exists
+#   2   no VERB/AUX precedes this token AT ALL, anywhere in the sentence (the "no info" bit --
+#       0.0 at dim 0 must not be confused with "a verb is infinitely close", the same unset-vs-
+#       empty distinction CLAUDE.md already records costing Sanskrit 6.8 LAS by a different route)
+#   3   no VERB/AUX follows this token AT ALL
+#   4   this token IS a VERB/AUX itself (its own distances above measure the NEAREST OTHER verb,
+#       never itself, since the running pointer only updates AFTER being read for the current token)
+#
+# `verbdist_constant = true` is the capacity control: identical Linear, identical parameter count,
+# every token handed five zeros -- POS is never read, so this measures the block's ~480 extra
+# parameters against its actual information.
+VERBDIST_DIMS = 5
+
+
+def VerbDistExtractor(constant: bool):
+    return Model("extract_verbdist", _verbdist_forward, attrs={"vd_constant": bool(constant)})
+
+
+def _verbdist_forward(model: Model, docs, is_train: bool) -> Tuple[List[Floats2d], Callable]:
+    constant = model.attrs["vd_constant"]
+    out: List[Floats2d] = []
+    for doc in docs:
+        n = len(doc)
+        arr = np.zeros((n, VERBDIST_DIMS), dtype="f")
+        if not constant:
+            is_verb = [1 if t.pos_ in ("VERB", "AUX") else 0 for t in doc]
+            last_verb = -1
+            for i in range(n):
+                if last_verb < 0:
+                    arr[i, 2] = 1.0
+                else:
+                    arr[i, 0] = 1.0 / (1.0 + (i - last_verb))
+                if is_verb[i]:
+                    last_verb = i
+            next_verb = -1
+            for i in range(n - 1, -1, -1):
+                if next_verb < 0:
+                    arr[i, 3] = 1.0
+                else:
+                    arr[i, 1] = 1.0 / (1.0 + (next_verb - i))
+                if is_verb[i]:
+                    next_verb = i
+            for i in range(n):
+                if is_verb[i]:
+                    arr[i, 4] = 1.0
+        out.append(model.ops.asarray2f(arr))
+    backprop: Callable[[List[Floats2d]], List] = lambda d: []
+    return out, backprop
+
+
+@registry.architectures("sud.LemmaVecFeatsVerbDistEmbed.v1")
+def LemmaVecFeatsVerbDistEmbed(
+    width: int,
+    attrs: Union[List[str], List[int], List[Union[str, int]]],
+    rows: List[int],
+    include_static_vectors: bool,
+    vectors=None,
+    vector_dim: Optional[int] = None,
+    constant: bool = False,
+    feats: List[str] = [],
+    feat_rows: List[int] = [],
+    verbdist_constant: bool = False,
+) -> Model[List[Doc], List[Floats2d]]:
+    """`sud.LemmaVecFeatsEmbed.v1` plus the verb-distance block documented above.
+
+    Everything else is bit-for-bit the same layer, including the seeding order of the hash tables,
+    so an arm built on this and an arm built on `sud.LemmaVecFeatsEmbed.v1` differ in the five
+    dimensions and in nothing else."""
+    if len(rows) != len(attrs):
+        raise ValueError(f"Mismatched lengths: {len(rows)} vs {len(attrs)}")
+    if len(feat_rows) != len(feats):
+        raise ValueError(f"Mismatched feature lengths: {len(feat_rows)} vs {len(feats)}")
+    if len(set(feats)) != len(feats):
+        raise ValueError(f"duplicate feature in {feats}")
+    payload, dim = resolve_vectors(vectors, vector_dim, "sud.LemmaVecFeatsVerbDistEmbed.v1")
+
+    all_rows = list(rows) + list(feat_rows)
+    seed = 7
+
+    def make_hash_embed(index):
+        nonlocal seed
+        seed += 1
+        return HashEmbed(width, all_rows[index], column=index, seed=seed, dropout=0.0)
+
+    embeddings = [make_hash_embed(i) for i in range(len(all_rows))]
+    pieces = [chain(FeatsFeatureExtractor(attrs, feats), list2ragged(),
+                    with_array(concatenate(*embeddings)))]
+    if include_static_vectors:
+        pieces.append(StaticVectors(width, dropout=0.0))
+    pieces.append(chain(LemmaVecExtractor(payload, constant, dim), list2ragged(),
+                        with_array(Linear(width, dim + 1))))
+    pieces.append(chain(VerbDistExtractor(verbdist_constant), list2ragged(),
+                        with_array(Linear(width, VERBDIST_DIMS))))
+    concat_size = width * (len(embeddings) + include_static_vectors + 2)
+    max_out: Model[Ragged, Ragged] = with_array(
+        Maxout(width, concat_size, nP=3, dropout=0.0, normalize=True))
+    return chain(concatenate(*pieces), max_out, ragged2list())
