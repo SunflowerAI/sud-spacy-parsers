@@ -146,9 +146,14 @@ def predict_from_X_joint_label(meta, P, X, doc=None):
     D = np.maximum(X @ P["Wd"] + P["bd"], 0)
     if meta.get("attn_hd") and "attn_h_Wq" in P:
         # ⚠ --attn-hd refines H/D AFTER Wh/Wd's own per-token projection, not X beforehand -- see
-        # sud_joint_biaffine.py's own note on use_attn_hd. MUST STAY IN SYNC with its forward().
-        H, _ = attn_forward(H, P["attn_h_Wq"], P["attn_h_Wk"], P["attn_h_Wv"], P["attn_h_Wo"])
-        D, _ = attn_forward(D, P["attn_d_Wq"], P["attn_d_Wk"], P["attn_d_Wv"], P["attn_d_Wo"])
+        # sud_joint_biaffine.py's own note on use_attn_hd. MUST STAY IN SYNC with its forward(),
+        # `attn_window` included -- evaluating a windowed checkpoint unmasked would score it against
+        # a mechanism it was never trained with.
+        aw = meta.get("attn_window")
+        H, _ = attn_forward(H, P["attn_h_Wq"], P["attn_h_Wk"], P["attn_h_Wv"], P["attn_h_Wo"],
+                             window=aw)
+        D, _ = attn_forward(D, P["attn_d_Wq"], P["attn_d_Wk"], P["attn_d_Wv"], P["attn_d_Wo"],
+                             window=aw)
     Hr = np.vstack([np.zeros((1, h), H.dtype), H])
     LH = np.maximum(X @ P["Lh"], 0); LD = np.maximum(X @ P["Ld"], 0)
     LHr = np.vstack([np.zeros((1, h), LH.dtype), LH])

@@ -1100,6 +1100,14 @@ def main():
                          "touched. Same residual + zero-init-Wo safety property as --attn. Gradient-"
                          "checked to 7.11e-05 worst (across all 14 terms combined, 6 seeds) -- see "
                          "sud_joint_biaffine.py's own note on use_attn_hd for the full rationale.")
+    ap.add_argument("--attn-window", type=int, default=0, dest="attn_window",
+                    help="--attn-hd only: restrict attention to |i-j| <= N (0 = unmasked, the "
+                         "original whole-sentence behaviour). A DIFFERENT knob from --window "
+                         "(which only restricts which ARCS are decoding candidates, never how far "
+                         "a representation can look). Built to check whether unmasked mixing is "
+                         "itself why --attn-hd interacts destructively with --clausegap when "
+                         "stacked (NEGATIVE-RESULTS.md), or whether a local span changes "
+                         "--attn-hd's own behaviour at all.")
     ap.add_argument("--clausegap", action="store_true",
                     help="--joint-label only: add a per-label bias on how many VERB/AUX tokens "
                          "(0/1/2+) sit strictly between the candidate head and dependent -- the "
@@ -1256,7 +1264,7 @@ def main():
                            n_lemhashdep_bins=(N_LEMHASHDEP_BINS if a.lemhashdep else 0),
                            n_sib_bins=n_sib_bins,
                            n_grand_bins=n_grand_bins,
-                           use_attn_hd=a.attn_hd,
+                           use_attn_hd=a.attn_hd, attn_window=(a.attn_window if a.attn_window else None),
                            n_clausegap_bins=(N_CLAUSEGAP_BINS if a.clausegap else 0),
                            seed=a.seed)
         # ⚠ sud_joint_biaffine.py deliberately keeps float64 (precision for its OWN gradient
@@ -1279,7 +1287,9 @@ def main():
               + (" + per-label dependent-lemma-identity-hash bias" if a.lemhashdep else "")
               + (" + per-label SECOND-ORDER sibling bias (two-pass)" if a.sibling else "")
               + (" + per-label SECOND-ORDER grandparent bias (two-pass)" if a.grandparent else "")
-              + (" + arc-side self-attention on H/D (post-projection)" if a.attn_hd else "")
+              + ((f" + arc-side self-attention on H/D (post-projection, window={a.attn_window})"
+                  if a.attn_window else " + arc-side self-attention on H/D (post-projection)")
+                 if a.attn_hd else "")
               + (" + per-label clause-gap (verb-crossing) bias" if a.clausegap else ""),
               flush=True)
     else:
@@ -1559,6 +1569,8 @@ def main():
                  "sibling": bool(a.joint_label and a.sibling),
                  "grandparent": bool(a.joint_label and a.grandparent),
                  "attn_hd": bool(a.joint_label and a.attn_hd),
+                 "attn_window": (a.attn_window if (a.joint_label and a.attn_hd and a.attn_window)
+                                 else None),
                  "clausegap": bool(a.joint_label and a.clausegap),
                  "lemhashdep": bool(a.joint_label and a.lemhashdep),
                  "attn": bool(a.attn),

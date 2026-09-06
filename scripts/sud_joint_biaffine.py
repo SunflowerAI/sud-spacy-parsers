@@ -50,7 +50,8 @@ class JointBiaffine:
                  n_dir_bins=0, dir_buckets_fn=None, n_pos_bins=0, n_lemvec_dim=0,
                  n_morphhash_bins=0, feat_bins=None, n_pron_bins=0, n_lemvec_dep_dim=0,
                  n_lemcase_dim=0, n_lemcase_bins=0, n_lemhash_bins=0, n_lemhashdep_bins=0,
-                 n_sib_bins=0, n_grand_bins=0, use_attn_hd=False, n_clausegap_bins=0, seed=0):
+                 n_sib_bins=0, n_grand_bins=0, use_attn_hd=False, n_clausegap_bins=0,
+                 attn_window=None, seed=0):
         r = np.random.default_rng(seed)
         s = lambda *d: (r.normal(size=d) * (1.0 / np.sqrt(d[0]))).astype("float64")
         self.p = {"Wh": s(w, h), "bh": np.zeros(h), "Wd": s(w, h), "bd": np.zeros(h),
@@ -236,12 +237,19 @@ class JointBiaffine:
         # parser's (91-92%) -- labelling is not the diagnosed problem, long-distance ATTACHMENT is,
         # so only the arc-scoring pathway is touched. `Wo` zero-initialised for both instances, same
         # "starts as an exact no-op" discipline as every other additive term here.
+        # ⚠ `attn_window` restricts attention to |i-j| <= attn_window (None = unmasked, the original
+        # behaviour) -- built to check whether unmasked, whole-sentence mixing is itself why
+        # --attn-hd interacts destructively with --clausegap when stacked (NEGATIVE-RESULTS.md), or
+        # whether a more local span changes --attn-hd's own behaviour at all. A DIFFERENT knob from
+        # `k`/`--window` (which only restricts which ARCS are decoding CANDIDATES, never how far a
+        # representation can look) -- see sud_self_attention.py's attn_forward for the mask itself.
         if use_attn_hd:
             self.p["attn_h_Wq"] = s(h, h); self.p["attn_h_Wk"] = s(h, h); self.p["attn_h_Wv"] = s(h, h)
             self.p["attn_h_Wo"] = np.zeros((h, h))
             self.p["attn_d_Wq"] = s(h, h); self.p["attn_d_Wk"] = s(h, h); self.p["attn_d_Wv"] = s(h, h)
             self.p["attn_d_Wo"] = np.zeros((h, h))
         self.use_attn_hd = use_attn_hd
+        self.attn_window = attn_window
         # ⚠ CLAUSE-GAP BIAS (--joint-label --clausegap) -- the classic "does this arc cross a clause
         # boundary" feature from pre-neural dependency parsing (McDonald & Pereira 2005's in-between-
         # POS features), built after checking actual conj:coord errors directly: when the GOLD
@@ -276,9 +284,9 @@ class JointBiaffine:
         attn_h_cache = attn_d_cache = None
         if self.use_attn_hd:
             H, attn_h_cache = attn_forward(H0, p["attn_h_Wq"], p["attn_h_Wk"], p["attn_h_Wv"],
-                                            p["attn_h_Wo"])
+                                            p["attn_h_Wo"], window=self.attn_window)
             D, attn_d_cache = attn_forward(D0, p["attn_d_Wq"], p["attn_d_Wk"], p["attn_d_Wv"],
-                                            p["attn_d_Wo"])
+                                            p["attn_d_Wo"], window=self.attn_window)
         else:
             H, D = H0, D0
         # ⚠ DTYPE MUST FOLLOW X (float32 in production, float64 in this module's own gradient
@@ -576,7 +584,7 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
                          use_morphhash=False, use_feat=False, use_pron=False,
                          use_lemvec_dep=False, use_lemcase=False, use_lemhash=False,
                          use_lemhashdep=False, use_sib=False, use_grand=False, use_attn_hd=False,
-                         use_clausegap=False, seed=0):
+                         use_clausegap=False, attn_window=None, seed=0):
     """Tiny random example, no windowing edge cases (k large enough to matter, small n) -- finite
     differences against every parameter AND against X (needed for --joint's encoder backprop).
     `use_agree=True` also exercises the agreement-bias path (a second, independent scatter-add
@@ -671,7 +679,7 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
                        n_lemhashdep_bins=(nhdbins if use_lemhashdep else 0),
                        n_sib_bins=(nsibbins if use_sib else 0),
                        n_grand_bins=(ngpbins if use_grand else 0),
-                       use_attn_hd=use_attn_hd,
+                       use_attn_hd=use_attn_hd, attn_window=attn_window,
                        n_clausegap_bins=(ncgbins if use_clausegap else 0), seed=seed + 1)
     for key in m.p:
         m.p[key] = rng.normal(size=m.p[key].shape) * 0.5
@@ -812,6 +820,8 @@ if __name__ == "__main__":
                          use_morphhash=False, use_grand=True)
     _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
                          use_morphhash=False, use_attn_hd=True)
+    _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
+                         use_morphhash=False, use_attn_hd=True, attn_window=2)
     _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
                          use_morphhash=False, use_clausegap=True)
     _numeric_grad_check(use_agree=True, use_dir=True, use_pos=True, use_lemvec=True,
