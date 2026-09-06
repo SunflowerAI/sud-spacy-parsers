@@ -496,6 +496,45 @@ def preverbal_buckets(doc, window):
     return dbkt * 2 + is_pron[None, :]
 
 
+# ⚠ CLAUSE-GAP BIAS (--joint-label --clausegap): the classic "does this arc cross a clause boundary"
+# feature from pre-neural dependency parsing (McDonald & Pereira 2005's in-between-POS features),
+# built after checking actual la conj:coord errors directly (analyse_arcfactored.py's own error
+# breakdown found conj:coord the single worst deprel; a follow-up check found WHY): when the GOLD
+# conj:coord arc crosses a VERB/AUX, accuracy is 18.68% (n=653); when it doesn't, 51.15% (n=1863) --
+# and on errors, the DOMINANT pattern (30% of ALL conj:coord errors) is choosing a wrongly CLOSER
+# head that avoids crossing the verb the correct, distant anchor requires reaching past.
+#
+# ⚠ DOC-ONLY, unlike --sibling/--grandparent -- "how many verbs sit between these two token
+# POSITIONS" needs nothing but the doc's predicted UPOS (upos_like(), the same source pos_buckets
+# already reads), no first-order pre-decode and no two-pass forward. A full (h, d)-grid term like
+# `pron`'s (a property of the PAIR's SPAN, not of either token alone), computed via one prefix-sum
+# pass then a vectorised O(n^2) lookup -- the same complexity class window_mask already pays.
+N_CLAUSEGAP_BINS = 3   # 0 = no verb/aux crossed, 1 = exactly one, 2 = two or more
+
+
+def clausegap_buckets(doc):
+    """(n+1, n) int bucket ids over [virtual root | tokens] x dependents: how many VERB/AUX tokens
+    (upos_like) sit STRICTLY BETWEEN the candidate head and dependent token POSITIONS, clipped to 2.
+    Row 0 (virtual root) stays all-0 -- no meaningful linear span for a virtual node, the same
+    "N/A -> code 0" convention agreement_buckets' root row already uses."""
+    n = len(doc)
+    is_verb = np.array([1 if upos_like(t) in ("VERB", "AUX") else 0 for t in doc], dtype=np.int64)
+    prefix = np.zeros(n + 1, dtype=np.int64)
+    prefix[1:] = np.cumsum(is_verb)                # prefix[i] = count of VERB/AUX in doc[0:i]
+    idx = np.arange(n)
+    hh = idx[:, None]                              # candidate head TOKEN index -> row hh+1 in the grid
+    dd = idx[None, :]
+    lo = np.minimum(hh, dd); hi2 = np.maximum(hh, dd)
+    # self-loop (hh==dd) gives lo==hi2, i.e. a "span" of zero real tokens between -- prefix[hi2] -
+    # prefix[lo+1] is then -is_verb[dd], which np.clip's lower bound turns harmlessly into 0 (the
+    # cell is masked out at decode time regardless; this only guards against a stray NEGATIVE bucket
+    # index, which would silently wrap to the LAST bucket instead of erroring).
+    cnt = np.clip(prefix[hi2] - prefix[lo + 1], 0, N_CLAUSEGAP_BINS - 1)
+    b = np.zeros((n + 1, n), dtype=np.int64)
+    b[1:, :] = cnt
+    return b
+
+
 def sibling_buckets(heads0, labels0, n):
     """(n+1, n) int bucket ids: for candidate head h and dependent d, `1 + label id of whichever
     OTHER dependent of h (from a first-order PRE-DECODE, `heads0`/`labels0`) would immediately
@@ -1061,6 +1100,18 @@ def main():
                          "touched. Same residual + zero-init-Wo safety property as --attn. Gradient-"
                          "checked to 7.11e-05 worst (across all 14 terms combined, 6 seeds) -- see "
                          "sud_joint_biaffine.py's own note on use_attn_hd for the full rationale.")
+    ap.add_argument("--clausegap", action="store_true",
+                    help="--joint-label only: add a per-label bias on how many VERB/AUX tokens "
+                         "(0/1/2+) sit strictly between the candidate head and dependent -- the "
+                         "classic 'does this arc cross a clause boundary' feature from pre-neural "
+                         "dependency parsing. Built after checking actual conj:coord errors: when "
+                         "the GOLD conj:coord arc crosses a VERB/AUX, accuracy is 18.68%% (n=653); "
+                         "when it doesn't, 51.15%% (n=1863) -- and on errors, the DOMINANT pattern "
+                         "(30%% of ALL conj:coord errors) is choosing a wrongly CLOSER head that "
+                         "avoids crossing the verb the correct, distant anchor requires reaching "
+                         "past. Doc-only (no decode needed, unlike --sibling/--grandparent) -- a "
+                         "full (h,d)-grid bias like --pron's, computed purely from predicted UPOS "
+                         "via a prefix-sum (clausegap_buckets()).")
     ap.add_argument("--presegment", action="store_true",
                     help="explode whole docs into one gold SENTENCE per training/eval item, so the "
                          "encoder never carries state across a sentence boundary -- see "
@@ -1206,6 +1257,7 @@ def main():
                            n_sib_bins=n_sib_bins,
                            n_grand_bins=n_grand_bins,
                            use_attn_hd=a.attn_hd,
+                           n_clausegap_bins=(N_CLAUSEGAP_BINS if a.clausegap else 0),
                            seed=a.seed)
         # ⚠ sud_joint_biaffine.py deliberately keeps float64 (precision for its OWN gradient
         # check); thinc's optimiser and the rest of this file are float32 throughout.
@@ -1227,7 +1279,8 @@ def main():
               + (" + per-label dependent-lemma-identity-hash bias" if a.lemhashdep else "")
               + (" + per-label SECOND-ORDER sibling bias (two-pass)" if a.sibling else "")
               + (" + per-label SECOND-ORDER grandparent bias (two-pass)" if a.grandparent else "")
-              + (" + arc-side self-attention on H/D (post-projection)" if a.attn_hd else ""),
+              + (" + arc-side self-attention on H/D (post-projection)" if a.attn_hd else "")
+              + (" + per-label clause-gap (verb-crossing) bias" if a.clausegap else ""),
               flush=True)
     else:
         m = Biaffine(w, a.hidden, len(labs))
@@ -1270,6 +1323,10 @@ def main():
     if a.joint_label and a.pron:
         pron_tr = [preverbal_buckets(d, a.window) for d in plain_tr]
         pron_te = [preverbal_buckets(d, a.window) for d in plain_te]
+    clausegap_tr = clausegap_te = None
+    if a.joint_label and a.clausegap:
+        clausegap_tr = [clausegap_buckets(d) for d in plain_tr]
+        clausegap_te = [clausegap_buckets(d) for d in plain_te]
     lemvec_dep_tr = lemvec_dep_te = None
     if a.joint_label and a.lemvec_dep:
         lemvec_dep_tr = [lemma_vecs_dep(d, cfg["lemvec_table"]) for d in plain_tr]
@@ -1325,15 +1382,18 @@ def main():
                              lemcase_tr[di] if lemcase_tr is not None else None,
                              lemhash_tr[di] if lemhash_tr is not None else None,
                              lemhashdep_tr[di] if lemhashdep_tr is not None else None)
+                clausegap_bkt_di = clausegap_tr[di] if clausegap_tr is not None else None
                 sib_bkt_di = grand_bkt_di = None
                 if a.sibling or a.grandparent:
                     # ⚠ TWO-PASS: sib/grand buckets need a DECODED tree, which needs a forward
                     # pass first -- pass 1 runs with sib_bkt=grand_bkt=None (every OTHER bias term
-                    # already included), decodes it via the SAME CLE used everywhere else in this
-                    # file, and `sibling_buckets`/`grandparent_buckets` turn that PREDICTED (never
-                    # gold) tree into the bucket grids pass 2 actually trains against -- ONE decode
-                    # shared by both flags, not one each.
-                    combined0, _ = m.forward(X, a.window, *bias_args, sib_bkt=None, grand_bkt=None)
+                    # already included -- clausegap is doc-only, so it's already available and
+                    # included here too, not just in the final pass), decodes it via the SAME CLE
+                    # used everywhere else in this file, and `sibling_buckets`/`grandparent_buckets`
+                    # turn that PREDICTED (never gold) tree into the bucket grids pass 2 actually
+                    # trains against -- ONE decode shared by both flags, not one each.
+                    combined0, _ = m.forward(X, a.window, *bias_args, sib_bkt=None, grand_bkt=None,
+                                              clausegap_bkt=clausegap_bkt_di)
                     S0, chosen0 = combined0.max(-1), combined0.argmax(-1)
                     Sq0 = np.full((n + 1, n + 1), NEG, dtype="float64"); Sq0[:, 1:] = S0
                     heads0 = mst(Sq0)[1:]
@@ -1343,7 +1403,7 @@ def main():
                     if a.grandparent:
                         grand_bkt_di = grandparent_buckets(heads0, labels0, n)
                 loss, g, dXin = m.loss_and_backward(
-                    X, a.window, gh, gl, *bias_args, sib_bkt_di, grand_bkt_di)
+                    X, a.window, gh, gl, *bias_args, sib_bkt_di, grand_bkt_di, clausegap_bkt_di)
                 tot += loss / max(n, 1)
               else:
                 S, H, D, Hr = m.arc_scores(X, a.window, a.dropout, drng)
@@ -1425,12 +1485,13 @@ def main():
                                    lemcase_te[te_i] if lemcase_te is not None else None,
                                    lemhash_te[te_i] if lemhash_te is not None else None,
                                    lemhashdep_te[te_i] if lemhashdep_te is not None else None)
+                clausegap_bkt_te = clausegap_te[te_i] if clausegap_te is not None else None
                 sib_bkt_te = grand_bkt_te = None
                 if a.sibling or a.grandparent:
                     # ⚠ SAME two-pass procedure as training -- PREDICTED sib/grand context at eval
                     # time too, never gold, so there is no train/inference skew. One shared decode.
                     S0, chosen0 = m.decode_scores(X, a.window, *eval_bias_args, sib_bkt=None,
-                                                   grand_bkt=None)
+                                                   grand_bkt=None, clausegap_bkt=clausegap_bkt_te)
                     Sq0 = np.full((n + 1, n + 1), NEG, dtype="float64"); Sq0[:, 1:] = S0
                     heads0 = mst(Sq0)[1:]
                     labels0 = chosen0[heads0, np.arange(n)]
@@ -1438,7 +1499,8 @@ def main():
                         sib_bkt_te = sibling_buckets(heads0, labels0, n)
                     if a.grandparent:
                         grand_bkt_te = grandparent_buckets(heads0, labels0, n)
-                S, chosen = m.decode_scores(X, a.window, *eval_bias_args, sib_bkt_te, grand_bkt_te)
+                S, chosen = m.decode_scores(X, a.window, *eval_bias_args, sib_bkt_te, grand_bkt_te,
+                                             clausegap_bkt_te)
             else:
                 S, *_ = m.arc_scores(X, a.window)      # eval: no dropout
             # `mst` takes a SQUARE matrix over [virtual root | tokens]; arc_scores/decode_scores
@@ -1497,6 +1559,7 @@ def main():
                  "sibling": bool(a.joint_label and a.sibling),
                  "grandparent": bool(a.joint_label and a.grandparent),
                  "attn_hd": bool(a.joint_label and a.attn_hd),
+                 "clausegap": bool(a.joint_label and a.clausegap),
                  "lemhashdep": bool(a.joint_label and a.lemhashdep),
                  "attn": bool(a.attn),
                  "joint_embed": cfg["joint_embed"] if a.joint else None,

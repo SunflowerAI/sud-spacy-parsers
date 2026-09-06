@@ -35,8 +35,9 @@ direction to be wrong in, not a thumb on the scale for this decoder.
 ⚠ MUST STAY IN SYNC with `train_arcfactored.py`'s scorer (LANGS table, window_mask, dist_buckets,
 agreement_buckets, direction_buckets, pos_buckets, morph_hash_buckets, feat_buckets,
 preverbal_buckets, lemma_vecs, lemma_vecs_dep, lemma_hash_buckets, lemma_hash_buckets_dep,
-sibling_buckets, grandparent_buckets) AND with `sud_self_attention.attn_forward` -- read directly
-for `--attn-hd` (JointBiaffine.use_attn_hd, applied to H/D) and reimplemented inline as `_apply_attn`
+sibling_buckets, grandparent_buckets, clausegap_buckets) AND with
+`sud_self_attention.attn_forward` -- read directly for `--attn-hd` (JointBiaffine.use_attn_hd,
+applied to H/D) and reimplemented inline as `_apply_attn`
 for the superseded `--attn` (applied to X; kept only for reproducing its documented negative result).
 """
 import argparse, json, pathlib, sys, collections
@@ -207,6 +208,10 @@ def predict_from_X_joint_label(meta, P, X, doc=None):
         assert doc is not None, "lemhashdep-enabled checkpoint needs the doc to compute the bias"
         lhd_bkt = _tr.lemma_hash_buckets_dep(doc)
         combined = combined + P["lemhashdep"].T[lhd_bkt][None, :, :]
+    if meta.get("clausegap") and "clausegap" in P:
+        assert doc is not None, "clausegap-enabled checkpoint needs the doc to compute the bias"
+        cgb = _tr.clausegap_buckets(doc)
+        combined = combined + P["clausegap"].T[cgb]
     mask = window_mask(n, meta["window"]).T
     combined = np.where(mask[:, :, None], combined, NEG)
     if (meta.get("sibling") and "sib" in P) or (meta.get("grandparent") and "grand" in P):
