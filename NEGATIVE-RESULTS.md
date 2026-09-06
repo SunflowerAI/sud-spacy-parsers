@@ -1946,3 +1946,65 @@ is not worth the extra parameters/compute: the redundant capacity does not pay f
 (2) (windowing attention's own reach) was NOT needed to explain the stacked combination's
 short-distance cost -- it turned out to be an interference artifact of stacking two substitutive
 mechanisms, not a property of `--attn-hd` needing its own fix -- so it is not pursued.
+
+## `--clausegap`: a real, targeted conj:coord win alone, DESTROYED (not just diluted) when stacked with --attn-hd (2026-09-07)
+
+Built after a direct deep-dive into WHY `conj:coord` fails, prompted by the user asking whether it
+was an arc-length problem and whether the annotation should change. Both hypotheses were checked
+against real data and REFUTED before building anything: (1) length-matched comparison (conj:coord
+accuracy vs OVERALL accuracy at the SAME arc length) ruled out pure arc length -- conj:coord is far
+worse than an average same-length arc beyond distance 2, and the deficit WIDENS with distance rather
+than staying constant (a pure length effect would predict a flat deficit); (2) recoding to a star
+(governor-direct) annotation was checked on the actual gold trees and would make conj:coord's arcs
+LONGER for 16.5% of tokens and shorter for NONE (mean 5.72 vs the current chain's 4.82) -- the
+current SUD chain convention already minimises arc length, so the proposed fix would make the
+problem worse, not better.
+
+The real signal, found by checking whether the arc crosses a VERB/AUX (the classic McDonald &
+Pereira 2005 in-between-POS feature from pre-neural parsing): gold conj:coord arcs crossing a verb
+score 18.68% (n=653) vs 51.15% (n=1863) when they don't, and 30% of ALL conj:coord errors are
+choosing a wrongly CLOSER head that avoids crossing the verb the correct anchor requires reaching
+past. Built `clausegap_buckets()`: a full (h,d)-grid bucket (0/1/2+ VERB/AUX tokens strictly
+between), DOC-ONLY like `--pron` (no decode needed, unlike --sibling/--grandparent). Gradient-checked
+cleanly (individual 8.88e-06, combined with 15 other terms across 6 seeds worst 3.55e-05).
+
+**`--clausegap` ALONE: a real, clean, TARGETED win, cancelled in aggregate by scattered small
+regressions elsewhere** -- the same "aggregate and the slice are different answers" pattern seen
+with `--attn-hd`. 3-seed result: 64.83 / 64.82 / 64.95, mean 64.87 (vs baseline's 64.84, essentially
+flat, tightest range of any condition at 0.13). But the error breakdown on the best checkpoint shows
+`conj:coord` 42.13% -> 45.35% (**+3.22**, the single BIGGEST conj:coord improvement of anything tried
+this session -- bigger than --sibling's +1.43 or --attn-hd's +0.60) and `subj` +1.57, offset by small
+scattered regressions (`punct` -0.95, `mod` -0.35, `cc` -0.22) that outweigh the conj:coord gain in
+the token-weighted aggregate purely because conj:coord is only ~4.6% of tokens while punct/mod are
+much larger categories. Does NOT generalise to long-distance attachment broadly the way --attn-hd
+did (dist5-9 is a mixed bag, not a uniform improvement) -- --clausegap is a narrow, explicit signal
+(fires only on verb-crossing), not a general representational fix.
+
+**`--attn-hd` + `--clausegap` TOGETHER: not just a wash -- ACTIVE INTERFERENCE on the very label
+--clausegap targets.** 3-seed result: 65.14 / 65.32 / 65.13, mean 65.20 -- statistically
+indistinguishable from `--attn-hd` alone's 65.19 (+0.01). But the error breakdown on the best
+checkpoint (la_frozen_attnhdcg_s1, 65.32) shows `conj:coord` at **41.22%** -- WORSE than the PLAIN
+BASELINE's 42.13%, let alone --clausegap alone's 45.35%. This is qualitatively different from
+--sibling/--attn-hd's own "substitutive, cancels to a wash" story: that combination left BOTH
+mechanisms' individual effects roughly intact, just redundant. Here, --clausegap's own mechanism is
+actively destroyed by training alongside --attn-hd, not merely rendered unnecessary.  --attn-hd's
+own long-distance gains mostly SURVIVE in the combination (dist5-7 gaps are close to --attn-hd
+alone's), so the destruction is specific to --clausegap's contribution, not a general degradation.
+
+Best guess at the mechanism: both terms are optimised JOINTLY against the same loss, and --attn-hd's
+diffuse, much-higher-capacity representation change (73,728 params refining H/D with sentence-wide
+context) gives the optimiser an alternative route to reduce loss that does not need to route through
+--clausegap's sharp, low-capacity (3-bucket) signal -- so --clausegap's own weights end up
+undertrained, or pushed toward a locally-convenient but globally-unhelpful configuration, rather than
+the two mechanisms reinforcing each other. Not verified further (would need inspecting --clausegap's
+own learned per-label weights in each condition to confirm), but consistent with everything else
+this session found about stacking bias terms with overlapping optimisation pressure.
+
+**Standing conclusion, la, 2026-09-07**: `la_frozen` + `--sibling` (mean 65.50) remains the single
+best measured configuration. `--attn-hd` alone (65.19) is the best GENERAL mechanism. `--clausegap`
+alone (64.87 aggregate, but the real, mechanistically-verified conj:coord win) is the most
+diagnostically interesting result of the session but not, on its own, a bigger LAS number than
+what's already shipped-as-research. THREE bias-term combinations now show non-additive interaction
+when stacked (`--sibling`+`--grandparent`: wash; `--sibling`+`--attn-hd`: substitutive wash;
+`--attn-hd`+`--clausegap`: active interference) -- stacking bias terms in this architecture without
+verifying they are independent is no longer a reasonable default assumption.
