@@ -1673,3 +1673,61 @@ from-scratch joint architecture specifically: `--joint`'s freshly-initialized en
 pulling different seeds toward the same solution the way a frozen or lightly-perturbed encoder would,
 so its seed variance is a different, larger animal than the more familiar "which epoch got saved"
 variance this project usually worries about.
+
+
+## `--flat` and `--pretrain`: neither the BiLSTM nor a tagging-pretrained embed explains the instability (2026-09-06)
+
+Two follow-up experiments on la, both 3-seed sweeps on the same `agreement+direction+pos+lemvec+
+morphhash` recipe the baseline sweep above already characterised (mean 61.24, range 1.50):
+
+    condition                              seed 0   seed 1   seed 2     mean    range
+    baseline (--bilstm)                     60.60    62.10    61.01     61.24     1.50
+    flat (no contextualiser at all)         59.79    60.12    59.61     59.84     0.51
+    +lemhash-dep (on --bilstm)               61.23    61.48    61.77     61.49     0.54
+    pretrain (tagging-pretrained embed)      61.12    60.28    58.58     59.99     2.54
+
+**`--flat` (`scripts/train_arcfactored.py`): removes the BiLSTM/MaxoutWindowEncoder entirely, using
+the embed's own `List[Doc] -> List[Floats2d]` output as `X` directly.** Built to test whether the
+freshly-initialized, cross-token-recurrent BiLSTM was the dominant source of the seed instability
+found above (la's embed already carries fastText + char-hash + per-feature morphology and still
+showed the same instability magnitude as lzh's bare char-hash embed, so the embed's OWN feature
+composition looked like the wrong suspect). Result: `--flat` is actually the MOST stable condition
+measured (range 0.51, tighter even than baseline) but ~1.4 LAS LOWER on average -- the BiLSTM buys a
+small amount of capability at a small stability cost, but removing it does not explain the 12+ point
+gap from `la_arcfactored_lexical`'s reported 73.46. Both land in the high 50s/low 60s. The BiLSTM is
+not the dominant instability source.
+
+**`--pretrain` (`scripts/pretrain_lemvec_encoder.py`): the embed pretrained via a TAGGING objective
+(predict gold UPOS from predicted-lemma input) before the arc-factored fine-tuning stage, on the
+theory that a neutral, task-pretrained encoder would combine `la_frozen`'s stability (a frozen,
+already-mature encoder measured ~64-65 LAS, NOT seed-sensitive since nothing but the deterministic
+biaffine varies) with genuine independence from either parsing objective (unlike `la_frozen`, which
+reuses the TRANSITION parser's own co-adapted tok2vec).** Pretraining itself worked as intended --
+92.7% UPOS accuracy on the full la corpus, fast convergence -- but loading it into the arc-factored
+fine-tuning stage gave neither of the two things hoped for: mean LAS (59.99) is BELOW baseline, and
+the spread (2.54) is the WIDEST of every condition tested, wider even than plain from-scratch
+baseline's own 1.50. Seed 2 never improved past its randomly-initialised STARTING point across all
+20 epochs (best epoch: 0). The hypothesis is decisively refuted, not just unconfirmed.
+
+**Why pretraining didn't transfer, best guess (not verified further)**: UPOS tagging is solvable
+almost entirely from LOCAL lexical/morphological cues -- exactly why char-hash + fastText reaches
+92%+ so quickly -- but arc-factored PARSING needs relational, structural information a per-token
+tagging objective does not obviously induce. The embed may have become a good "what part of speech
+is this" detector without becoming a better foundation for "how does this token attach structurally,"
+while the contextualiser stacked on top (still randomly initialised in this experiment, unlike
+`la_frozen`'s fully-frozen encoder) remains whatever bottleneck was already there. This also means
+the ORIGINAL premise behind trying `--pretrain` -- that `la_frozen`'s stability came from being
+FROZEN and MATURE, not from being CO-ADAPTED to the transition parser's own objective -- is not
+supported by this result either: a mature-but-not-co-adapted encoder did not recover that stability,
+so co-adaptation itself (or simply more/better/longer pretraining, or a different pretraining
+objective) has not been ruled out as the actual reason `la_frozen` works better.
+
+**Where this leaves the whole line of work**: `la_frozen` (~64-65 LAS) remains the best-measured
+approach for la, ahead of every "clean-room" alternative tried (baseline 61.24, flat 59.84, pretrain
+59.99, +lemhash-dep 61.49) by 3-5 LAS -- but it is not a fair or neutral comparison (it reuses the
+transition parser's own tok2vec) and it is still 9+ points short of the transition parser's own
+73.92. None of today's four systematic interventions (`--flat`, `--pretrain`, `--lemhash-dep`, the
+multi-seed baseline itself) explains why `la_arcfactored_lexical` ever reported 73.46 on the identical
+recipe -- the balance of evidence now favours that number having been a genuine, non-reproducible
+favourable-seed outlier, not evidence of a reachable configuration this session simply hasn't found
+yet.
