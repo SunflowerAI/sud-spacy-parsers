@@ -1855,3 +1855,53 @@ attempted after `--grandparent`'s wash, and `--attn` is not being retried with m
 the strength of this one negative result -- a targeted, structurally-motivated second-order term
 beat a general architectural one here, which argues for looking for the NEXT specific structural
 fact worth encoding directly, not for scaling up the general mechanism.
+
+## `--attn`'s placement was the bug, not the idea: `--attn-hd` fixes it, and the result is a real mechanism that nets to a wash (2026-09-06)
+
+Told directly, without needing another sweep to discover it: "self-attention should be placed AFTER
+the pieces that require individual token information." `--attn` mixed raw X BEFORE Wh/Wd/Lh/Ld --
+exactly the projections that need X's own clean, unmixed per-token content to decide each token's OWN
+arc-scoring activation pattern. Built `--attn-hd`: the SAME attention math (`sud_self_attention.py`,
+refactored into pure `attn_forward`/`attn_backward` functions so it can run at a different point),
+but now living INSIDE `JointBiaffine` (`use_attn_hd`) and applied to H/D -- the ALREADY-individually-
+projected, ALREADY-ReLU'd "am I a good candidate head/dependent" representations -- AFTER Wh/Wd, not
+before. Touches only the arc-scoring pathway, deliberately not LH/LD (label-scoring was never the
+diagnosed problem). Gradient-checked (worst 7.11e-05 across 6 seeds at the corrected floor -- see the
+`--attn-hd` commit for a full writeup of a floor-sizing issue this surfaced, unrelated to the fix
+itself). 3-seed result on top of `+sibling`:
+
+    +sibling only:        65.73 / 65.44 / 65.33   mean 65.50   range 0.40
+    +sibling+attn-hd:     65.65 / 65.50 / 65.47   mean 65.54   range 0.18
+
+**+0.04 mean -- a wash, same magnitude as `--grandparent`'s. But the TIGHTEST range of any condition
+measured this session** (0.18, vs 0.40 for sibling-only, 0.26 for grandparent, 0.35 for plain
+baseline) -- worth checking whether this is "does nothing" or "does something real that happens to
+cancel in aggregate" before writing it off as another wash. The full error breakdown on the best
+checkpoint (la_frozen_sibattnhd_s0, LAS 65.65) against `+sibling`-only's own best (65.73) answers
+that: it is doing something real, and doing it in EXACTLY the diagnosed direction --
+
+    dist 4 gap   -13.39 -> -11.65   (+1.74)      conj:coord acc   43.56 -> 45.99   (+2.43)
+    dist 5 gap   -17.36 -> -14.11   (+3.25)      gold-crossing gap -5.96 -> -5.21   (+0.75)
+    dist 6 gap   -16.90 -> -15.19   (+1.71)      subj acc         64.09 -> 62.03   (-2.06)
+    dist 7 gap   -16.79 -> -14.61   (+2.18)      dist 1 gap        -5.25 -> -6.35   (-1.10)
+    dist 8 gap   -16.20 -> -14.30   (+1.90)      dist 2 gap        -7.23 -> -7.95   (-0.72)
+    dist 9 gap   -13.55 -> -12.04   (+1.51)      label-given-head  90.96 -> 91.05   (+0.09, flat)
+
+Every long-distance bucket (4-9) improves substantially, `conj:coord` improves (the label the whole
+`--sibling`/`--grandparent`/`--attn` line targets), non-projective arcs improve -- but it costs
+accuracy at the SHORTEST distances (1-2) and on `subj`. Distance-1 arcs outnumber distance-7 arcs by
+more than 20 to 1 (23,635 vs 1,102 tokens), so a ~1-point loss at the short end cancels a ~2-point
+gain at the long end in the AGGREGATE metric even though the underlying shift is coherent and
+correctly targeted -- the same "aggregate and the slice are different answers" lesson this project
+has hit before (SikuBERT vectors for lzh: +0.25 aggregate, +13.33 where it mattered). Label accuracy
+given a correct head stays flat (90.96 -> 91.05), confirming this is purely an attachment effect, as
+designed (only H/D are touched, never LH/LD).
+
+**Not classified as a clean win (the aggregate didn't move) or a clean negative result (the mechanism
+demonstrably works, in the intended direction) -- a genuine mixed result**, left open rather than
+force-fit into either bucket. Two directions this suggests, neither pursued yet: (1) `--attn-hd`
+WITHOUT `--sibling`, to check whether the long-distance gain is complementary to sibling's own or
+substitutive (redundant capacity competing for the same signal, which the short-distance cost might
+reflect); (2) restricting attention's own reach (e.g. a window, rather than unmasked whole-sentence)
+to see whether the short-distance regression is attention overriding easy, already-correct local
+decisions with unnecessary sentence-wide noise.
