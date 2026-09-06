@@ -49,7 +49,7 @@ class JointBiaffine:
                  n_dir_bins=0, dir_buckets_fn=None, n_pos_bins=0, n_lemvec_dim=0,
                  n_morphhash_bins=0, feat_bins=None, n_pron_bins=0, n_lemvec_dep_dim=0,
                  n_lemcase_dim=0, n_lemcase_bins=0, n_lemhash_bins=0, n_lemhashdep_bins=0,
-                 n_sib_bins=0, seed=0):
+                 n_sib_bins=0, n_grand_bins=0, seed=0):
         r = np.random.default_rng(seed)
         s = lambda *d: (r.normal(size=d) * (1.0 / np.sqrt(d[0]))).astype("float64")
         self.p = {"Wh": s(w, h), "bh": np.zeros(h), "Wd": s(w, h), "bd": np.zeros(h),
@@ -201,13 +201,31 @@ class JointBiaffine:
         # PAIR, via which head is picked), NOT head- or dependent-independent like feat/morphhash.
         if n_sib_bins:
             self.p["sib"] = np.zeros((nlab, n_sib_bins))
+        # ⚠ SECOND-ORDER GRANDPARENT BIAS -- `sib`'s sibling axis, this one's the PARENT axis: the
+        # LABEL of candidate head h's OWN incoming arc in a first-order pre-decode (the classic
+        # McDonald & Pereira / Koo & Collins grandparent factor). Unlike `sib`, this does NOT vary
+        # with the dependent d at all -- "how is h itself attached above" is a property of h alone,
+        # so it is dlin1-shaped (broadcasts over d) exactly like `lemhash`, not a full (h, d) grid
+        # like `sib`/`pron`/`pos`. Built for the SAME diagnosis `sib` was: `conj:coord` is the
+        # single worst deprel (43.56 vs the transition parser's 57.79, a -14.23 gap) and the error
+        # is concentrated in long chains -- a coordinated conjunct's OWN dependents (a further
+        # conj:coord member continuing the chain, or a modifier of the coordinated phrase) plausibly
+        # need different treatment depending on whether h ITSELF is already a conj:coord link versus
+        # an ordinary subj/comp:obj/mod -- context no first-order score, and no SIBLING bias either
+        # (which only looks at h's OTHER dependents, never at h's own attachment), can see. Computed
+        # via the identical two-pass, predicted-never-gold discipline `sib` established: decode
+        # first-order, read `labels0[h-1]` off that pre-decode via `grandparent_buckets()`, only
+        # THEN rerun with the bias included -- reuses `sib`'s own first-order pass rather than a
+        # separate one when both are enabled (see train_arcfactored.py).
+        if n_grand_bins:
+            self.p["grand"] = np.zeros((nlab, n_grand_bins))
         self.h, self.nlab = h, nlab
         self.dist_buckets_fn = dist_buckets_fn
         self.dir_buckets_fn = dir_buckets_fn
 
     def forward(self, X, k, agree_bkt=None, pos_bkt=None, lemvec=None, morph_bkt=None,
                 feat_bkt=None, pron_bkt=None, lemvec_dep=None, lemcase_bkt=None,
-                lemhash_bkt=None, lemhashdep_bkt=None, sib_bkt=None):
+                lemhash_bkt=None, lemhashdep_bkt=None, sib_bkt=None, grand_bkt=None):
         p = self.p
         n = X.shape[0]
         H = np.maximum(X @ p["Wh"] + p["bh"], 0)
@@ -272,6 +290,9 @@ class JointBiaffine:
             combined = combined + lemhashdep_term[None, :, :]
         if sib_bkt is not None and "sib" in p:
             combined = combined + p["sib"].T[sib_bkt]                          # (n+1, n, nlab)
+        if grand_bkt is not None and "grand" in p:
+            grand_term = p["grand"][:, grand_bkt].T                            # (n+1, nlab)
+            combined = combined + grand_term[:, None, :]
         dbkt = None
         if self.dir_buckets_fn is not None and "direction" in p:
             dbkt = self.dir_buckets_fn(n, k)                                  # (n+1, n)
@@ -284,11 +305,13 @@ class JointBiaffine:
 
     def loss_and_backward(self, X, k, gold_h, gold_l, agree_bkt=None, pos_bkt=None, lemvec=None,
                            morph_bkt=None, feat_bkt=None, pron_bkt=None, lemvec_dep=None,
-                           lemcase_bkt=None, lemhash_bkt=None, lemhashdep_bkt=None, sib_bkt=None):
+                           lemcase_bkt=None, lemhash_bkt=None, lemhashdep_bkt=None, sib_bkt=None,
+                           grand_bkt=None):
         """gold_h: (n,) int in [0,n] (0 = virtual root). gold_l: (n,) int label id.
         Returns (loss, grads_dict, dX). dX is the gradient wrt the ENCODER's output (for --joint)."""
         combined, c = self.forward(X, k, agree_bkt, pos_bkt, lemvec, morph_bkt, feat_bkt, pron_bkt,
-                                    lemvec_dep, lemcase_bkt, lemhash_bkt, lemhashdep_bkt, sib_bkt)
+                                    lemvec_dep, lemcase_bkt, lemhash_bkt, lemhashdep_bkt, sib_bkt,
+                                    grand_bkt)
         n, nlab = c["n"], self.nlab
         # joint softmax over (h, l) per dependent d
         Z = combined.transpose(1, 0, 2).reshape(n, -1)                       # (n, (n+1)*nlab)
@@ -417,6 +440,14 @@ class JointBiaffine:
             np.add.at(sibscat, flat_sibkt, flat_dC)
             g["sib"] = sibscat.T
 
+        # -- grand_by_label: SAME reduction as lemhash's (dlin1, broadcasts over d identically) --
+        # a discrete HEAD-side scatter like lemhash, but the bucket's SOURCE is a first-order
+        # pre-decode (like sib's), not the doc alone.
+        if grand_bkt is not None and "grand" in p:
+            grandscat = np.zeros((p["grand"].shape[1], nlab), dtype=p["grand"].dtype)
+            np.add.at(grandscat, grand_bkt, dlin1)
+            g["grand"] = grandscat.T
+
         # -- pron_by_label: a FULL (n+1, n) grid scatter like pos/agree/direction, not a
         # head-independent one like feat/morphhash -- the preverbal-pronoun signal is a property
         # of the (head, dependent) PAIR (does the head follow this dependent), not of the
@@ -449,19 +480,20 @@ class JointBiaffine:
 
     def decode_scores(self, X, k, agree_bkt=None, pos_bkt=None, lemvec=None, morph_bkt=None,
                        feat_bkt=None, pron_bkt=None, lemvec_dep=None, lemcase_bkt=None,
-                       lemhash_bkt=None, lemhashdep_bkt=None, sib_bkt=None):
+                       lemhash_bkt=None, lemhashdep_bkt=None, sib_bkt=None, grand_bkt=None):
         """For eval: returns (best_label_score[h,d], chosen_label[h,d]) -- best_label_score feeds
         `sud_cle.mst` exactly like the two-stage scorer's `S`; chosen_label is read off for
         whichever arc CLE actually selects."""
         combined, _ = self.forward(X, k, agree_bkt, pos_bkt, lemvec, morph_bkt, feat_bkt, pron_bkt,
-                                    lemvec_dep, lemcase_bkt, lemhash_bkt, lemhashdep_bkt, sib_bkt)
+                                    lemvec_dep, lemcase_bkt, lemhash_bkt, lemhashdep_bkt, sib_bkt,
+                                    grand_bkt)
         return combined.max(-1), combined.argmax(-1)
 
 
 def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
                          use_morphhash=False, use_feat=False, use_pron=False,
                          use_lemvec_dep=False, use_lemcase=False, use_lemhash=False,
-                         use_lemhashdep=False, use_sib=False, seed=0):
+                         use_lemhashdep=False, use_sib=False, use_grand=False, seed=0):
     """Tiny random example, no windowing edge cases (k large enough to matter, small n) -- finite
     differences against every parameter AND against X (needed for --joint's encoder backprop).
     `use_agree=True` also exercises the agreement-bias path (a second, independent scatter-add
@@ -499,7 +531,11 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
     but it is the FIRST bucket in this file whose real-world source is a first-order pre-decode
     rather than the doc alone -- worth its own check since nothing else exercises a bucket array
     this shape being handed in from outside without also passing agree/pos/pron's OWN buckets_fn
-    convention."""
+    convention. `use_grand=True` exercises the FOURTEENTH path, the second-order grandparent bias --
+    dlin1-shaped (broadcasts over d) like `lemhash`'s derivation, but like `sib` its bucket comes
+    from a first-order pre-decode, not the doc alone; worth its own check since it combines a
+    derivation from one already-verified term (lemhash's) with a data source from another
+    (sib's), and nothing guarantees that combination is bug-free just because both halves are."""
     rng = np.random.default_rng(seed)
     n, w, h, nlab, nbins, k = 5, 6, 4, 3, 4, 10
     nabins, ndbins, npbins, nlvdim, nmbins, nprbins, nlvddim = 5, 3, 7, 6, 8, 4, 5
@@ -507,6 +543,7 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
     nhhbins = 9
     nhdbins = 11
     nsibbins = 4   # nlab + 1 in real usage; kept small here like every other tiny test dimension
+    ngpbins = 6    # nlab + 1 in real usage, like nsibbins
     feat_bins = {"f1": 5, "f2": 3} if use_feat else None
 
     def buckets_fn(n_, k_):
@@ -537,7 +574,8 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
                        n_lemcase_bins=(nlcbins if use_lemcase else 0),
                        n_lemhash_bins=(nhhbins if use_lemhash else 0),
                        n_lemhashdep_bins=(nhdbins if use_lemhashdep else 0),
-                       n_sib_bins=(nsibbins if use_sib else 0), seed=seed + 1)
+                       n_sib_bins=(nsibbins if use_sib else 0),
+                       n_grand_bins=(ngpbins if use_grand else 0), seed=seed + 1)
     for key in m.p:
         m.p[key] = rng.normal(size=m.p[key].shape) * 0.5
     X = rng.normal(size=(n, w))
@@ -559,14 +597,16 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
     lemhash_bkt = rng.integers(0, nhhbins, size=n + 1) if use_lemhash else None
     lemhashdep_bkt = rng.integers(0, nhdbins, size=n) if use_lemhashdep else None
     sib_bkt = rng.integers(0, nsibbins, size=(n + 1, n)) if use_sib else None
+    grand_bkt = rng.integers(0, ngpbins, size=n + 1) if use_grand else None
 
     loss0, g, dX = m.loss_and_backward(X, k, gold_h, gold_l, agree_bkt, pos_bkt, lemvec, morph_bkt,
                                         feat_bkt, pron_bkt, lemvec_dep, lemcase_bkt, lemhash_bkt,
-                                        lemhashdep_bkt, sib_bkt)
+                                        lemhashdep_bkt, sib_bkt, grand_bkt)
 
     def loss_at(Xp):
         combined, _ = m.forward(Xp, k, agree_bkt, pos_bkt, lemvec, morph_bkt, feat_bkt, pron_bkt,
-                                 lemvec_dep, lemcase_bkt, lemhash_bkt, lemhashdep_bkt, sib_bkt)
+                                 lemvec_dep, lemcase_bkt, lemhash_bkt, lemhashdep_bkt, sib_bkt,
+                                 grand_bkt)
         Z = combined.transpose(1, 0, 2).reshape(n, -1)
         Z = Z - Z.max(1, keepdims=True)
         P = np.exp(Z); P /= P.sum(1, keepdims=True)
@@ -607,7 +647,7 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
                                        ("feat", use_feat), ("pron", use_pron),
                                        ("lemvec_dep", use_lemvec_dep), ("lemcase", use_lemcase),
                                        ("lemhash", use_lemhash), ("lemhashdep", use_lemhashdep),
-                                       ("sib", use_sib)]
+                                       ("sib", use_sib), ("grand", use_grand)]
                       if on]) or "plain")
     print(f"[{tag}] worst relative error: {worst:.2e}  (loss0={loss0:.4f})")
     # ⚠ 1e-4 is too strict for a ReLU network: across seeds the worst entry lands EITHER at
@@ -645,11 +685,14 @@ if __name__ == "__main__":
                          use_morphhash=False, use_lemhashdep=True)
     _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
                          use_morphhash=False, use_sib=True)
+    _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
+                         use_morphhash=False, use_grand=True)
     _numeric_grad_check(use_agree=True, use_dir=True, use_pos=True, use_lemvec=True,
                          use_morphhash=True, use_feat=True, use_pron=True, use_lemvec_dep=True,
-                         use_lemcase=True, use_lemhash=True, use_lemhashdep=True, use_sib=True)
+                         use_lemcase=True, use_lemhash=True, use_lemhashdep=True, use_sib=True,
+                         use_grand=True)
     for s in range(1, 6):
         _numeric_grad_check(use_agree=True, use_dir=True, use_pos=True, use_lemvec=True,
                              use_morphhash=True, use_feat=True, use_pron=True,
                              use_lemvec_dep=True, use_lemcase=True, use_lemhash=True,
-                             use_lemhashdep=True, use_sib=True, seed=s)
+                             use_lemhashdep=True, use_sib=True, use_grand=True, seed=s)

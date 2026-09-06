@@ -35,7 +35,7 @@ direction to be wrong in, not a thumb on the scale for this decoder.
 ⚠ MUST STAY IN SYNC with `train_arcfactored.py`'s scorer (LANGS table, window_mask, dist_buckets,
 agreement_buckets, direction_buckets, pos_buckets, morph_hash_buckets, feat_buckets,
 preverbal_buckets, lemma_vecs, lemma_vecs_dep, lemma_hash_buckets, lemma_hash_buckets_dep,
-sibling_buckets).
+sibling_buckets, grandparent_buckets).
 """
 import argparse, json, pathlib, sys, collections
 import numpy as np
@@ -172,17 +172,22 @@ def predict_from_X_joint_label(meta, P, X, doc=None):
         combined = combined + P["lemhashdep"].T[lhd_bkt][None, :, :]
     mask = window_mask(n, meta["window"]).T
     combined = np.where(mask[:, :, None], combined, NEG)
-    if meta.get("sibling") and "sib" in P:
+    if (meta.get("sibling") and "sib" in P) or (meta.get("grandparent") and "grand" in P):
         # ⚠ TWO-PASS: `combined` here is exactly PASS 1 (every other bias term already added,
-        # masked) -- decode it via CLE, turn that PREDICTED (never gold) tree into the sibling
-        # bucket grid, add the bias, then decode AGAIN. MUST STAY IN SYNC with
-        # train_arcfactored.py's own two-pass procedure (its training loop and eval loop).
+        # masked) -- decode it via CLE, turn that PREDICTED (never gold) tree into the sibling/
+        # grandparent bucket grids, add whichever bias this checkpoint has, then decode AGAIN.
+        # MUST STAY IN SYNC with train_arcfactored.py's own two-pass procedure (its training loop
+        # and eval loop) -- ONE shared first-order decode for both flags, not one each.
         S0, chosen0 = combined.max(-1), combined.argmax(-1)
         Sq0 = np.full((n + 1, n + 1), NEG, dtype="float64"); Sq0[:, 1:] = S0
         heads0 = mst(Sq0)[1:]
         labels0 = chosen0[heads0, np.arange(n)]
-        sib_bkt = _tr.sibling_buckets(heads0, labels0, n)
-        combined = combined + P["sib"].T[sib_bkt]
+        if meta.get("sibling") and "sib" in P:
+            sib_bkt = _tr.sibling_buckets(heads0, labels0, n)
+            combined = combined + P["sib"].T[sib_bkt]
+        if meta.get("grandparent") and "grand" in P:
+            grand_bkt = _tr.grandparent_buckets(heads0, labels0, n)
+            combined = combined + P["grand"][:, grand_bkt].T[:, None, :]
         combined = np.where(mask[:, :, None], combined, NEG)
     S, chosen = combined.max(-1), combined.argmax(-1)
     Sq = np.full((n + 1, n + 1), NEG, dtype="float64"); Sq[:, 1:] = S
