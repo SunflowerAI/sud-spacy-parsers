@@ -1778,3 +1778,80 @@ would need either an OPTIMAL decoding algorithm for the local neighbourhood (not
 ascent) or a JOINTLY-TRAINED sibling term (learned end to end with the biaffine, properly calibrated
 against its own scale, the way every OTHER bias term in this project is) rather than a bolted-on
 gold-statistic table -- a substantially larger undertaking than this session's scope covered.
+
+## `--grandparent` and `--attn`: two follow-ups to a real win, neither of which repeats it (2026-09-06)
+
+`--sibling` (properly jointly-trained second-order term, previous section) was built after
+diagnosing `la_frozen_full`'s gap as concentrated in long-distance attachment and `conj:coord`/`subj`
+specifically, and it WORKED: +0.66 LAS (64.84 -> 65.50 mean, 3 seeds), every sibling seed beating
+every baseline seed, with a full error breakdown confirming the mechanism (arc-length-7 gap
+-21.23 -> -16.79, `conj:coord` 42.13 -> 43.56, label accuracy given a correct head flat). Two natural
+follow-ups were tried on top of it. Neither repeated the win.
+
+**`--grandparent` (McDonald & Pereira / Koo & Collins' classic grandparent factor): a wash.** Same
+two-pass, predicted-never-gold discipline as `--sibling`, but dlin1-shaped (a property of the
+candidate HEAD alone -- the label of h's own incoming arc in a first-order pre-decode) rather than a
+full (h,d) grid. Gradient-checked cleanly (1.78e-04 individually, 3.55e-04 combined with all 13
+other terms). 3-seed result on top of `+sibling`:
+
+    +sibling only:        65.73 / 65.44 / 65.33   mean 65.50   range 0.40
+    +sibling+grandparent: 65.71 / 65.61 / 65.45   mean 65.59   range 0.26
+
++0.09 mean, well inside noise, and MIXED at the seed level (seed 0 slightly worse, seeds 1-2 slightly
+better) -- not sibling's own "every seed beats every seed" pattern. Grandparent context doesn't carry
+much signal beyond what sibling context already captures. Before building this, checked whether la's
+`conj:coord` needed a genuinely different representation instead (enhanced-graph-style multi-head
+"extended edges", since coordination structures are sometimes graphs rather than trees) from actual
+corpus counts: of 24,849 la `conj:coord` tokens, only 14.4% have a `conj:coord` token as their own
+head (chain-internal); the rest attach directly to the coordination's substantive anchor (comp:obj
+23.9%, ROOT 19.0%, mod 15.8%, subj 6.4%, ...), and where chains exist they are LINEAR (each conjunct
+depends on the immediately PRECEDING one), never a shared multi-head fan-out -- already a proper
+tree, not a multi-headed structure. Extended edges would solve a representation problem SUD's
+coordination annotation doesn't have; the actual problem is scoring precision, which is why
+`--grandparent` (not a graph-structure change) was the thing tried.
+
+**`--attn` (one trainable single-head self-attention layer, `sud_self_attention.SelfAttentionMixer`):
+a genuine regression, not just a wash.** Built as the GENERAL alternative to the sibling/grandparent
+chain of hand-picked higher-order terms, prompted directly by the observation that continuing to add
+orders (sibling -> grandparent -> great-grandparent -> ...) doesn't scale -- each one needs its own
+hand-written bucket function and a human hypothesis about which relationship matters. Self-attention
+is the learned, soft, general form: whole-sentence, unmasked, residual with `Wo` zero-initialised (an
+exact no-op at step 0, so it can only ADD capability by construction), 4 square (w,w) projections
+(36,864 params at w=96 -- an order of magnitude smaller than JointBiaffine's own V tensor, so this is
+NOT the "blow up the parameter count" failure mode). Gradient-checked to 3.88e-08 across 6 seeds
+(tighter than every bucket-based term, no ReLU non-smoothness to straddle). 3-seed result on top of
+`+sibling`:
+
+    +sibling only:        65.73 / 65.44 / 65.33   mean 65.50   range 0.40
+    +sibling+attn:        64.64 / 64.48 / 64.77   mean 64.63   range 0.29
+
+**-0.87 vs `+sibling`, and -0.21 BELOW the plain baseline that has no second-order term at all**
+(64.84). The full 20-epoch trajectory (all 3 seeds) shows no instability, no divergence, no
+overfitting-then-collapse shape -- loss and LAS both plateau smoothly, at essentially the SAME
+operating point as plain baseline, just without sibling's own edge. The residual/zero-init safety
+property held (it never made training unstable), but "cannot destabilise training" turned out to be
+a different claim from "cannot hurt the final result": the extra 36,864 trainable parameters found
+SOME local optimum during training, it just wasn't a useful one relative to not having the layer.
+
+### What this pair jointly indicts
+
+The working hypothesis going into `--attn` was "the deficiency is in X's own richness, not the
+scoring formula on top of it" (la_frozen's tok2vec is a shallow CNN-style encoder whose receptive
+field may not reach the arc lengths where the gap plateaus). The result argues against the SIMPLE
+version of that story: a general, unmasked, whole-sentence mixing of X did not recover whatever
+`--sibling` recovers, and made things slightly worse. Best current explanation: `--sibling` works
+because it hands the label-scorer one SHARP, DECODED, structurally-relevant fact directly (this
+candidate head's nearest already-attached dependent has label L) -- a targeted intervention exactly
+at the point where first-order scoring is structurally blind. Diffuse self-attention over X instead
+mixes representations BEFORE any of the other bias terms read them, which may blur exactly the clean
+per-token identity information (agreement, lemma) those terms already rely on reading straight off
+X. The presegmented sentences here are also short, so there may simply not be much genuinely
+INACCESSIBLE long-range context for attention to recover -- the long-distance gap may be a scoring-
+precision problem at specific structurally-ambiguous choices, not a missing-context problem.
+
+Neither result changes `--sibling`'s own standing (still the one clear win, `la_frozen`'s best
+measured configuration at mean 65.50). Both are now closed lines: no further hand-picked order was
+attempted after `--grandparent`'s wash, and `--attn` is not being retried with more heads/capacity on
+the strength of this one negative result -- a targeted, structurally-motivated second-order term
+beat a general architectural one here, which argues for looking for the NEXT specific structural
+fact worth encoding directly, not for scaling up the general mechanism.
