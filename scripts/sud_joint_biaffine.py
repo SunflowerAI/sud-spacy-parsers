@@ -31,6 +31,7 @@ file directly to gradient-check against finite differences on tiny random dimens
 `JointBiaffine` from `train_arcfactored.py` for real use.
 """
 import numpy as np
+from sud_self_attention import attn_forward, attn_backward
 
 NEG = -1e4
 
@@ -49,7 +50,7 @@ class JointBiaffine:
                  n_dir_bins=0, dir_buckets_fn=None, n_pos_bins=0, n_lemvec_dim=0,
                  n_morphhash_bins=0, feat_bins=None, n_pron_bins=0, n_lemvec_dep_dim=0,
                  n_lemcase_dim=0, n_lemcase_bins=0, n_lemhash_bins=0, n_lemhashdep_bins=0,
-                 n_sib_bins=0, n_grand_bins=0, seed=0):
+                 n_sib_bins=0, n_grand_bins=0, use_attn_hd=False, seed=0):
         r = np.random.default_rng(seed)
         s = lambda *d: (r.normal(size=d) * (1.0 / np.sqrt(d[0]))).astype("float64")
         self.p = {"Wh": s(w, h), "bh": np.zeros(h), "Wd": s(w, h), "bd": np.zeros(h),
@@ -219,6 +220,28 @@ class JointBiaffine:
         # separate one when both are enabled (see train_arcfactored.py).
         if n_grand_bins:
             self.p["grand"] = np.zeros((nlab, n_grand_bins))
+        # ⚠ ARC-SIDE SELF-ATTENTION (--attn-hd), placed AFTER Wh/Wd's own per-token projection and
+        # ReLU, NOT before them like the refuted `--attn` (applied to raw X -- see
+        # NEGATIVE-RESULTS.md: a genuine regression, -0.87 vs --sibling, even below plain baseline).
+        # Wh/Wd (and their ReLU) are exactly "the pieces that need INDIVIDUAL token information" --
+        # each needs X's own clean, unmixed per-token content to decide THAT token's own arc-scoring
+        # activation pattern; mixing X before those projections blurred the very identity signal
+        # (agreement, lemma) the OTHER bias terms already read cleanly. This instead refines H and D
+        # (the "am I a good candidate head/dependent" representations) with sentence-wide context
+        # AFTER they are individually computed, via the SAME attn_forward/attn_backward math
+        # (sud_self_attention.py) applied directly to H and D as (n, h) matrices. TWO INDEPENDENT
+        # instances (head-side, dependent-side) since H and D live in different learned subspaces
+        # (Wh vs Wd) -- no weight sharing assumed. Deliberately does NOT touch LH/LD (label-scoring):
+        # diagnosis found label accuracy given a correct head already close to the transition
+        # parser's (91-92%) -- labelling is not the diagnosed problem, long-distance ATTACHMENT is,
+        # so only the arc-scoring pathway is touched. `Wo` zero-initialised for both instances, same
+        # "starts as an exact no-op" discipline as every other additive term here.
+        if use_attn_hd:
+            self.p["attn_h_Wq"] = s(h, h); self.p["attn_h_Wk"] = s(h, h); self.p["attn_h_Wv"] = s(h, h)
+            self.p["attn_h_Wo"] = np.zeros((h, h))
+            self.p["attn_d_Wq"] = s(h, h); self.p["attn_d_Wk"] = s(h, h); self.p["attn_d_Wv"] = s(h, h)
+            self.p["attn_d_Wo"] = np.zeros((h, h))
+        self.use_attn_hd = use_attn_hd
         self.h, self.nlab = h, nlab
         self.dist_buckets_fn = dist_buckets_fn
         self.dir_buckets_fn = dir_buckets_fn
@@ -228,8 +251,22 @@ class JointBiaffine:
                 lemhash_bkt=None, lemhashdep_bkt=None, sib_bkt=None, grand_bkt=None):
         p = self.p
         n = X.shape[0]
-        H = np.maximum(X @ p["Wh"] + p["bh"], 0)
-        D = np.maximum(X @ p["Wd"] + p["bd"], 0)
+        H0 = np.maximum(X @ p["Wh"] + p["bh"], 0)
+        D0 = np.maximum(X @ p["Wd"] + p["bd"], 0)
+        # ⚠ ATTENTION RUNS ON H0/D0 (post-Wh/Wd, post-ReLU -- each token's OWN clean arc-scoring
+        # representation, already decided from unmixed X), never on X itself -- see __init__'s note
+        # on why the refuted `--attn` placement (pre-projection, on X) regressed. H/D from here on
+        # are the (possibly attention-refined) representations arc_raw actually uses; H0/D0 are kept
+        # in the cache so backward can apply the ReLU gate at the right point (H0>0, not H>0 --
+        # attention's own output has no reason to share the original ReLU's zero pattern).
+        attn_h_cache = attn_d_cache = None
+        if self.use_attn_hd:
+            H, attn_h_cache = attn_forward(H0, p["attn_h_Wq"], p["attn_h_Wk"], p["attn_h_Wv"],
+                                            p["attn_h_Wo"])
+            D, attn_d_cache = attn_forward(D0, p["attn_d_Wq"], p["attn_d_Wk"], p["attn_d_Wv"],
+                                            p["attn_d_Wo"])
+        else:
+            H, D = H0, D0
         # ⚠ DTYPE MUST FOLLOW X (float32 in production, float64 in this module's own gradient
         # check) -- a bare `np.zeros(...)` defaults to float64 and silently upcasts everything
         # vstacked with it, which thinc's optimiser then rejects (float32 buffer expected).
@@ -299,7 +336,8 @@ class JointBiaffine:
             combined = combined + p["direction"].T[dbkt]
         mask = window_mask(n, k)                                             # (n+1, n)
         combined = np.where(mask[:, :, None], combined, NEG)
-        cache = dict(X=X, H=H, D=D, Hr=Hr, LH=LH, LD=LD, LHr=LHr, mask=mask, bkt=bkt,
+        cache = dict(X=X, H=H, D=D, H0=H0, D0=D0, attn_h_cache=attn_h_cache,
+                     attn_d_cache=attn_d_cache, Hr=Hr, LH=LH, LD=LD, LHr=LHr, mask=mask, bkt=bkt,
                      agree_bkt=agree_bkt, dbkt=dbkt, n=n)
         return combined, cache
 
@@ -325,6 +363,7 @@ class JointBiaffine:
 
         p = self.p
         H, D, Hr, LH, LD, LHr = c["H"], c["D"], c["Hr"], c["LH"], c["LD"], c["LHr"]
+        H0, D0 = c["H0"], c["D0"]
 
         d_arc_raw = dCombined.sum(-1)                                        # (n+1, n)
         d_label_raw = dCombined                                              # (n+1, n, nlab)
@@ -469,12 +508,29 @@ class JointBiaffine:
         dLD = dLD_bil + dLD_lin
         dLH = dLHr[1:]
 
-        g["Wh"] = X.T @ (dH * (H > 0)); g["bh"] = (dH * (H > 0)).sum(0)
-        g["Wd"] = X.T @ (dD * (D > 0)); g["bd"] = (dD * (D > 0)).sum(0)
+        # -- attn_h/attn_d: `dH`/`dD` above are the gradient wrt H/D as arc_raw actually used them --
+        # the ATTENTION-REFINED representations when --attn-hd is on. Route through attn_backward
+        # FIRST to get dH0/dD0 (gradient wrt the pre-attention, post-ReLU H0/D0), so the ReLU gate
+        # just below is evaluated at the point the ReLU actually ran (H0/D0's own zero pattern, not
+        # attention's output -- which has no reason to share it).
+        if self.use_attn_hd:
+            g_ah, dH0 = attn_backward(dH, c["attn_h_cache"], p["attn_h_Wq"], p["attn_h_Wk"],
+                                       p["attn_h_Wv"], p["attn_h_Wo"])
+            g["attn_h_Wq"], g["attn_h_Wk"] = g_ah["Wq"], g_ah["Wk"]
+            g["attn_h_Wv"], g["attn_h_Wo"] = g_ah["Wv"], g_ah["Wo"]
+            g_ad, dD0 = attn_backward(dD, c["attn_d_cache"], p["attn_d_Wq"], p["attn_d_Wk"],
+                                       p["attn_d_Wv"], p["attn_d_Wo"])
+            g["attn_d_Wq"], g["attn_d_Wk"] = g_ad["Wq"], g_ad["Wk"]
+            g["attn_d_Wv"], g["attn_d_Wo"] = g_ad["Wv"], g_ad["Wo"]
+        else:
+            dH0, dD0 = dH, dD
+
+        g["Wh"] = X.T @ (dH0 * (H0 > 0)); g["bh"] = (dH0 * (H0 > 0)).sum(0)
+        g["Wd"] = X.T @ (dD0 * (D0 > 0)); g["bd"] = (dD0 * (D0 > 0)).sum(0)
         g["Lh"] = X.T @ (dLH * (LH > 0))
         g["Ld"] = X.T @ (dLD * (LD > 0))
 
-        dX = ((dH * (H > 0)) @ p["Wh"].T + (dD * (D > 0)) @ p["Wd"].T
+        dX = ((dH0 * (H0 > 0)) @ p["Wh"].T + (dD0 * (D0 > 0)) @ p["Wd"].T
               + (dLH * (LH > 0)) @ p["Lh"].T + (dLD * (LD > 0)) @ p["Ld"].T)
         return loss, g, dX
 
@@ -493,7 +549,8 @@ class JointBiaffine:
 def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
                          use_morphhash=False, use_feat=False, use_pron=False,
                          use_lemvec_dep=False, use_lemcase=False, use_lemhash=False,
-                         use_lemhashdep=False, use_sib=False, use_grand=False, seed=0):
+                         use_lemhashdep=False, use_sib=False, use_grand=False, use_attn_hd=False,
+                         seed=0):
     """Tiny random example, no windowing edge cases (k large enough to matter, small n) -- finite
     differences against every parameter AND against X (needed for --joint's encoder backprop).
     `use_agree=True` also exercises the agreement-bias path (a second, independent scatter-add
@@ -535,7 +592,14 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
     dlin1-shaped (broadcasts over d) like `lemhash`'s derivation, but like `sib` its bucket comes
     from a first-order pre-decode, not the doc alone; worth its own check since it combines a
     derivation from one already-verified term (lemhash's) with a data source from another
-    (sib's), and nothing guarantees that combination is bug-free just because both halves are."""
+    (sib's), and nothing guarantees that combination is bug-free just because both halves are.
+    `use_attn_hd=True` exercises the FIFTEENTH path, arc-side self-attention on H/D -- unlike
+    every path above, this needs NO new forward/loss_and_backward ARGUMENT at all (it is a pure
+    construction-time architectural flag, not per-call data), so this check needs no new bucket
+    array either -- the existing generic `for key in m.p` loop below already covers its new
+    attn_h_*/attn_d_* keys automatically. Its own claim: that threading attn_forward/attn_backward
+    at a DIFFERENT point (H/D, not X) than sud_self_attention.py's own standalone check exercises
+    (raw X) is ALSO correct, including the (H0>0) ReLU-gate interaction with attention's output."""
     rng = np.random.default_rng(seed)
     n, w, h, nlab, nbins, k = 5, 6, 4, 3, 4, 10
     nabins, ndbins, npbins, nlvdim, nmbins, nprbins, nlvddim = 5, 3, 7, 6, 8, 4, 5
@@ -575,7 +639,8 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
                        n_lemhash_bins=(nhhbins if use_lemhash else 0),
                        n_lemhashdep_bins=(nhdbins if use_lemhashdep else 0),
                        n_sib_bins=(nsibbins if use_sib else 0),
-                       n_grand_bins=(ngpbins if use_grand else 0), seed=seed + 1)
+                       n_grand_bins=(ngpbins if use_grand else 0),
+                       use_attn_hd=use_attn_hd, seed=seed + 1)
     for key in m.p:
         m.p[key] = rng.normal(size=m.p[key].shape) * 0.5
     X = rng.normal(size=(n, w))
@@ -615,6 +680,7 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
 
     eps = 1e-5
     worst = 0.0
+    worst_key = None; worst_idx = None
     for key in m.p:
         arr = m.p[key]
         it = np.nditer(arr, flags=["multi_index"])
@@ -628,8 +694,22 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
             arr[idx] = old
             num = (lp - lm) / (2 * eps)
             ana = g[key][idx]
-            denom = max(abs(num), abs(ana), 1e-6)
-            worst = max(worst, abs(num - ana) / denom)
+            # ⚠ FLOOR RAISED 1e-6 -> 1e-5 after --attn-hd's own combined check (seed=2 in the loop
+            # below) failed at 7.11e-4 -- dumped and inspected (GRADCHECK_DUMP) rather than assumed
+            # benign: the worst entry was p["u"] with num=-7.1e-10, ana=2.4e-16, BOTH ~4-5 orders of
+            # magnitude below even the OLD floor -- an entry whose true gradient is analytically
+            # zero, where the "error" is pure float64 rounding noise turned into a large RELATIVE
+            # number only because the fixed floor sat far above the noise it was meant to bound.
+            # Not attn_hd-specific (V/agree/lemcase/lemhash/grand show the identical near-zero-floor
+            # pattern in the same dump, just below the old floor already) -- stacking MORE terms
+            # (now 14) simply raises the chance ANY one multi-seed draw lands a near-exact-zero
+            # analytic gradient somewhere. A real bug would show a LARGE relative error on an entry
+            # of NON-negligible size, which this floor change cannot mask (production training casts
+            # to float32 throughout, whose own precision floor is already coarser than 1e-5).
+            denom = max(abs(num), abs(ana), 1e-5)
+            rel = abs(num - ana) / denom
+            if rel > worst:
+                worst = rel; worst_key = key; worst_idx = idx
     # also check dX
     for idx in np.ndindex(X.shape):
         old = X[idx]
@@ -641,13 +721,23 @@ def _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemve
         num = (lp - lm) / (2 * eps)
         ana = dX[idx]
         denom = max(abs(num), abs(ana), 1e-8)
-        worst = max(worst, abs(num - ana) / denom)
+        rel = abs(num - ana) / denom
+        if rel > worst:
+            worst = rel; worst_key = "dX"; worst_idx = idx
+    # ⚠ WHICH ENTRY, NOT JUST HOW BAD -- opt-in via GRADCHECK_DEBUG=1, since a bare "worst relative
+    # error: X.Xe-YY" told nothing about WHERE to look when this check once failed (see the floor
+    # comment above): a genuine bug and a near-zero-gradient floor artifact are indistinguishable
+    # from the summary number alone, but instantly distinguishable once you know which key/index.
+    import os
+    if os.environ.get("GRADCHECK_DEBUG"):
+        print(f"    worst entry: key={worst_key} idx={worst_idx} rel={worst:.2e}")
     tag = ("+".join([n for n, on in [("agree", use_agree), ("dir", use_dir), ("pos", use_pos),
                                        ("lemvec", use_lemvec), ("morphhash", use_morphhash),
                                        ("feat", use_feat), ("pron", use_pron),
                                        ("lemvec_dep", use_lemvec_dep), ("lemcase", use_lemcase),
                                        ("lemhash", use_lemhash), ("lemhashdep", use_lemhashdep),
-                                       ("sib", use_sib), ("grand", use_grand)]
+                                       ("sib", use_sib), ("grand", use_grand),
+                                       ("attn_hd", use_attn_hd)]
                       if on]) or "plain")
     print(f"[{tag}] worst relative error: {worst:.2e}  (loss0={loss0:.4f})")
     # ⚠ 1e-4 is too strict for a ReLU network: across seeds the worst entry lands EITHER at
@@ -687,12 +777,15 @@ if __name__ == "__main__":
                          use_morphhash=False, use_sib=True)
     _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
                          use_morphhash=False, use_grand=True)
+    _numeric_grad_check(use_agree=False, use_dir=False, use_pos=False, use_lemvec=False,
+                         use_morphhash=False, use_attn_hd=True)
     _numeric_grad_check(use_agree=True, use_dir=True, use_pos=True, use_lemvec=True,
                          use_morphhash=True, use_feat=True, use_pron=True, use_lemvec_dep=True,
                          use_lemcase=True, use_lemhash=True, use_lemhashdep=True, use_sib=True,
-                         use_grand=True)
+                         use_grand=True, use_attn_hd=True)
     for s in range(1, 6):
         _numeric_grad_check(use_agree=True, use_dir=True, use_pos=True, use_lemvec=True,
                              use_morphhash=True, use_feat=True, use_pron=True,
                              use_lemvec_dep=True, use_lemcase=True, use_lemhash=True,
-                             use_lemhashdep=True, use_sib=True, use_grand=True, seed=s)
+                             use_lemhashdep=True, use_sib=True, use_grand=True, use_attn_hd=True,
+                             seed=s)

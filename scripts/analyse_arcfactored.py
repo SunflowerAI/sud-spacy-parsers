@@ -35,9 +35,9 @@ direction to be wrong in, not a thumb on the scale for this decoder.
 ⚠ MUST STAY IN SYNC with `train_arcfactored.py`'s scorer (LANGS table, window_mask, dist_buckets,
 agreement_buckets, direction_buckets, pos_buckets, morph_hash_buckets, feat_buckets,
 preverbal_buckets, lemma_vecs, lemma_vecs_dep, lemma_hash_buckets, lemma_hash_buckets_dep,
-sibling_buckets, grandparent_buckets) AND with `sud_self_attention.SelfAttentionMixer.forward`
-(`_apply_attn` below reimplements its math against the loaded weight dict, matching this whole
-module's own style of never importing the trainable classes for prediction).
+sibling_buckets, grandparent_buckets) AND with `sud_self_attention.attn_forward` -- read directly
+for `--attn-hd` (JointBiaffine.use_attn_hd, applied to H/D) and reimplemented inline as `_apply_attn`
+for the superseded `--attn` (applied to X; kept only for reproducing its documented negative result).
 """
 import argparse, json, pathlib, sys, collections
 import numpy as np
@@ -47,6 +47,10 @@ import spacy
 from spacy.tokens import DocBin, Doc
 from spacy.util import registry
 from sud_cle import mst
+from sud_self_attention import attn_forward   # a pure function, not a trainable class -- consistent
+                                               # with this module's "never instantiate the trainable
+                                               # classes for prediction" style (mst is also imported
+                                               # directly, for the same reason)
 import importlib.util as _iu
 _sp = _iu.spec_from_file_location("_tr", "scripts/train_arcfactored.py")
 assert _sp is not None and _sp.loader is not None
@@ -139,6 +143,11 @@ def predict_from_X_joint_label(meta, P, X, doc=None):
     n = X.shape[0]; h = meta["hidden"]; nlab = len(meta["labels"])
     H = np.maximum(X @ P["Wh"] + P["bh"], 0)
     D = np.maximum(X @ P["Wd"] + P["bd"], 0)
+    if meta.get("attn_hd") and "attn_h_Wq" in P:
+        # ⚠ --attn-hd refines H/D AFTER Wh/Wd's own per-token projection, not X beforehand -- see
+        # sud_joint_biaffine.py's own note on use_attn_hd. MUST STAY IN SYNC with its forward().
+        H, _ = attn_forward(H, P["attn_h_Wq"], P["attn_h_Wk"], P["attn_h_Wv"], P["attn_h_Wo"])
+        D, _ = attn_forward(D, P["attn_d_Wq"], P["attn_d_Wk"], P["attn_d_Wv"], P["attn_d_Wo"])
     Hr = np.vstack([np.zeros((1, h), H.dtype), H])
     LH = np.maximum(X @ P["Lh"], 0); LD = np.maximum(X @ P["Ld"], 0)
     LHr = np.vstack([np.zeros((1, h), LH.dtype), LH])

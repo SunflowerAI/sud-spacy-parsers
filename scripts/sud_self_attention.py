@@ -1,57 +1,104 @@
 #!/usr/bin/env python
-"""SelfAttentionMixer -- ONE lightweight, single-head scaled dot-product self-attention layer,
-inserted between an encoder's output and JointBiaffine's own projections.
+"""attn_forward/attn_backward -- ONE lightweight, single-head scaled dot-product self-attention
+block, as pure functions over explicit weight matrices (not a stateful object) -- so the SAME math
+can be called from JointBiaffine's own forward/loss_and_backward on ITS OWN (h, h) representations,
+not just from an external `SelfAttentionMixer` instance. `SelfAttentionMixer` (below) is a thin
+stateful wrapper around them for standalone use/testing.
 
-WHY. Diagnosing la_frozen_sib_s0 found the LAS gap monotonic in arc length (dist1 -5.25 -> dist5
--17.36, plateauing ~-16..-17 through dist9) despite the biaffine's own candidate window (`--window`,
-50) never excluding those arcs as candidates -- the deficiency is in the RICHNESS of the token
-representations X being scored, not in which candidates get considered. `la_frozen`'s X comes from
-the transition parser's own tok2vec, almost certainly a shallow CNN-style encoder
-(`MaxoutWindowEncoder`: narrow window x fixed depth) whose receptive field may not reach the
-distances where the gap plateaus -- and no scoring formula sitting on top of X (first-order,
---sibling, --grandparent, or any further hand-picked higher-order term) can recover context that was
-never encoded into X to begin with.
+⚠ SUPERSEDED PLACEMENT, KEPT AS A DOCUMENTED NEGATIVE RESULT: this was originally wired into
+`train_arcfactored.py` as `--attn`, applied to X BEFORE JointBiaffine's own Wh/Wd/Lh/Ld projections
+-- and it REGRESSED (-0.87 LAS vs --sibling alone, even below plain baseline; see
+NEGATIVE-RESULTS.md's "`--grandparent` and `--attn`" entry). The diagnosis, once pointed out
+directly: Wh/Wd/Lh/Ld (and their ReLU) are exactly "the pieces that need INDIVIDUAL token
+information" -- each needs X's own clean, unmixed per-token content to decide THAT token's own
+arc/label-scoring activation pattern. Mixing X BEFORE those projections blurs the very identity
+signal (agreement, lemma) the OTHER bias terms already read cleanly, before any per-token decision
+gets to run on unmixed input.
 
-THE ALTERNATIVE TO --sibling/--grandparent's CHAIN. Each of those is, structurally, "attend to
-exactly ONE specific other token, chosen by a hand-written rule, after decoding a tree once" -- a
-chain that only grows (great-grandparent, a coordination-specific term, ...) each time a new
-diagnosis motivates one, and each new order costs its own gradient-checked bucket function for a
-shrinking slice of the error. Self-attention is the GENERAL form of that: a LEARNED, SOFT,
-whole-sentence mixing that can attend to WHATEVER other tokens help a given decision, discovered by
-gradient descent rather than hypothesised by a human -- no two-pass decode needed, since it doesn't
-need a tree to know where to look.
+THE FIX (`JointBiaffine`'s `use_attn_hd`, in `sud_joint_biaffine.py`): attention now runs AFTER
+Wh/Wd's per-token projection and ReLU, refining H/D (the "am I a good candidate head/dependent"
+representations) with sentence-wide context, rather than the raw shared input those individual
+decisions are made from. Only the ARC-scoring pathway (H, D) is touched -- LH/LD (label-scoring)
+stays untouched, since diagnosis found label accuracy given a correct head already close to the
+transition parser's (labelling isn't the diagnosed problem; long-distance ATTACHMENT is). This
+module still supplies the underlying math either way -- only WHERE it is inserted changed.
 
-WITHOUT "TRANSFORMERS" AND WITHOUT BLOWING UP PARAMETERS, per direct instruction: this is ONE
-attention block, not a multi-layer Transformer stack -- no positional encoding (the frozen encoder's
-own features and `dist`/`direction`'s bucket terms already carry position information the biaffine
-reads directly), no feed-forward sublayer, no layer norm, SINGLE head. Four square (w, w) projection
-matrices (Wq, Wk, Wv, Wo) -- with w=96 (this project's standing hidden width), that is 4*96*96 =
-36,864 parameters, smaller than JointBiaffine's own `V` tensor (nlab * h * h, ~479k for la's 52
-labels) by more than an order of magnitude.
+WITHOUT "TRANSFORMERS" AND WITHOUT BLOWING UP PARAMETERS, per direct instruction: ONE attention
+block, not a multi-layer stack -- no positional encoding, no feed-forward sublayer, no layer norm,
+SINGLE head. Four square (w, w) projections (Wq, Wk, Wv, Wo) -- at w=96, 36,864 parameters per
+instance, smaller than JointBiaffine's own `V` tensor (nlab * h * h, ~479k for la's 52 labels) by
+more than an order of magnitude. `use_attn_hd` uses TWO independent instances (head-side,
+dependent-side, since H and D live in different learned subspaces) -- 73,728 params total, still
+under a fifth of `V`.
 
-A RESIDUAL connection (X_out = X + attention_output @ Wo) keeps the well-trained frozen features as
-the base case, and `Wo` is initialised to ZERO (unlike every other projection here, which uses the
-usual random-normal scaling) so this layer starts as an exact no-op: X_out == X at step 0. If
-attention never learns anything useful, gradient descent simply leaves Wo near zero -- this can only
-ADD capability relative to today's `la_frozen` baseline, never actively hurt it by construction
-(the same "additive, gated, cannot make things worse before it learns anything" discipline
-`sud_joint_biaffine.py`'s bias terms already follow, applied to an architecture layer instead of a
-scalar bias table).
+A RESIDUAL connection (X_out = X + attention_output @ Wo) keeps the input as the base case, and `Wo`
+is initialised to ZERO (unlike every other projection here) so this starts as an exact no-op: this
+can only ADD capability, never regress below not having it, BY CONSTRUCTION -- the "cannot hurt
+before it's learned anything" half of the claim held even for the refuted placement; only the OTHER
+half ("what it eventually learns is useful") failed there, motivating the placement fix, not a
+retreat from the safety property itself.
 
-Attention is UNMASKED and spans the WHOLE sentence (unlike JointBiaffine's own `window_mask`, which
-only restricts which ARCS are decoding candidates, never how far a representation can look) --
-escaping a limited receptive field is the entire point, so restricting attention's own reach would
-defeat it. Sentences here are short (rarely 100+ tokens), so the O(n^2) attention matrix is trivial.
+Attention is UNMASKED (no candidate-window restriction) and spans whichever set of representations
+it is applied to -- escaping a limited receptive field is the entire point, so restricting attention's
+own reach would defeat it. Sentences here are short, so the O(n^2) attention matrix is trivial.
 
 ⚠ GRADIENT-CHECKED BEFORE TRUSTING IT, the same discipline every term in `sud_joint_biaffine.py`
 uses -- checked here as a general vector-Jacobian product against an ARBITRARY upstream gradient
-(this module owns no loss of its own, unlike JointBiaffine's own loss_and_backward), not against a
-concrete loss function. Run this file directly to gradient-check against finite differences.
+(this module owns no loss of its own), not against a concrete loss function. Run this file directly
+to gradient-check against finite differences. `use_attn_hd`'s OWN placement inside JointBiaffine gets
+its own additional check in sud_joint_biaffine.py's `_numeric_grad_check` (a different claim: that
+threading these same functions into ITS forward/backward, at a different point, is ALSO correct).
 """
 import numpy as np
 
 
+def attn_forward(X, Wq, Wk, Wv, Wo):
+    """X: (n, w). Returns (X_out, cache); X_out = X + softmax(QK^T / sqrt(w)) @ V @ Wo."""
+    w = Wq.shape[0]
+    Q = X @ Wq; K = X @ Wk; V = X @ Wv                                # (n, w) each
+    scale = 1.0 / np.sqrt(w)
+    raw = Q @ K.T                                                      # (n, n)
+    scores = raw * scale
+    scores = scores - scores.max(1, keepdims=True)
+    E = np.exp(scores); A = E / E.sum(1, keepdims=True)               # (n, n), row-stochastic
+    ctx = A @ V                                                        # (n, w)
+    out = ctx @ Wo                                                     # (n, w)
+    X_out = X + out
+    cache = dict(X=X, Q=Q, K=K, V=V, A=A, ctx=ctx)
+    return X_out, cache
+
+
+def attn_backward(dX_out, cache, Wq, Wk, Wv, Wo):
+    """dX_out: (n, w) gradient wrt the block's OUTPUT. Returns (grads_dict, dX_in) -- grads_dict has
+    keys Wq/Wk/Wv/Wo; dX_in is the gradient wrt the block's INPUT (needed to backprop further, e.g.
+    into Wh/Wd's own ReLU gate when this sits after them, or into a --joint encoder when it doesn't)."""
+    X, Q, K, V, A, ctx = (cache[k] for k in ("X", "Q", "K", "V", "A", "ctx"))
+    w = Wq.shape[0]
+    scale = 1.0 / np.sqrt(w)
+    g = {}
+    g["Wo"] = ctx.T @ dX_out                                            # (w, w)
+    dctx = dX_out @ Wo.T                                                # (n, w)
+    dA = dctx @ V.T                                                     # (n, n)
+    dV = A.T @ dctx                                                     # (n, w)
+    # softmax backward, per row: dscores[i,:] = A[i,:] * (dA[i,:] - sum_j A[i,j] dA[i,j])
+    row_dot = np.sum(A * dA, axis=1, keepdims=True)
+    dscores = A * (dA - row_dot)                                        # (n, n)
+    draw = dscores * scale                                              # scores = raw * scale
+    dQ = draw @ K                                                       # raw = Q @ K.T
+    dK = draw.T @ Q
+    g["Wq"] = X.T @ dQ
+    g["Wk"] = X.T @ dK
+    g["Wv"] = X.T @ dV
+    # X feeds Q/K/V AND the residual path directly -- every path's contribution sums.
+    dX_in = dX_out + dQ @ Wq.T + dK @ Wk.T + dV @ Wv.T
+    return g, dX_in
+
+
 class SelfAttentionMixer:
+    """Thin stateful wrapper around attn_forward/attn_backward, for standalone use (this module's
+    own gradient check) -- kept for the historical `--attn` placement (X, before Wh/Wd/Lh/Ld),
+    documented as a negative result. `JointBiaffine`'s `use_attn_hd` calls the pure functions
+    directly on its own p[...] keys instead of instantiating this class."""
     def __init__(self, w, seed=0):
         r = np.random.default_rng(seed)
         s = lambda *d: (r.normal(size=d) * (1.0 / np.sqrt(d[0]))).astype("float64")
@@ -63,48 +110,12 @@ class SelfAttentionMixer:
         self.w = w
 
     def forward(self, X):
-        """X: (n, w), any dtype forward() is called with (float32 in production, float64 in this
-        module's own gradient check -- same convention JointBiaffine's forward/loss_and_backward
-        follow). Returns (X_out, cache); X_out = X + softmax(QK^T / sqrt(w)) @ V @ Wo."""
         p = self.p
-        Q = X @ p["Wq"]; K = X @ p["Wk"]; V = X @ p["Wv"]            # (n, w) each
-        scale = 1.0 / np.sqrt(self.w)
-        raw = Q @ K.T                                                 # (n, n)
-        scores = raw * scale
-        scores = scores - scores.max(1, keepdims=True)
-        E = np.exp(scores); A = E / E.sum(1, keepdims=True)          # (n, n), row-stochastic
-        ctx = A @ V                                                   # (n, w)
-        out = ctx @ p["Wo"]                                            # (n, w)
-        X_out = X + out
-        cache = dict(X=X, Q=Q, K=K, V=V, A=A, ctx=ctx)
-        return X_out, cache
+        return attn_forward(X, p["Wq"], p["Wk"], p["Wv"], p["Wo"])
 
     def backward(self, dX_out, cache):
-        """dX_out: (n, w) gradient wrt the layer's OUTPUT (handed in by whatever consumed X_out --
-        in practice JointBiaffine.loss_and_backward's own `dX` return value). Returns (grads_dict,
-        dX_in): dX_in is the gradient wrt this layer's INPUT, needed to backprop further into a
-        --joint encoder (harmless to compute and discard in frozen mode, where X_in has no further
-        backward path)."""
         p = self.p
-        X, Q, K, V, A, ctx = (cache[k] for k in ("X", "Q", "K", "V", "A", "ctx"))
-        scale = 1.0 / np.sqrt(self.w)
-        g = {}
-        g["Wo"] = ctx.T @ dX_out                                       # (w, w)
-        dctx = dX_out @ p["Wo"].T                                      # (n, w)
-        dA = dctx @ V.T                                                # (n, n)
-        dV = A.T @ dctx                                                # (n, w)
-        # softmax backward, per row: dscores[i,:] = A[i,:] * (dA[i,:] - sum_j A[i,j] dA[i,j])
-        row_dot = np.sum(A * dA, axis=1, keepdims=True)
-        dscores = A * (dA - row_dot)                                   # (n, n)
-        draw = dscores * scale                                         # scores = raw * scale
-        dQ = draw @ K                                                  # raw = Q @ K.T
-        dK = draw.T @ Q
-        g["Wq"] = X.T @ dQ
-        g["Wk"] = X.T @ dK
-        g["Wv"] = X.T @ dV
-        # X feeds Q/K/V AND the residual path directly -- every path's contribution sums.
-        dX_in = dX_out + dQ @ p["Wq"].T + dK @ p["Wk"].T + dV @ p["Wv"].T
-        return g, dX_in
+        return attn_backward(dX_out, cache, p["Wq"], p["Wk"], p["Wv"], p["Wo"])
 
 
 def _numeric_grad_check(seed=0):

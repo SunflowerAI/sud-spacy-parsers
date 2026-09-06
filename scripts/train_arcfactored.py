@@ -1034,22 +1034,33 @@ def main():
                          "discipline as --sibling; when both flags are on, the first-order decode "
                          "runs ONCE and both bucket grids are read off it.")
     ap.add_argument("--attn", action="store_true",
-                    help="add ONE trainable single-head self-attention layer (sud_self_attention."
-                         "SelfAttentionMixer) between X (the encoder's output, frozen OR --joint) "
-                         "and the scorer -- the GENERAL alternative to --sibling/--grandparent's "
-                         "growing chain of hand-picked higher-order terms: diagnosis found the LAS "
-                         "gap monotonic in arc length despite the biaffine's own candidate window "
-                         "never excluding those arcs, meaning the deficiency is in X's own RICHNESS "
-                         "(la_frozen's tok2vec is a shallow CNN-style encoder whose receptive field "
-                         "may not reach the distances where the gap plateaus), not in the scoring "
-                         "formula sitting on top of it. Unmasked, whole-sentence attention (unlike "
-                         "the biaffine's own --window, which only restricts decoding CANDIDATES); "
-                         "residual with Wo zero-initialised, so this starts as an exact no-op and "
-                         "can only add capability, never regress below not having it. Works with "
-                         "EITHER --joint-label or the legacy two-stage Biaffine, and with EITHER a "
-                         "frozen or a --joint encoder (its own gradient flows further into bp_enc "
-                         "when one exists). Gradient-checked to 3.88e-08 across 6 seeds -- see "
-                         "sud_self_attention.py's own module docstring for the full rationale.")
+                    help="⚠ SUPERSEDED, KEPT FOR REPRODUCIBILITY OF A DOCUMENTED NEGATIVE RESULT --"
+                         "see --attn-hd instead. Adds ONE trainable single-head self-attention layer "
+                         "(sud_self_attention.SelfAttentionMixer) between X (the encoder's output, "
+                         "frozen OR --joint) and the scorer -- the GENERAL alternative to --sibling/"
+                         "--grandparent's growing chain of hand-picked higher-order terms. 3-seed "
+                         "result: -0.87 LAS vs --sibling alone, even BELOW plain baseline "
+                         "(NEGATIVE-RESULTS.md) -- mixing X BEFORE Wh/Wd/Lh/Ld blurs exactly the "
+                         "clean per-token identity signal (agreement, lemma) those projections and "
+                         "the other bias terms need to read UNMIXED. Gradient-checked to 3.88e-08 "
+                         "across 6 seeds (the placement was fine; where it read from wasn't).")
+    ap.add_argument("--attn-hd", action="store_true", dest="attn_hd",
+                    help="The FIX to --attn's failure, built after it was pointed out directly: "
+                         "self-attention belongs AFTER 'the pieces that need individual token "
+                         "information', not before them. Wh/Wd (and their ReLU) are exactly those "
+                         "pieces -- each needs X's own clean, unmixed content to decide THAT "
+                         "token's own arc-scoring activation pattern. This refines H and D (the "
+                         "already-individually-projected 'am I a good candidate head/dependent' "
+                         "representations) with sentence-wide context AFTER they are computed, via "
+                         "TWO independent attention instances living INSIDE JointBiaffine itself "
+                         "(use_attn_hd, gated the same way every other bias term is -- an old "
+                         "checkpoint without it stays loadable). Deliberately does NOT touch LH/LD "
+                         "(label-scoring): diagnosis found label accuracy given a correct head "
+                         "already close to the transition parser's -- labelling isn't the diagnosed "
+                         "problem, long-distance ATTACHMENT is, so only the arc-scoring pathway is "
+                         "touched. Same residual + zero-init-Wo safety property as --attn. Gradient-"
+                         "checked to 7.11e-05 worst (across all 14 terms combined, 6 seeds) -- see "
+                         "sud_joint_biaffine.py's own note on use_attn_hd for the full rationale.")
     ap.add_argument("--presegment", action="store_true",
                     help="explode whole docs into one gold SENTENCE per training/eval item, so the "
                          "encoder never carries state across a sentence boundary -- see "
@@ -1194,6 +1205,7 @@ def main():
                            n_lemhashdep_bins=(N_LEMHASHDEP_BINS if a.lemhashdep else 0),
                            n_sib_bins=n_sib_bins,
                            n_grand_bins=n_grand_bins,
+                           use_attn_hd=a.attn_hd,
                            seed=a.seed)
         # ⚠ sud_joint_biaffine.py deliberately keeps float64 (precision for its OWN gradient
         # check); thinc's optimiser and the rest of this file are float32 throughout.
@@ -1214,7 +1226,8 @@ def main():
               + (" + per-label head-lemma-identity-hash bias" if a.lemhash else "")
               + (" + per-label dependent-lemma-identity-hash bias" if a.lemhashdep else "")
               + (" + per-label SECOND-ORDER sibling bias (two-pass)" if a.sibling else "")
-              + (" + per-label SECOND-ORDER grandparent bias (two-pass)" if a.grandparent else ""),
+              + (" + per-label SECOND-ORDER grandparent bias (two-pass)" if a.grandparent else "")
+              + (" + arc-side self-attention on H/D (post-projection)" if a.attn_hd else ""),
               flush=True)
     else:
         m = Biaffine(w, a.hidden, len(labs))
@@ -1483,6 +1496,7 @@ def main():
                  "lemhash": bool(a.joint_label and a.lemhash),
                  "sibling": bool(a.joint_label and a.sibling),
                  "grandparent": bool(a.joint_label and a.grandparent),
+                 "attn_hd": bool(a.joint_label and a.attn_hd),
                  "lemhashdep": bool(a.joint_label and a.lemhashdep),
                  "attn": bool(a.attn),
                  "joint_embed": cfg["joint_embed"] if a.joint else None,
