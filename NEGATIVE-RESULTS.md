@@ -2008,3 +2008,66 @@ what's already shipped-as-research. THREE bias-term combinations now show non-ad
 when stacked (`--sibling`+`--grandparent`: wash; `--sibling`+`--attn-hd`: substitutive wash;
 `--attn-hd`+`--clausegap`: active interference) -- stacking bias terms in this architecture without
 verifying they are independent is no longer a reasonable default assumption.
+
+## `--attn-window`: restricting --attn-hd's reach doesn't help or hurt on its own (2026-09-07)
+
+Built to test whether unmasked, whole-sentence attention was itself why `--attn-hd` interacted
+destructively with `--clausegap` when stacked (the entry above), or whether restricting attention to
+a local span changes `--attn-hd`'s own behaviour at all. 3-seed `--attn-hd --attn-window 15` alone:
+
+    +attn-hd unmasked (baseline): 65.36 / 65.00 / 65.21   mean 65.19   range 0.36
+    +attn-hd window=15:           64.99 / 65.15 / 65.01   mean 65.05   range 0.16
+
+-0.14 mean, well inside noise -- restricting the reach neither helps nor hurts `--attn-hd`'s own
+standalone performance. This CONFIRMS the earlier diagnosis: the short-distance cost and destructive
+interference seen when `--attn-hd` was stacked with other terms was a property of STACKING two
+mechanisms competing for the same optimisation signal, not a property of unmasked attention's reach
+itself -- windowing was never going to fix an interaction it wasn't causing. Closed; not pursued
+further (no reason to try other window sizes on this evidence).
+
+## La beam search: does NOT beat greedy, once correctly compared -- the same qualitative result as Sanskrit's own beam experiment (2026-09-07)
+
+Built on the premise that la is diagnosed as a strong candidate for beam search specifically (37.4%
+of test sentences carry a crossing arc, the greedy parser recovers only 28.4% of them as
+non-projective at all, and the mechanism -- a greedy decoder cannot take the locally-costly bet
+pseudo-projective encoding sometimes requires -- is exactly what beam search is built to fix).
+`configs/config_la_beam.cfg` (`beam_parser`, width=8, update_prob=0.5, already existed as a
+documented-but-untried command) was launched as a REAL `spacy train` run (not the numpy research
+harness) -- a much bigger compute commitment than anything else this session, run to its full
+`max_steps=20000` without ever triggering `patience=1600`.
+
+**Watched LIVE, dev LAS climbed steadily through training (72 -> 73 -> a sustained 74.0-74.65 by the
+final several thousand steps) and looked like a genuine, still-improving result** -- prompting a plan
+to extend training further if it hit `max_steps` while still climbing (which it did). Built
+`make_la_beam_continue_config.py` for exactly that (source tok2vec/tagger/parser from model-last,
+unfrozen, fresh step/patience budget) before the run even finished.
+
+**The actual `spacy evaluate --gold-preproc` test-set number reverses that impression: beam LAS
+71.96, BELOW both the plain-greedy capacity control (`verbdist_ctl`, 72.58) and the real signal arm
+(`verbdist`, 73.28)** -- both trained the SAME day, same corpus, same eval. The dev-climbing story
+was not wrong on its own terms, but it was being compared against the WRONG reference point: the
+control arms' own dev LAS near their stopping points was ~75.0-75.5, HIGHER than beam's own peak
+(74.65) the entire time -- the "climbing to 74+" narrative was tracking beam's improvement against
+its OWN early-training numbers, not against where the (much cheaper) greedy controls actually ended
+up. The dev-to-test gap itself (~2.1-2.7 points) is consistent across all three arms -- nothing
+anomalous about beam's generalisation specifically, which is precisely what makes the corrected dev
+comparison the right one to trust: beam was behind throughout training, not just at evaluation time.
+
+**This is the SAME qualitative outcome as Sanskrit's own beam result** (`train_sa_beam_s1.log`,
+`configs/config_sa_mp2_beam.cfg`, identical `patience=1600`/`max_steps=20000` budget): beam trails
+greedy in both languages. The gap is smaller for la (-0.6 to -1.3 LAS) than for Sanskrit (peaked at
+54.08 dev, patience-triggered at step 8600/20000 with a clear terminal DECLINE against greedy's
+57.14, a ~3-point gap) -- consistent with la's larger treebank making beam's harder, more
+sample-hungry sequence-score calibration less punishing, but not enough to close the gap. Given this,
+the continuation config was NOT launched: there is no strong reason to expect another 15-30h of the
+same mechanism would close a gap it did not close in the first 20,000 steps, at many times the
+compute cost of the greedy arms it still trails.
+
+**Standing conclusion**: neither of the two "crack non-projectivity" alternatives tried for la this
+session paid off -- the arc-factored decoder's exact-MST CLE (this whole session's research line)
+scores WORSE than the transition parser on gold-crossing arcs despite being structurally unconstrained
+(39.93% vs 45.88%, from the very first arc-length diagnosis), and beam search on the transition parser
+itself trails greedy too. Across three independent attempts now (Sanskrit beam, arc-factored CLE,
+Latin beam), a more capable DECODING mechanism for non-projectivity has not once translated into
+better recovery of non-projective structure in practice -- the bottleneck looks like scoring/data, not
+decoding capability, a conclusion that has now survived three separate tests rather than one.
