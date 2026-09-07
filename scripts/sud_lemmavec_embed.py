@@ -453,6 +453,28 @@ def LemmaVecFeatsAgreeEmbed(
 VERBDIST_DIMS = 5
 
 
+def _verbdist_upos_like(t):
+    """`t.pos_` where genuinely predicted pre-parse (la, sa); a coarse proxy from the composite
+    XPOS `tag_` string otherwise -- MUST STAY IN SYNC with train_arcfactored.py's own `upos_like`,
+    duplicated here (not imported) since that module is a standalone argparse script, not a light
+    import. The reason this exists at all: lzh's parser runs BEFORE any tagger, so `.pos_` is
+    ALWAYS EMPTY pre-parse there -- reading it directly, as this block's first version did, would
+    silently make the whole feature a no-op for lzh (every token reading as "not a verb", every
+    "no verb at all" bit set) rather than erroring, exactly the per-language input-regime trap
+    CLAUDE.md's own standing hazards list warns about ("ask the model rather than assuming its
+    input regime"). Verified against real lzh data before trusting it: the SAME verb-crossing
+    accuracy drop found for la's conj:coord (18.68% vs 51.15%) holds for lzh's conj:coord (16.00%
+    vs 43.00%) and parataxis (27.00% vs 46.98%), on BOTH the arc-factored decoder and the
+    transition parser -- checked directly, not assumed to transfer."""
+    if t.pos_:
+        return t.pos_
+    parts = t.tag_.split(",")
+    first = parts[0] if parts else ""
+    if first == "n" and len(parts) > 1 and parts[1] == "代名詞":
+        return "PRON"
+    return {"v": "VERB", "p": "PART", "s": "PUNCT"}.get(first, "NOUN" if first == "n" else "")
+
+
 def VerbDistExtractor(constant: bool):
     return Model("extract_verbdist", _verbdist_forward, attrs={"vd_constant": bool(constant)})
 
@@ -464,7 +486,7 @@ def _verbdist_forward(model: Model, docs, is_train: bool) -> Tuple[List[Floats2d
         n = len(doc)
         arr = np.zeros((n, VERBDIST_DIMS), dtype="f")
         if not constant:
-            is_verb = [1 if t.pos_ in ("VERB", "AUX") else 0 for t in doc]
+            is_verb = [1 if _verbdist_upos_like(t) in ("VERB", "AUX") else 0 for t in doc]
             last_verb = -1
             for i in range(n):
                 if last_verb < 0:
@@ -533,6 +555,45 @@ def LemmaVecFeatsVerbDistEmbed(
     pieces.append(chain(VerbDistExtractor(verbdist_constant), list2ragged(),
                         with_array(Linear(width, VERBDIST_DIMS))))
     concat_size = width * (len(embeddings) + include_static_vectors + 2)
+    max_out: Model[Ragged, Ragged] = with_array(
+        Maxout(width, concat_size, nP=3, dropout=0.0, normalize=True))
+    return chain(concatenate(*pieces), max_out, ragged2list())
+
+
+@registry.architectures("sud.MultiHashEmbedVerbDistEmbed.v1")
+def MultiHashEmbedVerbDistEmbed(
+    width: int,
+    attrs: Union[List[str], List[int], List[Union[str, int]]],
+    rows: List[int],
+    include_static_vectors: bool,
+    verbdist_constant: bool = False,
+) -> Model[List[Doc], List[Floats2d]]:
+    """Plain `spacy.MultiHashEmbed.v2` (one hash table per attr) plus the verb-distance block --
+    the MINIMAL vehicle for porting `--clausegap`'s validated signal (train_arcfactored.py /
+    NEGATIVE-RESULTS.md) to a language (lzh) whose deployed parser has no lemma-vector table or
+    per-feature morphology channel to piggyback on, unlike la's own
+    `sud.LemmaVecFeatsVerbDistEmbed.v1`. SAME `VerbDistExtractor`/`_verbdist_forward` mechanism and
+    the same capacity-control convention (`verbdist_constant=True`: identical Linear, identical
+    parameter count, POS never read) -- built only after checking directly (not assumed to
+    transfer) that lzh's own conj:coord AND parataxis show the identical verb-crossing accuracy
+    drop la's conj:coord did, on both the arc-factored decoder and the transition parser."""
+    if len(rows) != len(attrs):
+        raise ValueError(f"Mismatched lengths: {len(rows)} vs {len(attrs)}")
+    seed = 7
+
+    def make_hash_embed(index):
+        nonlocal seed
+        seed += 1
+        return HashEmbed(width, rows[index], column=index, seed=seed, dropout=0.0)
+
+    embeddings = [make_hash_embed(i) for i in range(len(attrs))]
+    pieces = [chain(FeatureExtractor(list(attrs)), list2ragged(),
+                    with_array(concatenate(*embeddings)))]
+    if include_static_vectors:
+        pieces.append(StaticVectors(width, dropout=0.0))
+    pieces.append(chain(VerbDistExtractor(verbdist_constant), list2ragged(),
+                        with_array(Linear(width, VERBDIST_DIMS))))
+    concat_size = width * (len(embeddings) + include_static_vectors + 1)
     max_out: Model[Ragged, Ragged] = with_array(
         Maxout(width, concat_size, nP=3, dropout=0.0, normalize=True))
     return chain(concatenate(*pieces), max_out, ragged2list())
