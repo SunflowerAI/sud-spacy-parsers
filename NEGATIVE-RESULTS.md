@@ -2071,3 +2071,73 @@ itself trails greedy too. Across three independent attempts now (Sanskrit beam, 
 Latin beam), a more capable DECODING mechanism for non-projectivity has not once translated into
 better recovery of non-projective structure in practice -- the bottleneck looks like scoring/data, not
 decoding capability, a conclusion that has now survived three separate tests rather than one.
+
+## Latin shelved; the same techniques ported to lzh -- frozen mode is the biggest lever found all session, --sibling is a clean win again, but `verbdist` does NOT transfer to lzh's transition parser (2026-09-07)
+
+Latin never beat the transition parser (arc-factored best 65.50, `verbdist` 73.28 single-seed,
+against 73.92/73.23) and was shelved per direct instruction. Moved to lzh -- checked lzh's own
+established recipe first rather than porting la's blindly: lzh's WHOLE history this session used
+`--joint --bilstm` (fresh, from-scratch encoder+BiLSTM); FROZEN mode (reusing lzh's own deployed
+`training_lzh_depmorph_resplit/model-best` tok2vec directly) had never been tried.
+
+**`lzh_frozen` (direction+pos+lemvec+pron, frozen, no --joint): the single biggest lever found this
+entire session.** 3-seed: 69.32/69.48/69.55, mean 69.45, range 0.23 -- vs the --joint baseline's
+61.82 (range 1.48), a **+7.63 LAS** jump, and far tighter/more reliable than anything else measured.
+Against the transition parser (78.22), the gap narrows from ~-16 to -8.77 -- suddenly the same range
+as la's own best-ever gap, not "much larger, entirely unaddressed" as it stood that morning.
+
+**Diagnosed lzh's own error profile before porting anything further** (`analyse_arcfactored.py` on
+the best frozen checkpoint): `conj:coord` (38.85%, second-worst) and `parataxis` (42.91%, the SINGLE
+worst raw accuracy) are lzh's analogues of la's conj:coord problem. Checked directly whether the
+SAME verb-crossing correlation holds, on BOTH the arc-factored decoder and the transition parser --
+it does, for both labels:
+
+    conj:coord   arc-factored 43.00%->16.00%   transition 57.97%->45.33%   (crossing a VERB/AUX vs not)
+    parataxis    arc-factored 46.98%->27.00%   transition 60.91%->46.41%
+
+**`--sibling` on `lzh_frozen`: a clean win again, closely mirroring la's own result.** 3-seed:
+69.97/70.32/69.93, mean **70.07**, range 0.39 -- +0.62 over `lzh_frozen` alone, EVERY seed beating
+every seed, the identical pattern to la's own +0.66 sibling win. New standing: lzh gap to transition
+is now **-8.15** -- slightly BETTER than la's own best-ever gap (-8.4). From a ~-16 point gap to
+-8.15 in one session, via two levers (frozen mode +7.63, --sibling +0.62).
+
+**`--sibling` on the WEAKER `--joint --bilstm` architecture: a wash**, unlike on frozen. 3-seed:
+62.14/61.25/62.80, mean 62.06 vs the plain --joint baseline's 61.82 -- +0.24, inside the baseline's
+own ~1.5-point seed spread. Consistent with sibling's two-pass mechanism needing a reasonably
+reliable first-order pre-decode to compute useful sibling context FROM -- a noisy, unstable
+from-scratch base gives it less to work with, the same reason frozen mode itself was worth +7.63.
+
+**`verbdist` ported to lzh's OWN transition parser -- needed a real bug fix first, then came back a
+clean WASH, unlike la's +0.70 win.** `VerbDistExtractor` originally read `t.pos_` directly, but
+lzh's `.pos_` is ALWAYS EMPTY pre-parse (tagger/morphologizer run AFTER the parser in lzh's
+pipeline) -- the exact same per-language input-regime trap `upos_like()` exists to avoid, just
+re-encountered in a different file (`sud_lemmavec_embed.py`). Fixed with a locally-duplicated
+`_verbdist_upos_like()` (backward-compatible for la, whose `.pos_` IS genuinely predicted pre-parse
+-- la's existing result stands unchanged). Built `sud.MultiHashEmbedVerbDistEmbed.v1` (plain
+`MultiHashEmbed.v2` + the verb-distance block, since lzh's deployed parser has no lemma-vector/feats
+machinery to piggyback on unlike la's own port) and a matched capacity control, both trained from
+`configs/config_lzh_resplit_ctl.cfg` (the config that actually trains lzh's tok2vec+tagger+parser
+from scratch). Both runs stopped via PATIENCE, not `max_steps` -- a genuinely converged result, no
+"needs more training" ambiguity this time (unlike Latin's own beam experiment). `spacy evaluate
+--gold-preproc`, single seed each:
+
+    verbdist       LAS 77.32
+    verbdist_ctl   LAS 77.33
+
+**A dead heat -- no effect at all**, despite the identical diagnostic correlation holding on lzh's
+own transition-parser errors just as cleanly as it did for la's. Confirms the diagnostic finding a
+phenomenon correlates with failure does NOT guarantee a coarse per-token PROXY feature is expressive
+enough for a given architecture to actually exploit that correlation -- `--clausegap`'s own PAIRWISE
+read (does THIS candidate arc specifically cross a verb) transferred cleanly to lzh's arc-factored
+decoder in spirit (implicit in `--sibling`'s own success, and worth its own dedicated lzh test,
+still open), but the weaker, PER-TOKEN proxy `verbdist` uses (distance to nearest verb in each
+direction, not the arc-specific fact) evidently isn't the same bet for lzh's transition parser that
+it was for la's. Not pursued further on this evidence (single seed, but a dead-even 77.32 vs 77.33
+is about as clean a null result as a single seed can show).
+
+**Standing conclusion**: lzh's new best (`lzh_frozen`+`--sibling`, mean 70.07, gap -8.15) is now the
+single best arc-factored result across ALL THREE languages tried this session, ahead of la's own
+best (65.50, gap -8.4) and a genuinely different order of magnitude of investment than what got sa
+its shipped +8.30 win (a much weaker transition baseline there). Still short of beating lzh's
+transition parser, same as la -- but a much smaller remaining gap than the ~-16 this stood at this
+morning.
