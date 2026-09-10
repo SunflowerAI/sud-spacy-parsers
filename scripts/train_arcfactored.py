@@ -718,6 +718,12 @@ def main():
     ap.add_argument("--src", default="", help="default: LANGS[lang]['src']")
     ap.add_argument("--window", type=int, default=0, help="default: LANGS[lang]['window']")
     ap.add_argument("--hidden", type=int, default=96)
+    ap.add_argument("--seed", type=int, default=0,
+                    help="seeds the biaffine init, the dropout stream and the per-epoch batch "
+                         "order. ⚠ seed 0 reproduces the pre-existing hardcoded behaviour EXACTLY, "
+                         "so a checkpoint trained before this flag existed is still reproducible; "
+                         "any other value moves all three together, which is what a seed sweep "
+                         "needs (moving only one measures less variance than the arm really has).")
     ap.add_argument("--epochs", type=int, default=6)
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--limit", type=int, default=0)
@@ -733,6 +739,11 @@ def main():
     ap.add_argument("--bilstm", action="store_true",
                     help="MultiHashEmbed -> BiLSTM encoder instead of the CNN (--joint only)")
     ap.add_argument("--save", default="", help="directory to write the best model into")
+    ap.add_argument("--init-embed",
+                    help="warm start --joint's encoder from pretrain_arcfactored_embed.py's bytes. "
+                         "Ignored without --joint (there is no fresh encoder to initialise), which "
+                         "is worth knowing because passing it to a FROZEN-encoder run silently "
+                         "does nothing at all.")
     ap.add_argument("--joint", action="store_true",
                     help="train a fresh encoder jointly with the biaffine instead of freezing")
     # ⚠ NAME COLLISION WITH --joint, WHICH IS ABOUT THE ENCODER. This one is about the SCORER:
@@ -831,8 +842,16 @@ def main():
             enc = _chain(embed, registry.architectures.get("spacy.MaxoutWindowEncoder.v2")(
                 width=96, depth=4, window_size=1, maxout_pieces=3))
         enc.initialize(X=plain_tr[:64])
+        if getattr(a, "init_embed", None):
+            # ⚠ from_bytes REFUSES a mismatched network rather than loading part of it, which is the
+            # behaviour we want: `pretrain_arcfactored_embed.py` rebuilds this exact construction
+            # from the same LANGS entry, so a failure here means the two have drifted apart and the
+            # comparison would otherwise have been measuring a different encoder.
+            enc.from_bytes(pathlib.Path(a.init_embed).read_bytes())
+            print(f"  JOINT: initialised the encoder from {a.init_embed}", flush=True)
         print(f"  JOINT: training a fresh {'BiLSTM (depth 2)' if a.bilstm else 'MaxoutWindowEncoder (depth 4)'}"
-              f" width-96 encoder with the biaffine", flush=True)
+              f" width-96 encoder with the biaffine"
+              f"{' (PRETRAINED init)' if getattr(a, 'init_embed', None) else ''}", flush=True)
         Xtr = Xte = None
         w = 96
     else:
@@ -858,6 +877,7 @@ def main():
         feat_vocabs = {name: build_feat_vocab(plain_tr, name) for name in feat_names}
         feat_bins = {name: 1 + len(v) for name, v in feat_vocabs.items()}
         m = JointBiaffine(w, a.hidden, len(labs), N_DIST_BINS, dist_buckets,
+                           seed=a.seed,
                            n_agree_bins=(N_AGREE_BINS if a.agreement else 0),
                            n_dir_bins=(N_DIR_BINS if a.direction else 0),
                            dir_buckets_fn=(direction_buckets if a.direction else None),
@@ -884,7 +904,7 @@ def main():
               + (" + per-label dependent-lemma-vector bias" if a.lemvec_dep else ""),
               flush=True)
     else:
-        m = Biaffine(w, a.hidden, len(labs))
+        m = Biaffine(w, a.hidden, len(labs), seed=a.seed)
         m.use_dist = not a.no_dist
         if a.no_dist:
             print("  distance buckets DISABLED", flush=True)
@@ -926,11 +946,11 @@ def main():
     if a.joint_label and a.lemvec_dep:
         lemvec_dep_tr = [lemma_vecs_dep(d, cfg["lemvec_table"]) for d in plain_tr]
         lemvec_dep_te = [lemma_vecs_dep(d, cfg["lemvec_table"]) for d in plain_te]
-    drng = np.random.default_rng(1234)
+    drng = np.random.default_rng(1234 + 7919 * a.seed)
     best = (-1.0, -1)
     for ep in range(a.epochs):
         opt.learn_rate = a.lr * (a.decay ** ep)
-        order = np.random.default_rng(ep).permutation(len(tr))
+        order = np.random.default_rng(ep + 104729 * a.seed).permutation(len(tr))
         tot = 0.0; t0 = time.time()
         bi = 0
         while bi < len(order):

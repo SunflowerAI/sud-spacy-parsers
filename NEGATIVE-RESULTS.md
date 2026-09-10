@@ -1582,3 +1582,50 @@ not even carry a key for -- so that checkpoint predates the flag). Comparisons b
 are at a sound operating point that BEATS the shipped figure, not at the shipped configuration.
 **Record the invocation, not just the artefact** -- a `meta.json` plus a stray log was not enough to
 rebuild an arm that shipped five days earlier.
+
+## Masked-LM tok2vec pretraining does not help these parsers (lzh, sa, 2026-09-10)
+
+The English left-corner arm showed a large, clean effect of language-model pressure on parsing:
+removing the word-prediction half of its objective costs **7.10 LAS** (`docs/left-corner-parser.md`).
+The obvious next move is to buy the same thing for the released parsers, whose `[pretraining]` block
+ships EMPTY in every base config — so `spacy pretrain`, an approximate (BERT-style, 15 % masked)
+language-modelling objective over raw text, has never been used on any of them. It was tried on the
+two arms with the most raw text and the least supervision. **It does not transfer.**
+
+    language                       arm                       pretrained    control    diff      t(2)
+    lzh (11.2M chars kanripo)      transition, resplit         77.25       77.00     +0.24     1.72
+    sa  (46 095 annotated sents)   ARC-FACTORED (shipped)      55.16       56.85     -1.70    -4.29
+
+Three seeds each, matched controls, identical configs but for the initialisation; |t| must exceed
+4.30 for p<0.05 at n=3. lzh is a null that every seed nonetheless signs the same way — "no
+demonstrated effect", not a clean zero, and ruling out a gain that small needs ~10 seeds. sa is
+**negative and lands one hundredth short of significance**, with arms that do not overlap at all
+(pretrained 54.74-55.58, control 56.55-57.07).
+
+**Why the English result does not carry over.** There the word objective is INSIDE the decoder: it
+shapes the state and the beam's pruning jointly, throughout training. Here it is a separate prior
+phase whose weights are then fine-tuned against a different objective, and for sa that starting
+point is measurably WORSE than a random one. Pretraining an encoder is not the same intervention as
+training with a language-model term, and the 7.10 LAS from the latter says nothing about the former.
+
+Leak traps, both real and both cheap to miss:
+
+* **kanripo IS the source of the Kyoto treebank**, so its stock corpus contains every lzh test
+  sentence verbatim. `corpus_lzh_kanripo_leakfree.train.txt` (built earlier for the SikuBERT
+  vectors) is the one to use.
+* **DCS overlaps the sa evaluation sets**: 907 of the 8 467 held-out sentences appear verbatim in
+  raw DCS. "DCS carries no dependency annotation" is true and is NOT a licence to pretrain on it
+  unfiltered — a masked-LM objective memorises the surface string. (The SHIPPED corpora are clean:
+  286 of 46 095 training sentences match a held-out one, mean length 3 tokens, many single words
+  like `tathā` — formulaic recurrence in a formulaic language, not a split error.)
+
+⚠ **A side finding worth more than the main one.** sa's CONTROL arms average **56.85** against the
+shipped checkpoint's **54.80** — the `--batch 32 --dropout 0.2 --decay 0.95 --epochs 10` recipe beats
+what sa currently ships by 2.05 LAS, on the shipped arm's own test set. Not released, not multi-seed
+against the shipped configuration, and the shipped recipe is not exactly recoverable (see the
+`meta.json` entry above), but it should be chased before anything else here.
+
+Kept: `scripts/pretrain_arcfactored_embed.py` (pretrains the arc-factored decoder's OWN encoder,
+reproducing `train_arcfactored.py`'s construction from the same LANGS entry so the weights load by
+construction), `--init-embed` and `--seed` on `train_arcfactored.py` (seed 0 reproduces the previous
+hardcoded behaviour exactly), `configs/config_lzh_pretrain.cfg`, `scripts/{lzh_code,sa_code}.py`.

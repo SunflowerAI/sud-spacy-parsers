@@ -1,0 +1,18 @@
+seg_code: skipped sa_tokenizer.py: ValueError: [E004] Can't set up pipeline component: a factory for 'sa_compound' already exists. Existing factory: <function make_sa_compound at 0x127d1a2a0>. New factory: <function make_sa_compound at 0x127d53ce0>
+sa_sud_vedic_ufal_dcs  pipeline=['sa_compound', 'tok2vec', 'tagger', 'morphologizer', 'lemmatizer', 'parser', 'clause_parser', 'sa_deva', 'sud_reported_rule', 'sud_idiom']
+  tag_acc    0.7913
+  pos_acc    0.7790
+  morph_acc  0.6497
+  lemma_acc  0.7752
+  dep_uas    0.6375
+  dep_las    0.5174
+  scored 20619 tokens over 2709 sentences
+seg_code: skipped sa_tokenizer.py: ValueError: [E004] Can't set up pipeline component: a factory for 'sa_compound' already exists. Existing factory: <function make_sa_compound at 0x11fc1a2a0>. New factory: <function make_sa_compound at 0x11fc53ce0>
+sa_sud_vedic_ufal_dcs  pipeline=['sa_compound', 'tok2vec', 'tagger', 'morphologizer', 'lemmatizer', 'parser', 'clause_parser', 'sa_deva', 'sud_reported_rule', 'sud_idiom']
+  tag_acc    0.7913
+  pos_acc    0.7790
+  morph_acc  0.6497
+  lemma_acc  0.7752
+  dep_uas    0.6582
+  dep_las    0.5408
+  scored 20619 tokens over 2709 sentences
