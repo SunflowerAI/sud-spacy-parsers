@@ -1,0 +1,42 @@
+rows in 118608
+rows after complete-case + skip filter: 61072
+
+first_fix   n=61072   baseline adj-R2 0.0777  AIC 710540.0
+  model                              dAIC     dAdjR2      key t
+  + surprisal                        -9.7    0.00018   surprisal 3.01; prev_surprisal 1.92
+  + memory                         -172.4    0.00267   depth -1.46; prev_depth -1.05
+  + surprisal + memory             -193.2    0.00302   surprisal 4.24; prev_surprisal 2.32
+  + lexical surprisal only           -9.9    0.00018   surprisal_lex 3.09; prev_surprisal_lex 1.86
+
+gaze   n=60843   baseline adj-R2 0.1204  AIC 752822.4
+  model                              dAIC     dAdjR2      key t
+  + surprisal                        -4.5    0.00009   surprisal -2.90; prev_surprisal 0.40
+  + memory                         -594.8    0.00863   depth -6.55; prev_depth 3.33
+  + surprisal + memory             -592.0    0.00862   surprisal -1.04; prev_surprisal 0.45
+  + lexical surprisal only           -4.8    0.00010   surprisal_lex -2.96; prev_surprisal_lex 0.48
+
+go_past   n=58655   baseline adj-R2 0.1002  AIC 764220.3
+  model                              dAIC     dAdjR2      key t
+  + surprisal                        -9.7    0.00018   surprisal -3.65; prev_surprisal -0.37
+  + memory                         -733.9    0.01126   depth 0.25; prev_depth 0.01
+  + surprisal + memory             -733.1    0.01128   surprisal -1.76; prev_surprisal 0.07
+  + lexical surprisal only          -10.2    0.00019   surprisal_lex -3.71; prev_surprisal_lex -0.36
+
+total   n=60405   baseline adj-R2 0.1361  AIC 773897.6
+  model                              dAIC     dAdjR2      key t
+  + surprisal                        -5.8    0.00011   surprisal -3.10; prev_surprisal -0.26
+  + memory                         -432.4    0.00623   depth -3.51; prev_depth 0.75
+  + surprisal + memory             -430.8    0.00624   surprisal -1.52; prev_surprisal -0.23
+  + lexical surprisal only           -5.7    0.00011   surprisal_lex -3.08; prev_surprisal_lex -0.16
+
+correlations among the parser's own predictors (collinearity check)
+                   surprisal  surprisal_lex  depth  open_slots  d_depth  integ  Word_Length  log_freq  OrthographicMatch
+surprisal              1.000          0.999 -0.105      -0.048   -0.127  0.188        0.344    -0.377             -0.203
+surprisal_lex          0.999          1.000 -0.106      -0.045   -0.119  0.174        0.345    -0.379             -0.210
+depth                 -0.105         -0.106  1.000       0.757    0.380 -0.412       -0.171     0.186              0.069
+open_slots            -0.048         -0.045  0.757       1.000    0.168 -0.245       -0.060     0.055              0.024
+d_depth               -0.127         -0.119  0.380       0.168    1.000 -0.481       -0.200     0.192              0.008
+integ                  0.188          0.174 -0.412      -0.245   -0.481  1.000        0.137    -0.150              0.059
+Word_Length            0.344          0.345 -0.171      -0.060   -0.200  0.137        1.000    -0.758             -0.318
+log_freq              -0.377         -0.379  0.186       0.055    0.192 -0.150       -0.758     1.000              0.330
+OrthographicMatch     -0.203         -0.210  0.069       0.024    0.008  0.059       -0.318     0.330              1.000

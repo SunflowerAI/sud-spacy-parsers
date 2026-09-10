@@ -1460,3 +1460,125 @@ they are the wrong instrument for anything under a couple of LAS.
 The MISC layer was re-measured on the candidate base per standing hazard 5: Idiom F 56.25 → 55.50,
 InIdiom 61.17 → 59.80, `sud_reported_rule` unchanged at 68.79. All still above their ship bars, none
 improved — more of the same noise, and another reason the release bought nothing.
+
+## Beam width inflates a surprisal effect (English left-corner parser, 2026-09-10)
+
+`docs/left-corner-parser.md`'s arm emits per-word surprisal by marginalising over a word-synchronous
+beam. Widening that beam from 10 to 30 tightens the estimate (12.218 -> 11.695 bits/word on Provo)
+and **halves its reading-time effect** (gaze ΔAIC −12.4 -> −4.1; total −23.6 -> −11.9; the
+current-word t collapses from −1.61 to −0.36). Identical rows, same model, same baseline.
+
+This is the OPPOSITE of noise attenuation, which is what a weak estimate is usually assumed to cause
+and which predicts the effect GROWING as the estimate improves. The mechanism is that a narrow beam
+loses more probability mass on structurally hard sentences, so a truncated "surprisal" is partly a
+sentence-difficulty measure — the thing the arm's MEMORY predictors measure directly, and better
+(ΔAIC 181–923 against surprisal's 3–24).
+
+Three consequences, all of which cost nothing to observe and everything to miss:
+
+1. **A surprisal figure without its beam width is not a measurement.** A beam chosen for decoding
+   speed overstates the effect, and the overstatement is largest exactly where the memory
+   predictors would have explained the variance anyway.
+2. **"Improve the language model and the surprisal effect will appear" is refuted here**, at least
+   over this range. It was the motivation for trying static vectors, and it is why they were not
+   tried: the predicted direction is now down, not up.
+3. The arm is also an order of magnitude OUT OF DOMAIN on the evaluation corpus — 12.2 bits/word on
+   Provo against 8.87 on its own test set (perplexity ~4 700 vs ~470), where the published Provo
+   literature works at 50–150. Domain-matched text, and killing the `<unk>` class, are the levers;
+   a 5–15 % perplexity gain from pretrained embeddings is not.
+
+## Auxiliary spelling of in-vocabulary words (English left-corner parser, 2026-09-10)
+
+The open-vocabulary arm's `CharDecoder` sees only the out-of-vocabulary tail — 1 % of silver and 5 %
+of gold tokens, roughly 90 k spellings an epoch — so teaching it to spell a 25 % sample of the
+IN-VOCABULARY words as an auxiliary task looks free and obvious. Measured on the gold split at the
+real vocabulary, best of 8 epochs:
+
+    auxiliary            ppl_joint   char bits/word
+    none                   1325.4        1.557
+    25 % at weight 0.3     1323.9        1.560
+    25 % at weight 1.0     1340.7        1.598
+
+A gentle weight is a WASH (0.1 % better on one metric, 0.2 % worse on the other, opposite
+directions) and full weight is worse on BOTH. The auxiliary objective competes for the shared parser
+state faster than it improves orthography, and the same pattern showed on silver: joint perplexity
+5575 -> 7174 and the out-of-vocabulary character term 1.949 -> 2.284 bits/word over three epochs.
+
+**The expensive part was being wrong twice with cheap proxies**, and both errors are reusable:
+
+1. **bits/char on CURATED DICTIONARY WORDS said the auxiliary task helped.** The real tail is
+   `graae`, `succesfull`, `c'est`, `ap` — names, typos and fragments, not word-like English. General
+   orthography transfers to the proxy and not to the target.
+2. **bits/char with the decoder at a FIXED ZERO STATE also said it helped** (3.975 -> 3.842), and
+   this one is subtler: it isolates the decoder's own weights, which the auxiliary task genuinely
+   improves, while being structurally blind to the capacity competition that makes the full model
+   worse. A proxy that holds the shared representation constant cannot see a shared-representation
+   cost.
+
+Validate an auxiliary task on the quantity it is meant to improve, at the scale it will run at. A
+20-minute sweep on the real vocabulary answered what three hours of full-scale training and two
+proxy experiments had confused.
+
+⚠ Do not read this as "the character fallback does not help" — it helps a great deal, and it is what
+finally produced a surprisal effect at all (`docs/left-corner-parser.md`). Only the auxiliary
+in-vocabulary training is dead.
+
+## Operational: piping a long-running trainer through `head` KILLS it (2026-09-10)
+
+A driver that filters a training run's output for the lines it wants —
+
+    $PY -m spacy train ... 2>&1 | grep -iE "Loaded pretrained|Saved" | head -2
+
+— terminates the training as soon as `head` has its two lines and closes the pipe. The run dies
+mid-epoch and the driver reports `Terminated: 15`, buried under the very filter that caused it. Six
+Sanskrit arms were lost this way, on top of six Literary Chinese arms lost the same afternoon to a
+related mistake: a missing `--code` registration made `spacy train` die with E893 BEFORE training
+started, and the same style of result-grep turned that into six silently EMPTY arms rather than an
+error.
+
+`tail -N` is safe (it reads to EOF); `head -N` is not. Two rules that would have caught both:
+
+1. **Never put `head` between a long-running process and its log.** Write the full log to a file and
+   filter the FILE afterwards.
+2. **`set -euo pipefail`, always.** Without `pipefail` a pipeline's exit status is the FILTER's, so
+   a dead trainer reports success and the driver marches on to the next arm.
+
+This is the same family as the `[pretraining]`-block guard already recorded above, which rejected
+three CORRECT arms by grepping for a log line that only prints under `--verbose`. Filtering a
+subprocess's output to just the numbers you want reliably hides the reason there are no numbers.
+
+## `meta.json` records what a model IS, not how it was TRAINED (arc-factored sa, 2026-09-10)
+
+Reproducing the shipped sa arc-factored arm from `parser/meta.json` produced FOUR successive runs at
+LAS ~40 against its recorded 54.80, and nothing anywhere raised. The meta faithfully records `window`,
+`hidden`, the best `epoch`, `upstream`, the full `joint_embed` spec and every feature flag
+(`joint`, `bilstm`, `presegment`, `joint_label`, `agreement`, `direction`, `pos`, `lemvec`,
+`feat_names`, ...). It records NOTHING about the optimiser: no `lr`, no `decay`, no `batch`, no
+`dropout`. Three of those four were the ones that mattered.
+
+    attempt                                          epoch-0 LAS
+    meta's flags, --epochs 3                             40.57   (off-by-one: best epoch is 3, so
+                                                                  --epochs 3 never reaches it)
+    + --epochs 6                                         40.12   loss RISES after ep1 -- diverging
+    + --decay 0.95 (matches the reference log's lr)      40.12   schedule now identical, still 40
+    + --batch 32 --dropout 0.2                           51.90   -> 55.40 at epoch 1
+
+`train_arcfactored.py`'s own module docstring says it outright -- "a fresh joint encoder needs real
+dropout/LR-decay/batching or the comparison measures the TRAINER, not the model" -- and the `--batch`
+help says "1 wastes BLAS throughput". Both were read and only the decay was acted on. **The defaults
+(`--batch 1 --dropout 0.0 --decay 1.0`) are deliberately NOT the shipping recipe.**
+
+What made the diagnosis tractable was eliminating in order rather than guessing:
+
+    local run == skmm run (39.88 vs 40.12)      -> not the environment
+    joint_embed spec == meta's, corpus counts   -> not the architecture, not the data
+      identical to the reference log
+    --lemvec-dep worth only +1.4                -> not the one visible flag difference
+    -> whatever is left is a hyperparameter the log does not print
+
+⚠ The shipped 54.80 is still not exactly reproducible: the only surviving log is of a DIFFERENT run
+(`models/sa_arcfactored_lvd`, best 54.33, and it used `--lemvec-dep`, a flag the shipped meta does
+not even carry a key for -- so that checkpoint predates the flag). Comparisons built on this recipe
+are at a sound operating point that BEATS the shipped figure, not at the shipped configuration.
+**Record the invocation, not just the artefact** -- a `meta.json` plus a stray log was not enough to
+rebuild an arm that shipped five days earlier.

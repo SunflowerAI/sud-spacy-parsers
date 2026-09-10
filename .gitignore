@@ -197,3 +197,10 @@ assets_sud218/
 # Typological profiles + the WALS/Grambank CLDF slices they are built from.
 # Rebuild with scripts/build_typology_v2.py and scripts/typology_external.py.
 assets_typ/
+
+# Left-corner parser (docs/left-corner-parser.md): third-party corpus and derived per-word tables.
+# The Provo eye-tracking CSVs are Luke & Christianson's, redistributed from OSF, not ours to vendor;
+# the per-word TSVs are regenerable from a checkpoint in about a minute and run to tens of MB.
+assets_provo/
+metrics/en/provo_*.tsv
+metrics/en/lc_en_test_surprisal*.tsv
