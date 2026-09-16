@@ -125,9 +125,9 @@ all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a mod
 
 ## The fourteen wheels
 
-**sa is at v0.4.2**, **lzh is at v0.3.2**, **ja, ko and la are at v0.3.0**, and **ta and te are new
-at 0.1.0**; sa's releases are each on their own tag (`v0.4.0`, `v0.4.1`, `v0.4.2`), lzh's three releases are each on their own
-tag (`v0.3.0`, `v0.3.1`, `v0.3.2`), the other five of the seven on `v0.3.0`; the other seven
+**sa is at v0.4.2**, **lzh is at v0.3.3**, **ja, ko and la are at v0.3.0**, and **ta and te are new
+at 0.1.0**; sa's releases are each on their own tag (`v0.4.0`, `v0.4.1`, `v0.4.2`), lzh's four releases are each on their own
+tag (`v0.3.0`, `v0.3.1`, `v0.3.2`, `v0.3.3`), the other five of the seven on `v0.3.0`; the other seven
 languages are at v0.2.0 on `v0.2.0`.
 
 **sa went to 0.4.0 on 2026-09-05** — `parser` is no longer `spacy.TransitionBasedParser.v2`. It is
@@ -195,6 +195,24 @@ predicate heads a 之-marked clause exactly as an ordinary verb does. `models/lz
 and `scripts/sud_subject_frames.py` were checked for UPOS-keyed content and rebuilt/re-verified;
 neither's decisions moved (the affected lemmas don't intersect their thresholded cells).
 (`docs/chinese-family.md`). Published on the GitHub Release, not in git.
+
+**lzh went to 0.3.3 on 2026-09-17** — a SikuBERT-vector channel on the morphologiser itself
+(`pretrained_vectors = true`, the same PCA'd 768→96 table the combined multi-field tagger has read
+since v0.3.0, now also concatenated into the morphologiser's own `MultiHashEmbed`). Measured on the
+current (post-ADJ-recode) generation, 3 seeds vs a shuffled control: POS 93.34 vs 93.00 (baseline
+92.94), MORPH 91.82 vs 91.43 (baseline 91.59), sign never flips. The number that actually justifies
+shipping it is the treebank-absent-character slice — 58.29 (55.38–60.51) vs control 43.25
+(41.54–45.13), **Δ +15.04**, replicating (and slightly exceeding) the original pre-recode measurement
+of +13.33 (`docs/chinese-family.md`, [[lzh-sikubert-vectors]]). `tok2vec`/`parser`/`tagger`/
+`sud_shared`/tokenizer/vocab.vectors all BYTE-IDENTICAL to the v0.3.2 asset, verified on the
+downloaded wheel; only `morphologizer/model` differs, and its `cfg` (label set) is unchanged — this
+is a pure additional-channel change, not a retrain of anything else. Built with
+`scripts/swap_lzh_morphologizer.py` (splices a donor's `morphologizer` into an assembled pipeline in
+place, carrying `vocab.vectors` — the same trap `swap_lzh_mftagger.py` guards against) onto
+`training_lzh_seg_sud_adjfix_mft`, which turned out to ALSO be the fix for a separate, independently
+discovered bug: see standing hazard 2's tally below — `LZH_BASE` had drifted a generation stale.
+`LZH_MFTAGGER=0` for this build (the multi-field tagger swap step, given a stale default donor, would
+have reverted the ALREADY-current tagger baked into the base — see the same hazard-2 entry).
 
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
 which is why the four above took a version bump instead. Most recently clobbered: **sa at 0.3.0 on 2026-08-23** — the
@@ -329,9 +347,14 @@ value**, not as missing — writing `_` for tokens with no gold taught the sandh
    tokenisation the released arm does not share — and a superseded corpus loads, converts and
    trains exactly like a current one, so nothing raised. Fixed, and every other `csl_rev` reference
    in `scripts/` and `configs/` is now either repointed or carries a SUPERSEDED banner.
-   This has been paid for four times over — lzh nearly shipped a generation backwards three times
-   through `package_sud.sh` defaults, then ar did. The durable fix is a default plus a refusal:
-   `pkg()` will not package an arm whose pipeline has `tagger` before `morphologizer`.
+   This has been paid for five times over — lzh nearly shipped a generation backwards three times
+   through `package_sud.sh` defaults, then ar did, then lzh a FOURTH time (2026-09-17: `LZH_BASE`
+   and `LZH_MFTAGGER_DONOR` both still named the pre-ADJ-recode generation five weeks after v0.3.2
+   shipped — caught only by diffing every component against the downloaded wheel, same as every
+   other occurrence; fixed by repointing both at `training_lzh_seg_sud_adjfix_mft` /
+   `training_lzh_mftagger_adjfix`, which already existed and already matched the release byte for
+   byte). The durable fix is a default plus a refusal: `pkg()` will not package an arm whose
+   pipeline has `tagger` before `morphologizer`.
 3. **Check the branch is not behind main before building anything** — `git log --oneline
    <branch>..main`. A six-commit-behind branch once rebuilt and uploaded all eleven wheels, shipping
    lzh a generation backwards and eleven empty `License:` fields.

@@ -409,7 +409,18 @@ for lang in "$@"; do
     #     training_lzh_trad_sud_xw --corpus corpus_lzh_trad/lzh_kyoto-sud-test.<suffix>.spacy
     # All three of that script's checks pass (parse unchanged 5628/5628, tags match donor
     # 5628/5628) and TAG goes 0.8469 -> 0.9254, which is the released wheel's generation.
-  lzh)          base="${LZH_BASE:-training_lzh_seg_sud_xw}" ;;   # the SENTENCE-SEGMENTING arm
+    # ⚠ FOURTH TIME: this default was left at `training_lzh_seg_sud_xw` after the 2026-09-04 ADJ
+    # recode (v0.3.2) retrained morphologizer/cfg, tagger and sud_shared on the corrected gold --
+    # `training_lzh_seg_sud_xw` still predicts the pre-recode POS=VERB labels for the recoded
+    # Degree=Pos class, so `bash scripts/package_sud.sh lzh` would have silently shipped v0.3.1's
+    # generation under a v0.3.2-looking build. Caught 2026-09-17 by diffing every component's
+    # model/cfg against the DOWNLOADED v0.3.2 asset file by file (tok2vec/parser byte-identical as
+    # expected -- they're frozen -- but morphologizer/cfg, tagger/{model,cfg} and sud_shared/model
+    # all differed). `training_lzh_seg_sud_adjfix_mft` already exists, already has the mftagger
+    # merged in, and is byte-identical to the released wheel on every component checked
+    # (tok2vec/parser/morphologizer/tagger/sud_shared/vocab.vectors) -- it just was never wired up
+    # as the default. A default that names the right arm is the fix, not a note.
+  lzh)          base="${LZH_BASE:-training_lzh_seg_sud_adjfix_mft}" ;;   # the ADJ-recode, mftagger-merged arm
     # zh is TRADITIONAL-ONLY end to end, like lzh, and for the same reason -- a both-scripts
     # inventory never pools 個 with 个. Naming the arm here rather than falling through to
     # `training_zh_lemma` is not tidiness: the fall-through is the both-scripts generation, and it
@@ -661,9 +672,16 @@ case $lang in
   # ⚠ INSTALLED UNDER THE NAME `tagger` so pkg()'s XPOS-order and silenced-tagger guards still fire.
   # ⚠ It carries the SikuBERT vector table into the wheel; without it the channel reads zeros.
   # LZH_MFTAGGER=0 keeps the released single-softmax tagger.
-  lzh) if [ "${LZH_MFTAGGER:-1}" != "0" ] && [ -d "${LZH_MFTAGGER_DONOR:-training_lzh_mftagger/model-best}" ]; then
+  # ⚠ Donor default was `training_lzh_mftagger/model-best`, which is ALSO pre-ADJ-recode (its own
+  # morphologizer/cfg still predicts POS=VERB for the recoded class) -- caught the same pass as the
+  # LZH_BASE staleness above, 2026-09-17. `training_lzh_mftagger_adjfix/model-best` matches the
+  # released v0.3.2 wheel. Since `training_lzh_seg_sud_adjfix_mft` already has the correct mftagger
+  # merged in, this swap is now a same-generation no-op against the default LZH_BASE -- kept
+  # (rather than skipped) so a caller who overrides LZH_BASE to something without the mftagger
+  # merged still gets the CURRENT donor, not the stale one.
+  lzh) if [ "${LZH_MFTAGGER:-1}" != "0" ] && [ -d "${LZH_MFTAGGER_DONOR:-training_lzh_mftagger_adjfix/model-best}" ]; then
          $PY scripts/swap_lzh_mftagger.py "$base" "$work.mft" \
-              --donor "${LZH_MFTAGGER_DONOR:-training_lzh_mftagger/model-best}" >/dev/null 2>&1 \
+              --donor "${LZH_MFTAGGER_DONOR:-training_lzh_mftagger_adjfix/model-best}" >/dev/null 2>&1 \
               && base="$work.mft" || echo "  lzh: multi-field tagger swap FAILED — keeping the released tagger"
        fi
        $PY scripts/bundle_lzh_charseg.py --src "$base" --seg "${LZH_SEG:-models/lzh_seg_char_trad}" \

@@ -637,6 +637,56 @@ The parser's own representation already beats either donor outright, and the bet
 +1.27 advantage collapses to **+0.10** once conditioned on it. **A plain probe measures information
 present; only a conditional probe measures information additional.**
 
+### The morphologiser-side channel, re-measured on the ADJ-recoded (v0.3.2) generation
+
+⚠ **DO NOT CONFUSE THIS WITH THE MULTI-FIELD TAGGER'S SikuBERT CHANNEL, WHICH ALREADY SHIPS.** The
+combined multi-field tagger (`training_lzh_mftagger*`, installed as `tagger` by
+`swap_lzh_mftagger.py`, `sud.StaticVecChannel.v1` above its own frozen encoder) has read
+UPOS+FEATS+SikuBERT since v0.3.0, and answers a different question: given the morphologiser's own
+UPOS/FEATS, what XPOS code follows? The channel below feeds the MORPHOLOGISER itself — whether
+`pretrained_vectors = true` on its `HashEmbedCNN` improves UPOS/FEATS prediction, the measurement
+this section originally reported — and as of 2026-09-04 (v0.3.2) it had never been retrained past the
+ADJ recode, so every number above this line is stale (a different UPOS inventory, VERB+Degree=Pos
+vs ADJ). Not released.
+
+Re-run 2026-09-16 against the CURRENT shipping generation: same frozen `tok2vec`/`tagger`/`parser`
+(`training_lzh_seg/model-best`, verified byte-identical to what `training_lzh_seg_sud_xw` — the
+`package_sud.sh` default base — actually ships), corpus
+`corpus_lzh_trad_adjfix/lzh_kyoto-sud-{train,dev,test}...adjfix.spacy`, `vectors_lzh_siku96` /
+`vectors_lzh_siku96_shuf` (unchanged — the table is keyed by character type, not treebank split, so
+it needed no rebuild). 3 seeds each, test set, `--gold-preproc`:
+
+    metric   vector (mean, 3 seeds)   shuffled control (mean, 3 seeds)   production baseline (no vectors)
+    POS            93.34                       93.00                         92.94
+    MORPH          91.82                       91.43                         91.59
+
+Per-seed POS, vector vs control: s0 93.37/92.85 (+0.52), s1 93.38/93.09 (+0.29), s2 93.26/93.05
+(+0.21) — **sign never flips**, consistent with the original 3-seed result's direction (the old
+generation's own per-seed deltas were +0.48/+0.25/-0.00, so this replication is if anything cleaner).
+TAG is unchanged (92.50 on every arm), as it must be — the mftagger/tagger is frozen and never sees
+this channel.
+
+⚠ **NOT DONE: the treebank-absent-character slice.** The original headline number (+0.25 aggregate)
+was weak on its own; the result that justified shipping was **+13.33** on the population of test
+characters absent from the treebank's training vocabulary. That slice was not re-measured on the
+adjfix generation here — `scripts/eval_lex_slices.py` scores parser LAS by FORM-frequency bucket, not
+morphologiser POS accuracy by CHARACTER-novelty, so it does not directly reuse; re-derive it before
+treating this as fully re-verified, the aggregate alone is not the number the decision rests on.
+
+⚠ **NOT DONE: splicing into the shipping base.** `package_sud.sh` has no swap step for the
+morphologiser analogous to `swap_lzh_mftagger.py` for the tagger — the morphologiser here is simply
+one component INSIDE the assembled `training_lzh_seg_sud_xw` directory. Shipping this channel means
+either rebuilding that assembled base with this morphologiser merged in, or writing an analogous
+swap script; neither has been done. `tok2vec`/`tagger`(pre-mftagger-swap)/`parser` were verified
+byte-identical to the current shipping base, and the standalone arm was run end-to-end on sample
+sentences (sane UPOS/TAG/FEATS output), but the full downstream chain (`sud_shared`, the mftagger
+reading THIS morphologiser's UPOS/FEATS rather than the current one's) was not re-verified — and per
+CLAUDE.md's standing hazard 5, the MISC layer should be re-measured after any base retrain, since
+`sud_shared` reads POS+MORPH directly.
+
+Artifacts: `configs/config_lzh_morph_adjfix_siku{,_ctl}_s{0,1,2}.cfg`,
+`training_lzh_morph_adjfix_siku{,_ctl}_s{0,1,2}/`.
+
 So the remaining route is the other one, and it is an annotation problem rather than a modelling
 one: **measure on text the metric can see it in.** The channel's value is out-of-domain, where the
 unseen-type rate is not 1.15 % — on the kanripo sample it is 3.1 %, on a Ming edition or a
