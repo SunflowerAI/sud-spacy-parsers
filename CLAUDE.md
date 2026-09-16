@@ -125,8 +125,8 @@ all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a mod
 
 ## The fourteen wheels
 
-**sa is at v0.4.0**, **lzh is at v0.3.2**, **ja, ko and la are at v0.3.0**, and **ta and te are new
-at 0.1.0**; sa's release is on its own tag (`v0.4.0`), lzh's three releases are each on their own
+**sa is at v0.4.2**, **lzh is at v0.3.2**, **ja, ko and la are at v0.3.0**, and **ta and te are new
+at 0.1.0**; sa's releases are each on their own tag (`v0.4.0`, `v0.4.1`, `v0.4.2`), lzh's three releases are each on their own
 tag (`v0.3.0`, `v0.3.1`, `v0.3.2`), the other five of the seven on `v0.3.0`; the other seven
 languages are at v0.2.0 on `v0.2.0`.
 
@@ -149,7 +149,33 @@ decision but is worth a follow-up look. `sud_arcfactored_parser.py` is a new spa
 it reads — including the lemma-vector table, a repo-relative path at build time — into its own
 `to_disk`/`from_disk` bytes (CLAUDE.md hazard 4), verified by installing the wheel into a clean venv
 and running it from a directory with no relation to this repo. `tok2vec`/`tagger`/`morphologizer`/
-`lemmatizer` and the whole frontend are UNCHANGED; only `parser` differs. **lzh went to 0.3.0 on
+`lemmatizer` and the whole frontend are UNCHANGED; only `parser` differs. **sa went to 0.4.1 on
+2026-09-10** — a TRAINING-RECIPE-ONLY change, retroactively documented here (it was built and
+published before this line was updated, exactly the "record the invocation, not just the artefact"
+gap `NEGATIVE-RESULTS.md` warns about from the same commit). `train_arcfactored.py` had defaulted to
+`--batch 1 --dropout 0.0 --decay 1.0`; training with `--batch 32 --dropout 0.2 --decay 0.95
+--epochs 10` instead is worth +2.14 LAS on the bare decoder (54.80 → 56.94) and +2.34 through the
+full deployed pipeline (51.74 → 54.08). Five seeds averaged 56.81 (sd 0.22); the shipped arm is
+SEED 0, not the best of five. **sa went to 0.4.2 on 2026-09-17** — a DATA-ONLY correctness fix:
+the lemma-vector table sealed into the parser's `lemvec` bias (`scripts/sa_lemmavec_96.npz`) had
+been built from `corpus_sa_lemmas.txt`, in which 5,387/5,414 (99.5 %) of the sa held-out dev+test
+sentences appeared VERBATIM — far worse than the already-documented DCS/held-out overlap below
+(907/8,467, ~10.7 %, judged acceptable as short-string recurrence). Fixed by filtering those lines
+out (`corpus_sa_lemmas_leakfree.txt`, 1.4 % of lines dropped) and rebuilding
+`vectors_sa_lemma_ppmi.vec` / `scripts/sa_lemmavec_96.npz` from the clean corpus with the same
+`build_ppmi_vectors.py --min-count 10` / `build_lemma_vectors.py --dim 96` recipe. Re-measured
+5 seeds against the 0.4.1 recipe on the clean table: mean bare-decoder LAS 56.67 (sd 0.51) against
+0.4.1's own 56.81 (sd 0.22) on the leaked table — **the leak did not measurably inflate the shipped
+number** (gap 0.14, inside noise), so this is a correctness fix rather than a quality regression
+fix. The shipped checkpoint is the SEED-0 retrain on the clean table (bare LAS 56.69, full deployed
+pipeline dep_las 0.5376 against 0.4.1's 0.5408 — again inside the established seed-noise band, not
+a regression). `scripts/seal_sa_arcfactored.py --checkpoint training_sa_arcfactored_leakfree_s0
+--out training_sa_arcfactored_leakfree_graft`, then `SA_BASE=training_sa_arcfactored_leakfree_graft
+VERSION=0.4.2 bash scripts/package_sud.sh sa`. Verified: every non-`parser` file byte-identical to
+the 0.4.1 asset (diffed file by file against the downloaded wheel); the new wheel installs and loads
+cleanly in a throwaway venv unrelated to this repo. `tok2vec`/`tagger`/`morphologizer`/`lemmatizer`
+and the whole frontend remain UNCHANGED; only `parser`'s weights (biaffine + encoder + lemvec table)
+differ. **lzh went to 0.3.0 on
 2026-09-01** — the 異體字 map applied at the tokeniser, `sent_join`, and the combined multi-field
 tagger; every non-tagger weight byte-identical to the 0.2.0 asset, verified out of the DOWNLOADED wheel
 (`docs/chinese-family.md`). **lzh went to 0.3.1 on 2026-09-03** — `lzh_upos_rules` (four lexeme
