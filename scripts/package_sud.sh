@@ -420,7 +420,16 @@ for lang in "$@"; do
     # merged in, and is byte-identical to the released wheel on every component checked
     # (tok2vec/parser/morphologizer/tagger/sud_shared/vocab.vectors) -- it just was never wired up
     # as the default. A default that names the right arm is the fix, not a note.
-  lzh)          base="${LZH_BASE:-training_lzh_seg_sud_adjfix_mft}" ;;   # the ADJ-recode, mftagger-merged arm
+  # ⚠ STALENESS FOUND AGAIN (2026-09-20, sixth occurrence of CLAUDE.md hazard 2): the v0.3.3 release
+  # was built by running scripts/swap_lzh_morphologizer.py (the SikuBERT-vector channel) as a manual
+  # one-off step onto `training_lzh_seg_sud_adjfix_mft`, but that swap's OUTPUT was never captured
+  # back into this default -- so every `package_sud.sh lzh` run since 0.3.3 shipped (including the
+  # first v0.3.4 build attempt) silently packaged the PRE-swap morphologizer, a real regression a
+  # byte-diff against the downloaded v0.3.3 wheel caught (morphologizer/model 1970773 bytes vs the
+  # released 2045045). `training_lzh_seg_sud_adjfix_mft_sikumorph` matches the release exactly on
+  # every component that ships (tok2vec/parser/morphologizer/tagger/sud_shared/vocab), verified out
+  # of the DOWNLOADED wheel.
+  lzh)          base="${LZH_BASE:-training_lzh_seg_sud_adjfix_mft_sikumorph}" ;;   # ADJ-recode, mftagger-merged, +SikuBERT morphologizer
     # zh is TRADITIONAL-ONLY end to end, like lzh, and for the same reason -- a both-scripts
     # inventory never pools 個 with 个. Naming the arm here rather than falling through to
     # `training_zh_lemma` is not tidiness: the fall-through is the both-scripts generation, and it

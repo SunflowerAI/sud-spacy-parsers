@@ -125,9 +125,9 @@ all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a mod
 
 ## The fourteen wheels
 
-**sa is at v0.4.2**, **lzh is at v0.3.3**, **ja, ko and la are at v0.3.0**, and **ta and te are new
-at 0.1.0**; sa's releases are each on their own tag (`v0.4.0`, `v0.4.1`, `v0.4.2`), lzh's four releases are each on their own
-tag (`v0.3.0`, `v0.3.1`, `v0.3.2`, `v0.3.3`), the other five of the seven on `v0.3.0`; the other seven
+**sa is at v0.4.2**, **lzh is at v0.3.4**, **ja, ko and la are at v0.3.0**, and **ta and te are new
+at 0.1.0**; sa's releases are each on their own tag (`v0.4.0`, `v0.4.1`, `v0.4.2`), lzh's five releases are each on their own
+tag (`v0.3.0`, `v0.3.1`, `v0.3.2`, `v0.3.3`, `v0.3.4`), the other five of the seven on `v0.3.0`; the other seven
 languages are at v0.2.0 on `v0.2.0`.
 
 **sa went to 0.4.0 on 2026-09-05** — `parser` is no longer `spacy.TransitionBasedParser.v2`. It is
@@ -214,6 +214,46 @@ discovered bug: see standing hazard 2's tally below — `LZH_BASE` had drifted a
 `LZH_MFTAGGER=0` for this build (the multi-field tagger swap step, given a stale default donor, would
 have reverted the ALREADY-current tagger baked into the base — see the same hazard-2 entry).
 
+**lzh went to 0.3.4 on 2026-09-20** — two new `sent_join` rules, both CODE-ONLY (every non-`sent_join`
+file byte-identical to the v0.3.3 asset, verified against the downloaded wheel — see the hazard-2
+entry below for why that check nearly didn't happen correctly):
+
+- `final_pull`: no sentence may OPEN on a sentence-final mark (。．.！？!?।॥…) — generalises the
+  invariant `align_kanripo_punct.py` already enforces on the GOLD corpus at build time to the
+  PARSER's own boundaries at inference (a sentence-final mark stranded as the next sentence's first
+  token gets pulled back to close the one before it, as `punct` of that sentence's unit head).
+  Measured in isolation on the raw 457-document test corpus: UAS/LAS/SENTS_F unchanged to two
+  decimal places (75.26/69.34/53.89 either way) — the trigger configuration is rare enough on this
+  corpus that the effect doesn't register at this scale. Shipped anyway on the structural argument
+  (it corrects a real annotation-convention violation and cannot make a correct boundary wrong), not
+  a measured win.
+- `classifier_join`: a distilled logistic-regression rule choosing `mod`-reversed vs. the default
+  `parataxis` for a join `pause_join` is ALREADY making at a comma boundary (it does not decide
+  whether to join, only which relation) — gated to fire only when a declared Classical Chinese
+  subordinator (則/必/雖/苟/縱/若/故) is present on one side, checked before the learned score, so
+  every reversal is grammatically licensed rather than a bare statistical call. Trained on gold
+  in-unit clause-split pairs only, using the ALREADY-SHIPPED static SikuBERT vector table
+  (`vectors_lzh_siku96.vec`) as a feature — no new runtime dependency. Real end-to-end effect on the
+  same raw 457-document corpus: parataxis F +0.11 (90% CI [+0.05, +0.18], bootstrap-confirmed real,
+  not noise), mod F −0.04 (90% CI [−0.07, −0.02]), overall LAS unchanged. Five rounds of validation
+  before landing here, two of them methodology bugs (see the `lzh-sentjoin-classifier-glue` memory
+  for the full history) — most notably, a retrain meant to fix an earlier mis-diagnosed issue
+  measurably broke the flagship hand-verified example (苟得其養，無物不長 stopped reversing
+  correctly) without a compensating win, caught only by hand-checking that example again after the
+  retrain, not by the aggregate metric. Shipped as the most linguistically defensible version of the
+  rule — grammatically licensed reversals only — rather than the version the raw numbers alone would
+  have picked, since the numbers here are a real but small effect either way. `package_sud.sh`'s lzh
+  block now loads the trained weights by default (`LZH_SENT_JOIN_GLUE=0` opts out).
+- **Standing hazard 2, SIXTH occurrence, caught building this very release**: `LZH_BASE`'s default
+  still named `training_lzh_seg_sud_adjfix_mft`, the PRE-SikuBERT-morphologizer generation — the
+  v0.3.3 morphologizer swap (`scripts/swap_lzh_morphologizer.py`) was run as a manual one-off build
+  step and its output was never captured back into this default. A first v0.3.4 build silently
+  packaged the stale, regressed morphologizer (model file 1 970 773 bytes vs. the released
+  2 045 045) — caught only by diffing every component against the DOWNLOADED v0.3.3 wheel, the same
+  check this hazard always requires. Fixed by repointing at
+  `training_lzh_seg_sud_adjfix_mft_sikumorph`, which already existed and matches the release byte
+  for byte on every shipped component; rebuilt and re-verified before release.
+
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
 which is why the four above took a version bump instead. Most recently clobbered: **sa at 0.3.0 on 2026-08-23** — the
 re-tuned `Reported` rule (test F 48.76 → 53.05 as the wheel runs), a CODE-ONLY change in which
@@ -243,7 +283,7 @@ gh release view v0.3.0 --json assets -q '.assets[] | "\(.name)  \(.updatedAt)"'
 | sa | `sa_sud_vedic_ufal_dcs` | CC BY-SA 4.0 | `sa.SanskritInputTokenizer.v3` | accepts **raw sandhied** IAST or Devanagari; joint multi-task tok2vec/tagger/morphologizer/lemmatizer, but `parser` is the ARC-FACTORED decoder as of 0.4.0 (`sud_arcfactored_parser.py`), not `TransitionBasedParser` |
 | zh | `zh_sud_gsd` | CC BY-SA 4.0 | char tagger + jackknifed lexicon + jieba BMES off a TRADITIONAL jieba dictionary | traditional-only; vendors a pruned jieba, now without its simplified `dict.txt` (`build_jieba_trad_dict.py` supersedes the `t2s`-the-text channel; **re-clobbered at 0.2.0 on 2026-08-22**, every non-tokeniser weight byte-identical) |
 | yue | `yue_sud_hk` | CC BY-SA 4.0 | pkuseg trained on yue | test-only treebank → deterministic 80/10/10 split |
-| lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) + 異體字 map | custom `lzh` language; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825). **0.3.0**: the tokeniser normalises 无→無 / 隂→陰 (PROPN on treebank-absent characters 17.56 % → 9.14 %, `token._.lzh_src` recovers the original); `sent_join` keeps quoted spans and comma-separated clauses in one sentence (SENTS_F 90.79 → **95.27**, LAS −0.07); the tagger is four per-field softmaxes PLUS the joint head (TAG −0.15, and `cfg["upos_mask"]=True` makes a hand-corrected UPOS constrain the XPOS, **+3.11 on gold UPOS**) |
+| lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) + 異體字 map | custom `lzh` language; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825). **0.3.0**: the tokeniser normalises 无→無 / 隂→陰 (PROPN on treebank-absent characters 17.56 % → 9.14 %, `token._.lzh_src` recovers the original); `sent_join` keeps quoted spans and comma-separated clauses in one sentence (SENTS_F 90.79 → **95.27**, LAS −0.07); the tagger is four per-field softmaxes PLUS the joint head (TAG −0.15, and `cfg["upos_mask"]=True` makes a hand-corrected UPOS constrain the XPOS, **+3.11 on gold UPOS**). **0.3.4**: `sent_join` gains `final_pull` (no sentence opens on a stranded sentence-final mark; structural, no measured cost) and `classifier_join` (marker-gated `mod`-reversal for `pause_join` merges; parataxis F +0.11, mod F −0.04, LAS unchanged) |
 | ja | `ja_sud_gsd` | CC BY-SA 4.0 | SudachiPy | |
 | ko | `ko_sud_gsd` | CC BY-SA 4.0 | eojeol, spaCy's rule tokeniser | requires `python-mecab-ko`: the parser reads the morphemes an eojeol hides (`docs/korean.md`, raw LAS 55.81 → 73.16). Ships a `senter`; no SUD MISC layer |
 | id | `id_sud_gsd` | CC BY-SA 4.0 | char tagger, enclitics SPLIT | `id_lemma_case_fix` after the lemmatiser |
@@ -347,14 +387,20 @@ value**, not as missing — writing `_` for tokens with no gold taught the sandh
    tokenisation the released arm does not share — and a superseded corpus loads, converts and
    trains exactly like a current one, so nothing raised. Fixed, and every other `csl_rev` reference
    in `scripts/` and `configs/` is now either repointed or carries a SUPERSEDED banner.
-   This has been paid for five times over — lzh nearly shipped a generation backwards three times
+   This has been paid for six times over — lzh nearly shipped a generation backwards three times
    through `package_sud.sh` defaults, then ar did, then lzh a FOURTH time (2026-09-17: `LZH_BASE`
    and `LZH_MFTAGGER_DONOR` both still named the pre-ADJ-recode generation five weeks after v0.3.2
    shipped — caught only by diffing every component against the downloaded wheel, same as every
    other occurrence; fixed by repointing both at `training_lzh_seg_sud_adjfix_mft` /
    `training_lzh_mftagger_adjfix`, which already existed and already matched the release byte for
-   byte). The durable fix is a default plus a refusal: `pkg()` will not package an arm whose
-   pipeline has `tagger` before `morphologizer`.
+   byte), then lzh a FIFTH time three days later building v0.3.4 (2026-09-20: `LZH_BASE` itself,
+   this time — the v0.3.3 morphologizer swap's output was never captured back into the default, so
+   every build since v0.3.3 shipped, including the first v0.3.4 attempt, silently packaged the
+   PRE-swap morphologizer; caught the same way, fixed by repointing at
+   `training_lzh_seg_sud_adjfix_mft_sikumorph`). The durable fix is a default plus a refusal:
+   `pkg()` will not package an arm whose pipeline has `tagger` before `morphologizer` — which
+   catches ordering bugs but nothing yet catches a stale-but-correctly-ordered base, which is what
+   both the fourth and fifth lzh occurrences actually were.
 3. **Check the branch is not behind main before building anything** — `git log --oneline
    <branch>..main`. A six-commit-behind branch once rebuilt and uploaded all eleven wheels, shipping
    lzh a generation backwards and eleven empty `License:` fields.
