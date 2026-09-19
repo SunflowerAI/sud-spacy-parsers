@@ -746,8 +746,18 @@ case $lang in
          # models/, so build it rather than fail on a fresh checkout — unlike the variant map, this
          # one needs nothing a build machine lacks.
          :   # nothing to build: the clause rule is in the code, not in a harvested table
+         # `classifier_join`'s trained weights (small, tracked in git, not gitignored like the
+         # variant table above): load them BY DEFAULT when present, so a plain build actually ships
+         # the rule instead of leaving it the silent no-op `add_sent_join.py` warns about when
+         # `--glue` is never passed (CLAUDE.md hazard 2 — a default that does not name the real
+         # artefact is not a fix). `LZH_SENT_JOIN_GLUE=0` opts out even if the file is present.
+         glue_args=""
+         if [ "${LZH_SENT_JOIN_GLUE:-1}" != "0" ] \
+              && [ -f "${LZH_SENT_JOIN_GLUE_FILE:-scripts/lzh_sentjoin_glue.json}" ]; then
+           glue_args="--glue ${LZH_SENT_JOIN_GLUE_FILE:-scripts/lzh_sentjoin_glue.json}"
+         fi
          $PY scripts/add_sent_join.py "$work.var" "$work.sj" \
-              ${LZH_SENT_JOIN_ARGS:-} >/dev/null 2>&1 \
+              $glue_args ${LZH_SENT_JOIN_ARGS:-} >/dev/null 2>&1 \
               || { echo "  lzh: add_sent_join FAILED — skip"; continue; }
        else
          cp -R "$work.var" "$work.sj"

@@ -54,6 +54,14 @@ def main():
     # "balanced spans only", against a text whose marks pair up across half a chapter.
     ap.add_argument("--max-span", type=int, default=None)
     ap.add_argument("--max-sent", type=int, default=None)
+    ap.add_argument("--no-classifier-join", action="store_true",
+                    help="disable the distilled backward/mod classifier rule (default: enabled, "
+                         "but a no-op unless --glue is also given)")
+    ap.add_argument("--classifier-threshold", type=float, default=None)
+    ap.add_argument("--glue", default=None,
+                    help="path to the trained weights from train_lzh_sentjoin_glue.py "
+                         "(scripts/lzh_sentjoin_glue.json); loaded once here and baked into "
+                         "OUT_MODEL's own sent_join/ directory, never read again at model-load time")
     a = ap.parse_args()
 
     load_code("scripts/seg_code.py")           # registers sent_join and every custom tokenizer
@@ -71,10 +79,21 @@ def main():
         config["max_span"] = a.max_span
     if a.max_sent is not None:
         config["max_sent"] = a.max_sent
+    if a.no_classifier_join:
+        config["classifier_join"] = False
+    if a.classifier_threshold is not None:
+        config["classifier_threshold"] = a.classifier_threshold
     nlp.add_pipe("sent_join", last=True, config=config)
     pipe = nlp.get_pipe("sent_join")
+    if a.glue:
+        pipe.load_glue_file(a.glue)
+    elif pipe.classifier_join:
+        print(f"  ⚠ classifier_join is enabled but no --glue was given: it will be a no-op "
+              f"until the model is rebuilt with --glue")
     print(f"{a.out_model}: {nlp.pipe_names}\n  quote_spans={pipe.quote_spans} "
-          f"pause_join={pipe.pause_join} default={pipe.default_dep!r}")
+          f"pause_join={pipe.pause_join} default={pipe.default_dep!r} "
+          f"classifier_join={pipe.classifier_join} "
+          f"({'weights loaded' if pipe._glue is not None else 'NO WEIGHTS'})")
     nlp.to_disk(a.out_model)
 
 
