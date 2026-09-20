@@ -125,9 +125,9 @@ all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a mod
 
 ## The fourteen wheels
 
-**sa is at v0.4.2**, **lzh is at v0.3.4**, **ja, ko and la are at v0.3.0**, and **ta and te are new
-at 0.1.0**; sa's releases are each on their own tag (`v0.4.0`, `v0.4.1`, `v0.4.2`), lzh's five releases are each on their own
-tag (`v0.3.0`, `v0.3.1`, `v0.3.2`, `v0.3.3`, `v0.3.4`), the other five of the seven on `v0.3.0`; the other seven
+**sa is at v0.4.2**, **lzh is at v0.3.5**, **ja, ko and la are at v0.3.0**, and **ta and te are new
+at 0.1.0**; sa's releases are each on their own tag (`v0.4.0`, `v0.4.1`, `v0.4.2`), lzh's six releases are each on their own
+tag (`v0.3.0`, `v0.3.1`, `v0.3.2`, `v0.3.3`, `v0.3.4`, `v0.3.5`), the other five of the seven on `v0.3.0`; the other seven
 languages are at v0.2.0 on `v0.2.0`.
 
 **sa went to 0.4.0 on 2026-09-05** — `parser` is no longer `spacy.TransitionBasedParser.v2`. It is
@@ -254,6 +254,36 @@ entry below for why that check nearly didn't happen correctly):
   `training_lzh_seg_sud_adjfix_mft_sikumorph`, which already existed and matches the release byte
   for byte on every shipped component; rebuilt and re-verified before release.
 
+**lzh went to 0.3.5 on 2026-09-20** — `sent_join` gains `join_unpunctuated`, the rule that a sentence
+ends only at a sentence-final mark: two parser sentences with NOTHING between them (quotation marks are
+looked through; every other non-alphanumeric token — sentence-final and pause marks, brackets, symbols
+such as ○ — counts as a mark) are joined. CODE-ONLY: every weight and `glue.json` byte-identical to the
+v0.3.4 asset, verified against the downloaded wheel; only `sent_join`'s config and bundled code differ.
+
+- **Measured cost, and why it is a convention rather than an error.** Raw 457-document test corpus:
+  LAS 69.36 → 69.08 (−0.28), SENTS_F 53.89 → 53.19. Of 165 new joins, 116 cross a gold block boundary —
+  gold has no arc there, so 80 previously-correct heads become wrong and none can become right; gold
+  itself starts 9.1 % of its test sentences with no mark before them. The 49 joins inside a gold block
+  (where gold CAN judge them): 10 heads become correct, 5 become wrong, 34 stay wrong. Switch it off
+  with `nlp.get_pipe("sent_join").join_unpunctuated = False`.
+- **`unmarked_relations`**: an unmarked predicate-predicate join uses its own relation table. The old
+  comp:obj/coord figures were read off marked boundaries in a rule-merged corpus, which says little
+  about an unmarked one. Derived on train, checked on test: a second clause with its OWN SUBJECT is
+  `comp:obj` of the first 78 % (n=3 974) / 83 % (n=329) — the old default `parataxis` was right 10 % / 6 %
+  there — and without a subject it is a three-way tie (`parataxis` stays). Branch (c) is skipped for
+  these joins. Branches a1–a3 and b unchanged.
+- `classifier_join` is OFF for unmarked joins. Its training set is 70 % unpunctuated (3 158 of 4 507
+  pairs), so it plausibly suits them better than the comma joins it was validated on — untested.
+- **Two bugs the first version had, both found by looking at where gold put the head of each join**:
+  `○` is not `is_punct` to spaCy, so the rule read through it, and the `。` behind it, to glue every
+  dateline heading (`…事。 ○ 九年。`) to the sentence before (80 of 217 dev within-block joins); and
+  brackets were treated as transparent. Both fixed before release.
+- **Not fixable here, measured** (`NEGATIVE-RESULTS.md`): the joins that stay wrong are mostly parser
+  root errors on names, transliterations and numerals (99 of 209 within-block joins have the gold head
+  INSIDE the second fragment). Forbidding the sentence start in the parser itself (`is_sent_start=False`,
+  which spaCy honours) gives the same result as joining afterwards (LAS 69.06 vs 69.08), so the cause is
+  ordinary parser error on hard text, not the decoding.
+
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
 which is why the four above took a version bump instead. Most recently clobbered: **sa at 0.3.0 on 2026-08-23** — the
 re-tuned `Reported` rule (test F 48.76 → 53.05 as the wheel runs), a CODE-ONLY change in which
@@ -283,7 +313,7 @@ gh release view v0.3.0 --json assets -q '.assets[] | "\(.name)  \(.updatedAt)"'
 | sa | `sa_sud_vedic_ufal_dcs` | CC BY-SA 4.0 | `sa.SanskritInputTokenizer.v3` | accepts **raw sandhied** IAST or Devanagari; joint multi-task tok2vec/tagger/morphologizer/lemmatizer, but `parser` is the ARC-FACTORED decoder as of 0.4.0 (`sud_arcfactored_parser.py`), not `TransitionBasedParser` |
 | zh | `zh_sud_gsd` | CC BY-SA 4.0 | char tagger + jackknifed lexicon + jieba BMES off a TRADITIONAL jieba dictionary | traditional-only; vendors a pruned jieba, now without its simplified `dict.txt` (`build_jieba_trad_dict.py` supersedes the `t2s`-the-text channel; **re-clobbered at 0.2.0 on 2026-08-22**, every non-tokeniser weight byte-identical) |
 | yue | `yue_sud_hk` | CC BY-SA 4.0 | pkuseg trained on yue | test-only treebank → deterministic 80/10/10 split |
-| lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) + 異體字 map | custom `lzh` language; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825). **0.3.0**: the tokeniser normalises 无→無 / 隂→陰 (PROPN on treebank-absent characters 17.56 % → 9.14 %, `token._.lzh_src` recovers the original); `sent_join` keeps quoted spans and comma-separated clauses in one sentence (SENTS_F 90.79 → **95.27**, LAS −0.07); the tagger is four per-field softmaxes PLUS the joint head (TAG −0.15, and `cfg["upos_mask"]=True` makes a hand-corrected UPOS constrain the XPOS, **+3.11 on gold UPOS**). **0.3.4**: `sent_join` gains `final_pull` (no sentence opens on a stranded sentence-final mark; structural, no measured cost) and `classifier_join` (marker-gated `mod`-reversal for `pause_join` merges; parataxis F +0.11, mod F −0.04, LAS unchanged) |
+| lzh | `lzh_sud_kyoto` | CC BY-SA 4.0 | `sud.CharSegTokenizer.v1` (trained) + 異體字 map | custom `lzh` language; punctuation restored from kanripo; segmenter recovers 孔子/匈奴 (token F 0.9624 → 0.9825). **0.3.0**: the tokeniser normalises 无→無 / 隂→陰 (PROPN on treebank-absent characters 17.56 % → 9.14 %, `token._.lzh_src` recovers the original); `sent_join` keeps quoted spans and comma-separated clauses in one sentence (SENTS_F 90.79 → **95.27**, LAS −0.07); the tagger is four per-field softmaxes PLUS the joint head (TAG −0.15, and `cfg["upos_mask"]=True` makes a hand-corrected UPOS constrain the XPOS, **+3.11 on gold UPOS**). **0.3.4**: `sent_join` gains `final_pull` (no sentence opens on a stranded sentence-final mark; structural, no measured cost) and `classifier_join` (marker-gated `mod`-reversal for `pause_join` merges; parataxis F +0.11, mod F −0.04, LAS unchanged). **0.3.5**: `sent_join` gains `join_unpunctuated` (a sentence ends only at a sentence-final mark: LAS −0.28 on the raw test set, a convention cost) and a subject-conditioned relation table for unmarked joins |
 | ja | `ja_sud_gsd` | CC BY-SA 4.0 | SudachiPy | |
 | ko | `ko_sud_gsd` | CC BY-SA 4.0 | eojeol, spaCy's rule tokeniser | requires `python-mecab-ko`: the parser reads the morphemes an eojeol hides (`docs/korean.md`, raw LAS 55.81 → 73.16). Ships a `senter`; no SUD MISC layer |
 | id | `id_sud_gsd` | CC BY-SA 4.0 | char tagger, enclitics SPLIT | `id_lemma_case_fix` after the lemmatiser |

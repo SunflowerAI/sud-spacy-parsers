@@ -54,6 +54,10 @@ def main():
     # "balanced spans only", against a text whose marks pair up across half a chapter.
     ap.add_argument("--max-span", type=int, default=None)
     ap.add_argument("--max-sent", type=int, default=None)
+    ap.add_argument("--no-join-unpunctuated", action="store_true",
+                    help="keep a parser boundary where no punctuation separates the clauses")
+    ap.add_argument("--no-unmarked-relations", action="store_true",
+                    help="give unpunctuated joins the same relations as comma joins")
     ap.add_argument("--no-classifier-join", action="store_true",
                     help="disable the distilled backward/mod classifier rule (default: enabled, "
                          "but a no-op unless --glue is also given)")
@@ -79,6 +83,10 @@ def main():
         config["max_span"] = a.max_span
     if a.max_sent is not None:
         config["max_sent"] = a.max_sent
+    if a.no_unmarked_relations:
+        config["unmarked_relations"] = False
+    if a.no_join_unpunctuated:
+        config["join_unpunctuated"] = False
     if a.no_classifier_join:
         config["classifier_join"] = False
     if a.classifier_threshold is not None:

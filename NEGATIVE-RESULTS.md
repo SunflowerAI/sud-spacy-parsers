@@ -1629,3 +1629,40 @@ Kept: `scripts/pretrain_arcfactored_embed.py` (pretrains the arc-factored decode
 reproducing `train_arcfactored.py`'s construction from the same LANGS entry so the weights load by
 construction), `--init-embed` and `--seed` on `train_arcfactored.py` (seed 0 reproduces the previous
 hardcoded behaviour exactly), `configs/config_lzh_pretrain.cfg`, `scripts/{lzh_code,sa_code}.py`.
+
+## Forbidding mid-clause sentence starts in the parser does not beat joining afterwards (lzh `sent_join`, 2026-09-20)
+
+`join_unpunctuated` re-joins two parser sentences with no mark between them. A review of where gold put
+the head of the second fragment's root found that in 99 of 209 within-block joins it lay INSIDE the
+fragment itself — the parser had opened a sentence mid-clause and picked a root it should never have
+been asked to choose. So: stop it opening the sentence, and let it parse the clause as one unit.
+
+It works mechanically. spaCy's arc-eager parser honours `token.is_sent_start = False`, and a pre-parser
+pipe forbidding a start wherever the previous token (looking through quotation marks) is content turns
+`有朋自遠 / 方來不亦樂乎` from three fragments into one sentence with one root and a coherent tree.
+
+**It changes nothing that matters.** Raw 457-document test set, LAS 69.06 constrained against 69.08 for
+the post-hoc join (base 69.36); predicted sentences 3 135 against 3 130; and once the parser is
+constrained the post-hoc join has nothing left to do (3 135 → 3 134 sentences). On the tokens of the two
+fragments around each of the 165 join sites, LAS-correct is **50.5 % constrained, 50.3 % joined
+afterwards, 50.8 % left alone** — no configuration fixes them. Across-block sites lose the same amount
+either way (58.2 % → 52.9 % joined, 52.4 % constrained), because gold itself starts 9.1 % of its test
+sentences with no mark in front of them and the convention overrides those.
+
+**Why.** The boundary is a symptom, not the cause. The fragments are transliterations, names,
+numerals and `flat` chains — text the parser gets right about half the time however the sentence is
+cut. Forcing one parse does not make it a better parse. Improving them means improving the parser on
+that material, not its decoding. The pipe was removed rather than kept unused.
+
+Also learned on the way, each cheap to miss:
+
+* **`○` is not punctuation to spaCy** (`is_punct` is False), so a rule that looked past "no mark" read
+  through the `。` behind it and joined every dateline heading (`…事。 ○ 九年。`) to the sentence
+  before. 80 of 217 dev within-block joins were this. A mark is anything with no letter or digit in it.
+* **The relation table for a boundary must be derived from boundaries of the same kind.** The
+  comp:obj / coord figures `sent_join` used were read off marked boundaries in a rule-merged corpus
+  (many of whose arcs were written by `cross_unit_rules`). Unmarked, gold splits sharply on whether
+  the second clause has its own subject: `comp:obj` 78 % (train, n=3 974) / 83 % (test, n=329) with
+  one, a three-way tie without.
+* **`classifier_join`'s training set is 70 % unpunctuated** (3 158 of 4 507 pairs have no mark between
+  the two clause roots), not comma-split as it was described for weeks.

@@ -10,10 +10,16 @@ speech comes apart and clauses break at commas:
     子曰「學而時習之，不亦說乎。有朋自遠方來，不亦樂乎。」
       ->  子曰「學而時習之，  /  不亦說乎。  /  有朋自遠方來，  /  不亦樂乎。」
 
-Three rules, each switchable:
+Four boundary rules, each switchable (plus `classifier_join`, which picks a relation rather than a boundary):
 
   `quote_spans`  a BALANCED quoted span holds no boundary, and the closing mark stays inside it.
   `pause_join`   no sentence ends at a pause mark (，、；：,;:) of any kind.
+  `join_unpunctuated`  no sentence opens where NOTHING marks a boundary: when the only tokens between two
+                 parser sentences are quotation marks (or none at all) the clauses are joined; any
+                 other punctuation, brackets included, is a mark and leaves the boundary alone, so a
+                 sentence ends only at a sentence-final mark. Unpunctuated text therefore chains up to
+                 `max_sent`. `classifier_join` never fires on these joins (it was validated only on
+                 comma-split pairs).
   `final_pull`   no sentence OPENS on a sentence-final mark (。．.！？!?।॥…). Generalises the
                  invariant `align_kanripo_punct.py` enforces on the GOLD corpus at build time
                  ("no unit may open with a sentence-final mark") to the PARSER's own boundaries
@@ -197,15 +203,16 @@ def balanced_spans(texts, spec=QUOTE_PAIRS, open_quotes=False):
                                   "comp_dep": COMP_DEP, "open_quotes": True,
                                   "max_sent": MAX_SENT, "final_pull": True,
                                   "sent_final": SENT_FINAL, "classifier_join": True,
-                                  "classifier_threshold": CLASSIFIER_THRESHOLD})
+                                  "classifier_threshold": CLASSIFIER_THRESHOLD,
+                                  "join_unpunctuated": True, "unmarked_relations": True})
 def make_sent_join(nlp, name, pairs, pause, quote_spans, pause_join, joins, default_dep, max_span,
                    max_same_dep, quote_dep, coord_dep, predicate_pos, speech_xpos, subj_dep,
                    comp_dep, open_quotes, max_sent, final_pull, sent_final, classifier_join,
-                   classifier_threshold):
+                   classifier_threshold, join_unpunctuated, unmarked_relations):
     return SentJoin(pairs, pause, quote_spans, pause_join, joins, default_dep, max_span,
                     max_same_dep, quote_dep, coord_dep, predicate_pos, speech_xpos, subj_dep,
                     comp_dep, open_quotes, max_sent, final_pull, sent_final, classifier_join,
-                    classifier_threshold)
+                    classifier_threshold, join_unpunctuated, unmarked_relations)
 
 
 class SentJoin:
@@ -214,13 +221,17 @@ class SentJoin:
                  quote_dep=QUOTE_DEP, coord_dep=COORD_DEP, predicate_pos=PREDICATE_POS,
                  speech_xpos=SPEECH_XPOS, subj_dep=SUBJ_DEP, comp_dep=COMP_DEP,
                  open_quotes=True, max_sent=None, final_pull=True, sent_final=SENT_FINAL,
-                 classifier_join=True, classifier_threshold=CLASSIFIER_THRESHOLD):
+                 classifier_join=True, classifier_threshold=CLASSIFIER_THRESHOLD,
+                 join_unpunctuated=True, unmarked_relations=True):
         self.pairs = pairs
         _pairs(pairs)                                 # fail at construction, not at the first call
         self.pause = set(pause)
         self.quote_spans = quote_spans
         self.pause_join = pause_join
         self.final_pull = final_pull
+        self.join_unpunctuated = join_unpunctuated
+        self.unmarked_relations = unmarked_relations
+        self.quote_chars = set(QUOTE_PAIRS)
         self.sent_final = set(sent_final)
         self.default_dep = default_dep
         self.max_span = MAX_SPAN if max_span is None else max_span
@@ -278,7 +289,8 @@ class SentJoin:
         return any(c.dep_.split("@")[0] == "subj" for c in tok.children)
 
     def _join_dep(self, doc, prev_head, this_head, this_start, chain_head,
-                  a_lo=None, a_hi=None, b_lo=None, b_hi=None, allow_classifier=True):
+                  a_lo=None, a_hi=None, b_lo=None, b_hi=None, allow_classifier=True,
+                  unmarked=False):
         """The relation for joining two roots the parser left separate.
 
         `parataxis` — two juxtaposed predications — UNLESS one of four configurations holds, in
@@ -327,6 +339,20 @@ class SentJoin:
               gate above — not that plumbing — is what actually makes this branch's firings
               defensible.
 
+        ⚠ **UNMARKED JOINS USE A DIFFERENT TABLE** (`unmarked=True`, i.e. `join_unpunctuated`). The
+        comp:obj/coord figures above were read off boundaries a mark sits on — and in a rule-merged
+        corpus, where many of those arcs were themselves written by `cross_unit_rules`, so they say
+        little about a boundary with NO mark. An editor does not put a mark inside a tight
+        complement, so an unmarked boundary leans the other way, and the gold arcs bear that out
+        (forward predicate->predicate arcs with no punctuation between; derived on train, checked on
+        test): if the second clause has its OWN SUBJECT it is `comp:obj` of the first 78 % (train,
+        n=3 974) / 83 % (test, n=329) — the current default `parataxis` is right 10 % / 6 % there;
+        without a subject it is a three-way tie (parataxis 35/30, comp:obj 31/30, conj:coord
+        23/27) and `parataxis` stays. Branch (c) is skipped for these joins: its `conj:coord` is the
+        weakest of the three when the second clause lacks a subject (20 % train / 24 % test).
+        Branches a1-a3 and b are unchanged (the non-predicate populations in gold are dominated by
+        punct/flat arcs, not clause links, so there is no clean evidence to move them).
+
         ⚠ THIS DISAGREES WITH KYOTO'S PLURALITY AND DOES SO DELIBERATELY. In the default case gold
         uses `comp:obj` 68.9 % of the time (n=4 713), and in case (c) 58.5 % (n=1 591). Those
         reflect genuine COMPLEMENT frames — the second unit is an argument of the first unit's verb
@@ -350,7 +376,8 @@ class SentJoin:
             return self._note("a3", self.coord_dep, doc, this_head, other=prev_head)
         if doc[this_start].pos_ == "SCONJ":
             return self._note("b", self.coord_dep, doc, this_head, other=prev_head)
-        if chain_head is not None and self._has_subj(doc[chain_head]) \
+        table = unmarked and self.unmarked_relations
+        if not table and chain_head is not None and self._has_subj(doc[chain_head]) \
                 and not self._has_subj(doc[this_head]):
             return self._note("c", self.coord_dep, doc, this_head, other=prev_head)
         if self.classifier_join and allow_classifier and self._glue is not None and a_lo is not None \
@@ -360,6 +387,8 @@ class SentJoin:
             if p is not None and p >= self.classifier_threshold:
                 return self._note("classifier-backward", "mod", doc, this_head,
                                   reverse=True, other=prev_head)
+        if table and self._has_subj(doc[this_head]):
+            return self._note("u-subj", self.comp_dep, doc, this_head, other=prev_head)
         return self._note("default", self.default_dep, doc, this_head, other=prev_head)
 
     # --- the distilled backward/mod classifier ------------------------------------
@@ -551,7 +580,10 @@ class SentJoin:
                     self.debug.append({"dep_i": anchor, "head_i": frame, "dep": self.comp_dep,
                                        "branch": "quote-frame", "reverse": False})
 
-        for s in sorted(roots)[1:]:
+        starts = sorted(roots)
+        for k, s in enumerate(starts):
+            if k == 0:
+                continue
             root = roots[s]
             if s in in_span:
                 key = in_span[s]
@@ -574,6 +606,11 @@ class SentJoin:
                 self._join_left(doc, s, root, chain, cross_block=True)   # no quotative frame
             elif self.pause_join and self._after_pause(doc, s):
                 self._join_left(doc, s, root, chain)
+            elif self.join_unpunctuated and self._no_mark_before(doc, s):
+                # The previous PARSER sentence is the clause on the left (a comma-bounded unit does
+                # not exist here), and `cross_block=True` keeps `classifier_join` out of it.
+                self._join_left(doc, s, root, chain, cross_block=True, unmarked=True,
+                                unit=(starts[k - 1], roots[starts[k - 1]]))
         # ...and the closing mark must end up inside the span it closes: one the parser made a root,
         # or attached to something after the span, would open (or be swallowed by) another sentence.
         closers = {c for _, c in balanced_spans(texts, self.pairs)}
@@ -668,7 +705,28 @@ class SentJoin:
             i -= 1
         return i >= 0 and doc[i].text in self.pause
 
-    def _join_left(self, doc, s, root, chain, cross_block=False):
+    def _no_mark_before(self, doc, s):
+        """Is there NO boundary mark between the previous content and the sentence that starts at
+        `s`? Only QUOTATION marks are looked through (a clause may follow a closing 」 directly).
+        Every other punctuation token is a mark: a pause mark is `_after_pause`'s business, a
+        sentence-final mark is a real boundary, and so are brackets — a 【…】 or 《…》 wraps an
+        editorial note or a title, and joining across one chained unrelated text together (2026-09-20
+        review of the first version, which treated brackets as transparent). A whitespace token and
+        the start of the document are boundaries too."""
+        i = s - 1
+        while i >= 0 and doc[i].text in self.quote_chars:
+            i -= 1
+        if i < 0:
+            return False
+        t = doc[i]
+        # ⚠ A mark is anything with no letter or digit in it, not only what spaCy calls punctuation:
+        # `is_punct` is False for section symbols like ○, and the first version of this rule read
+        # straight past one -- and the 。 behind it -- to join every dateline heading
+        # ("…事。 ○ 九年。") to the sentence before it (found 2026-09-20 by looking at where gold put
+        # the head of the joins it made).
+        return not (t.is_space or t.is_punct or not any(c.isalnum() for c in t.text))
+
+    def _join_left(self, doc, s, root, chain, cross_block=False, unit=None, unmarked=False):
         """Attach `root` to the head of the unit on its left, with the relation `_join_dep` gives.
 
         `chain` maps an anchor to the head of the clause that OPENED the chain hanging off it, so
@@ -690,7 +748,7 @@ class SentJoin:
             return
         if any(doc[k].text in self.sent_final for k in range(left + 1, s)):
             cross_block = True
-        a_lo, anchor = self._unit_bounds(doc, left)
+        a_lo, anchor = unit if unit is not None else self._unit_bounds(doc, left)
         # the first content token of THIS clause, for the SCONJ test
         this_start = s
         while this_start < len(doc) and doc[this_start].is_punct:
@@ -702,7 +760,7 @@ class SentJoin:
         # classifier's span features, read before any attachment below can extend it.
         b_hi = doc[root].sent.end - 1
         dep, reverse = self._join_dep(doc, anchor, root, this_start, chain_head, a_lo, left, s, b_hi,
-                                      allow_classifier=not cross_block)
+                                      allow_classifier=not cross_block, unmarked=unmarked)
         if reverse:
             # topic-comment: the NOMINAL first unit becomes the subject of the second's predicate,
             # so the second clause's head is the merged sentence's root and opens a fresh chain.
@@ -721,6 +779,8 @@ class SentJoin:
              "max_same_dep": self.max_same_dep, "max_sent": self.max_sent,
              "pause_join": self.pause_join, "quote_spans": self.quote_spans,
              "open_quotes": self.open_quotes, "final_pull": self.final_pull,
+             "join_unpunctuated": self.join_unpunctuated,
+             "unmarked_relations": self.unmarked_relations,
              "classifier_join": self.classifier_join,
              "classifier_threshold": self.classifier_threshold}, ensure_ascii=False),
             encoding="utf-8")
