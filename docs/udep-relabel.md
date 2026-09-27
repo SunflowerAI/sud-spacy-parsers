@@ -108,6 +108,173 @@ above the lemma arm, which the base chain alone would miss.
 
 An LLM pass over the remaining residue was built and **abandoned** — see NEGATIVE-RESULTS.
 
+### EWT+GUM combined-corpus rule commit (committed 2026-08-26)
+
+`apply_udep_rules.py`'s `TREEBANKS` dict only ever had an entry for EWT alone
+(`assets/en_ewt-sud-train.relabeled_ext.conllu`), so the combined `en_gum` arm's corpus —
+`assets/en_ewtgum-sud-{train,dev,test}.relabeled_ext.conllu`, the file every `en_gum`-arm
+script above (`train_sud.sh`, `train_xpos.sh`, `train_lemma.sh`, `train_morph.sh`,
+`build_sud_shared_frames.py`, `build_sud_subject_frames.py`, `eval_sud_subject.py`,
+`eval_sud_idiom.py`, `sud_reported_gold.py`) reads — never had the residual-rule step
+applied to it at all, unlike EWT-alone. This was found while an external project (cxSUD, a
+sibling tool converting SUD to a construction-grammar representation) was tracing why ~1/3
+of the combined corpus wasn't disambiguated enough to convert.
+
+Derived rules directly from `assets/en_ewtgum-sud-train.relabeled_ext.conllu` (same
+`derive_rules`/`rewrite` functions `apply_udep_rules.py` already exports, called ad hoc — no
+repo script was modified, since `TREEBANKS` is EWT-only by design and adding a second English
+entry there felt like a call for whoever owns that convention, not something to slip in
+silently). 37 rules committed at the existing `--min-committed 20 --threshold 0.90` defaults
+(same table shape as the `en 526` EWT-alone commit already on file — `NOUN/PROPN<-ADP` locative
+and temporal prepositions, `AUX<-ADP` predicative PPs, `VERB<-NOUN` temporal objects, plus a
+few `mod`/`unk` singletons). Wrote:
+
+    assets/en_ewtgum-sud-train.relabeled_ext.udep_ruled.conllu   664 tokens committed (of 8093 udep)
+    assets/en_ewtgum-sud-dev.relabeled_ext.udep_ruled.conllu      72 tokens committed (of 1011 udep)
+    assets/en_ewtgum-sud-test.relabeled_ext.udep_ruled.conllu     70 tokens committed (of  957 udep)
+
+DEPREL column only, same block-based rewrite guarantee as everywhere else in this file.
+Residue remaining (7429/939/887 `udep`) is dominated by the same categories already on record
+above as below-threshold for English — possessive `'s` and infinitival `to` (~950 tokens) chief
+among them — and this residue was **not** re-attempted with an LLM pass: see "LLM relabelling"
+above, `relabel_residue.py`'s self-consistency across prompts/models was 36.4–76.7 % with no
+gold to select against, an explicitly abandoned dead end, not a new one worth re-opening here.
+
+**This repo's own `en_gum`-arm scripts still point at the un-ruled `.relabeled_ext.conllu`,
+not the new `.udep_ruled.conllu` files** — that rename was deliberately left undone (same
+reasoning as the `TREEBANKS` entry above: touching that many hardcoded paths across scripts
+this session didn't author felt like scope creep, not a safe drive-by edit). **Whoever next
+retrains the `en_gum` (EWT+GUM) parser/tagger/lemmatizer/subject/shared arms should retrain on
+`assets/en_ewtgum-sud-{train,dev,test}.relabeled_ext.udep_ruled.conllu` instead**, following
+the `retrain_udep_ruled.sh` pattern already used for fa/lzh/ja — rebuild `corpus_en_gum_ext/`
+from the ruled treebank, retrain base+morph+lemma, and re-evaluate Subject/Shared/Idiom since
+`sud_shared`'s conjunct-mask and `sud_subject`'s frames are read straight off DEPREL and will
+shift by the same ~664/72/70 tokens the parser labels do. The commit is small relative to the
+corpus (0.2 % of train tokens) — matching en/ar's EWT-alone experience above, where a same-size
+relabel was judged not worth a retrain — so this is worth doing when a `en_gum` retrain is
+already planned for another reason, not a change urgent enough to justify one on its own.
+
+### en_gum udep residue resolved by a mechanical majority-vote heuristic, chain retrained (2026-09-27)
+
+Goes further than the previous section's `.udep_ruled.conllu` (37 rules, 664/72/70 tokens
+committed) recommends: `scripts/resolve_udep.py` — an existing, **mechanical** (head UPOS, dependent
+UPOS) majority-vote heuristic, run here for the first time on `en_gum`, **not** this project's usual
+semantic LLM relabelling and not hand-curated — was applied on top of the ruled files:
+
+    .venv/bin/python scripts/resolve_udep.py assets/en_ewtgum-sud-<split>.relabeled_ext.conllu \
+      --ruled assets/en_ewtgum-sud-<split>.relabeled_ext.udep_ruled.conllu \
+      --out assets/en_ewtgum-sud-<split>.relabeled_ext.udep_resolved.conllu
+
+DEPREL column only (verified: every other column byte-identical to `.relabeled_ext.conllu`, so the
+GUM-punctuation XPOS normalisation two sections up carries through unchanged). Two sources, in order
+of trust: **ruled** — configurations `apply_udep_rules.py` already resolved, reproduced exactly (5-fold
+cross-validated pure); **attested** — for configurations the rule pass never saw, the majority DEPREL
+non-`udep` tokens in the same (head UPOS, dep UPOS) configuration take, applied only above 50% purity.
+Residual counts (**correcting an earlier verbal summary that did not match the files on disk — trust
+these, reproduced byte-for-byte by re-running the command above**):
+
+    train  8093 udep -> 3465 ruled + 3947 attested + 681 left as udep   (91.6% resolved)
+    dev    1011 udep ->  439 ruled +  470 attested + 102 left as udep   (89.9% resolved)
+    test    957 udep ->  387 ruled +  479 attested +  91 left as udep   (90.5% resolved)
+
+A second file, `assets/en_ewtgum-sud-<split>.relabeled_ext.reported.udep_resolved.conllu`, applies
+the identical command to the `.reported.conllu` files (the bootstrapped `Reported=Yes` MISC gold)
+instead of the plain ones, so the SUD layer's Subject/Reported/Shared training could read both the
+new DEPREL and the existing Reported gold together (verified: columns 1-8 identical to the plain
+`.udep_resolved.conllu`, only MISC differs).
+
+**Base arm** (`training_en_gum_udepresolved`, tok2vec+tagger+parser, `configs/config.cfg`,
+`corpus_en_gum_udepresolved/*.spacy`), test set, non-gold-preproc:
+
+| | tag_acc | dep_uas | dep_las | sents_f |
+|---|---|---|---|---|
+| old (`.relabeled_ext`) | 0.9405 | 0.8556 | 0.8067 | 0.7732 |
+| new (`.udep_resolved`) | 0.9437 | 0.8609 | 0.8127 | 0.7905 |
+
+Clean improvement on every metric, largest on `sents_f` (+1.73). `metrics/en_gum/metrics_en_gum_ext_baseline_test.json` / `metrics_en_gum_udepresolved.json`.
+
+**Whole chain retrained** from this base, reproducing every layer `en_gum`'s released wheel actually
+stacks (`scripts/package_sud.sh`'s `en_gum` case; **not** a simple freeze-recipe chain — it needed an
+undocumented intermediate graft `train_sud.sh` and `package_sud.sh`'s own comments don't spell out,
+found only by tracing `make_sud_config.py`'s frozen-component list and confirming against the
+downloaded wheel's hashes) into new `training_en_gum_*_udepresolved` directories, none of them
+overwriting an existing arm:
+
+    training_en_gum_morph_udepresolved        -- freeze recipe morphologiser off the new base
+    training_en_gum_lemma_udepresolved        -- freeze recipe lemmatiser on top
+    training_en_gum_xpos_udepresolved         -- the GUM-punctuation-normalised tagger
+                                                  (make_tagger_config.py), base pipeline position
+    training_en_gum_lemma_xpos_udepresolved   -- graft_pipe.py: xpos tagger grafted into the lemma
+                                                  arm (needed so make_sud_config.py has one arm
+                                                  carrying tok2vec+tagger+parser+morph+lemma to
+                                                  freeze from -- undocumented in package_sud.sh,
+                                                  reconstructed and hash-verified)
+    corpus_en_gum_sud_udepresolved            -- Subject/Reported/Shared hoisted from the
+                                                  reported+udep_resolved hybrid file, NOT built via
+                                                  train_sud.sh (which would have overwritten the
+                                                  shared corpus_en_gum_sud/ that reproduces the
+                                                  live release)
+    training_en_gum_sud_xpos_udepresolved     -- make_sud_config.py --feats Subject Reported Shared
+                                                  --encoder default structural tree
+    training_en_gum_xposwarm_udepresolved     -- make_xpos_config.py --top --warm-start
+                                                  training_en_gum_xpos_udepresolved/model-best
+                                                  --feats Number,PronType,VerbForm,Person,Tense,Mood,Degree
+                                                  --feat-rows 16,64,32,16,16,16,16 (derived by
+                                                  build_feats_inventory.py; this per-feature side
+                                                  channel, not the plain POS+MORPH bundle, is what
+                                                  the RELEASED en_gum xposwarm arm actually uses --
+                                                  found by diffing config.cfg against the downloaded
+                                                  wheel after a first attempt with the plain bundle
+                                                  produced a wheel that byte-diffed wrong)
+    training_en_gum_sud_xw_udepresolved       -- graft_xpos_tagger.py (its own built-in check:
+                                                  parse unchanged 8585/8585, donor tags reproduced
+                                                  8585/8585)
+
+Packaged with the one-off override `package_sud.sh` already supports (no edit to its `en_gum`
+default): `SUD_BASE=training_en_gum_sud_xw_udepresolved bash scripts/package_sud.sh en_gum`.
+
+**Verified against the downloaded `v0.2.0` release asset** (`en_sud_ewt_gum-0.2.0-py3-none-any.whl`,
+hashed file by file, and the arm's own `tok2vec`/`parser`/`tagger`/`morphologizer`/`lemmatizer`
+weights confirmed byte-identical to that download *before* the rebuild, establishing the released
+arm as ground truth): only `tok2vec/model`, `parser/model`, `parser/moves`, `sud_shared/model`,
+`sud_subject/model` differ, plus `config.cfg` (training corpus path only), `meta.json`
+(performance/labels), `README.md` and `vocab/strings.json` (new/dropped DEPREL interned strings) --
+all expected. **`tagger/model`, `morphologizer/model` and `lemmatizer/model` came out
+BYTE-IDENTICAL** to the released wheel: none of their training targets (XPOS/UPOS/FEATS/LEMMA) or
+input text depend on DEPREL, their encoders are each a dedicated freeze-recipe HashEmbedCNN rather
+than a listener on the retrained tok2vec, and training turned out to be fully reproducible given
+identical inputs and `seed = 0` -- a clean confirmation of the freeze recipe's own claim. `tokenizer`
+and every `vocab/{key2row,lookups.bin,vectors,vectors.cfg}` file are unchanged. Installed into a
+throwaway venv unrelated to this repo; loads and parses correctly (`nlp.pipe_names` matches the
+released order: `[tok2vec, parser, morphologizer, lemmatizer, tagger, sud_subject, sud_shared,
+sud_reported_rule, sud_idiom]` -- the trained `sud_reported` pipe is dropped for the deterministic
+rule, as the release already does).
+
+**Full packaged arm**, `spacy evaluate` (non-gold-preproc), old = the downloaded release, new = the
+rebuild, same CLI both times:
+
+| corpus | metric | old | new |
+|---|---|---|---|
+| base test (`corpus_en_gum_ext` / `corpus_en_gum_udepresolved`) | TAG | 94.45 | 94.45 (flat -- tagger byte-identical) |
+| | POS | 94.57 | 94.57 (flat) |
+| | LEMMA | 95.50 | 95.50 (flat) |
+| | MORPH | 89.47 | 88.48 (alignment artefact of the changed sentence boundaries below, not a morphologiser regression -- the morphologiser itself is byte-identical) |
+| | UAS | 85.56 | 86.09 |
+| | LAS | 80.67 | 81.27 |
+| | SENT F | 77.32 | 79.05 |
+| SUD test (`corpus_en_gum_sud` / `corpus_en_gum_sud_udepresolved`) | sud_subject_f | 0.8052 | 0.8116 |
+| | sud_shared_f | 0.5763 | 0.5949 |
+
+Every headline number moves the same direction as the base-arm table above or stays flat; nothing
+regresses except the MORPH alignment artefact, which is explained rather than papered over.
+`sud_reported`'s trained score is not reported here since neither release ships the trained pipe (the
+rule wins by a wide margin for `en`/`en_gum` -- see `add_sud_reported_rule.py`).
+
+**Released 2026-09-27**: the wheel above was uploaded to the existing `v0.2.0` GitHub release,
+replacing the prior `en_sud_ewt_gum-0.2.0-py3-none-any.whl` asset in place (same convention as the
+other "re-clobbered at 0.2.0" entries in `CLAUDE.md`'s wheel table -- `en_gum` was not previously
+listed there, so this is its first clobber). `pip install -U` picks it up automatically.
+
 ### Korean eojeol relabel (committed 2026-08-04)
 
 424 DEPREL cells across `assets_ko/SUD_Korean-GSD/ko_gsd-sud-{train,dev,test}.relabeled_ext.conllu`
