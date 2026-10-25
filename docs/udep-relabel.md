@@ -351,6 +351,48 @@ command above. `build_en_ewt_gum.sh verify` still passes, and the hoist still re
 `assets_sud/en_gum-*`. Originals in `backup_en_preverbnet/`. **Every model trained on these files
 predates the change.**
 
+### Verb-level `comp:obl` vs `mod` by VerbNet + object class (2026-10-25, branch fix/verbnet-objclass)
+
+**SUPERSEDES the VerbNet + smoothing labels above.** By user decision a complement is a preposition
+the verb selects that does NOT denote a circumstant. `scripts/relabel_vnobj.py` decides the same
+tokens (treebank `udep`, ADP under a VERB, labelled mod/comp:obl), per token, no smoothing:
+
+  1. directional preposition (to, into, from, through, across, out, off, ...) and the object is not a
+     time -> `comp:obl` (standing ruling);
+  2. circumstant -> `mod`: fronted PP set off by a comma; fixed discourse PP; time (the temporal rule
+     above, repaired, or a time-class object under a temporal preposition); place-class object under a
+     locative preposition; event-class object under at/during/after/before/following/upon; manner
+     (in/with a way/manner/fashion/style); reason (for/on/out of a reason/sake/purpose/grounds,
+     because, due, owing, despite);
+  3. VerbNet licenses the preposition in at least half of the lemma's classes -> `comp:obl`, else
+     `mod`; existential `be` -> `mod`;
+  4. verb key not in VerbNet -> the current label is kept (no fallback).
+
+Object class (place/time/event/other): closed lists and repairs, numerals and dates, spaCy
+`en_core_web_lg` NER for proper nouns, WordNet 3.0 first noun sense, else
+`assets/en_objclass_vectors.json` (4,317 lemmas, a logistic regression on the cxSUD parser's nucleus
+vectors trained on the WordNet labels, CV 89.9%). Hand check of objects: 84/100, then 92/100 after
+the repairs (on the sample the repairs were made from).
+
+EWT+GUM (14,489 tokens): dir 3,759; circumstant 3,586 (time 1,554, place 1,152, fronted 616,
+discourse 145, reason 79, occasion 29, manner 11); VerbNet 2,096 licensed / 4,481 unlicensed;
+existential 59; not in VerbNet 508 (kept: 288 comp:obl, 220 mod). Moves against the VerbNet labels:
+train 2,162 comp:obl -> mod and 468 mod -> comp:obl, dev 266 / 48, test 274 / 54; train comp:obl
+5,508 -> 4,911. Train purity per (verb, preposition), n = 2-4 / 5-19 / 20-99 / 100+: 96.1 / 95.2 /
+97.8 / 94.6% (the 100+ band falls because `live in` now splits on the object: place `mod`, else
+`comp:obl`).
+
+**Caveat, measured.** A fresh hand check of 100 tokens this definition CHANGED found 47 right by the
+definition's own intent, against 53 for the labels it replaced and 57 for `--polysemy union`. The
+errors are VerbNet licensing gaps for polysemous verbs (`put in`, `ask for`, `think of`, `work with`
+all go to `mod`: 44 of the 67 unlicensed-VerbNet changes were wrong). Agreement with the earlier
+hand judgments (260 tokens, stratum-weighted): majority 79.7%, union 82.2%.
+
+Applied in place to the same 30 English files; the six `.udep_resolved` files regenerated with the
+command above; `build_en_ewt_gum.sh verify` passes. cxSUD corpus rebuilt with
+`build_cxsud_corpus.sh`: against the previous install only DEPREL comp:obl <-> mod on these ADP rows
+differs. **Every model trained on these files predates the change.**
+
 ### Korean eojeol relabel (committed 2026-08-04)
 
 424 DEPREL cells across `assets_ko/SUD_Korean-GSD/ko_gsd-sud-{train,dev,test}.relabeled_ext.conllu`
