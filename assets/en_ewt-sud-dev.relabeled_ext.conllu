@@ -49,14 +49,14 @@
 12	as	as	ADP	IN	_	11	comp:obl	_	_
 13	associate	associate	ADJ	JJ	Degree=Pos	14	mod	_	_
 14	judge	judge	NOUN	NN	Number=Sing	12	comp:obj	_	_
-15	of	of	ADP	IN	_	14	comp:obl	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	the	the	DET	DT	Definite=Def|PronType=Art	18	det	_	_
 17	Superior	Superior	ADJ	NNP	Degree=Pos	18	mod	_	_
 18	Court	Court	PROPN	NNP	Number=Sing	15	comp:obj	_	_
-19	of	of	ADP	IN	_	18	comp:obl	_	_
+19	of	of	ADP	IN	_	18	udep	_	_
 20	the	the	DET	DT	Definite=Def|PronType=Art	21	det	_	_
 21	District	District	PROPN	NNP	Number=Sing	19	comp:obj	_	_
-22	of	of	ADP	IN	_	21	comp:obl	_	_
+22	of	of	ADP	IN	_	21	udep	_	_
 23	Columbia	Columbia	PROPN	NNP	Number=Sing	22	comp:obj	_	SpaceAfter=No
 24	,	,	PUNCT	,	_	25	punct	_	_
 25	replacing	replace	VERB	VBG	Tense=Pres|VerbForm=Part	2	mod	_	_
@@ -87,13 +87,13 @@
 14	as	as	ADP	IN	_	13	comp:obl	_	_
 15	associate	associate	ADJ	JJ	Degree=Pos	16	mod	_	_
 16	judge	judge	NOUN	NN	Number=Sing	14	comp:obj	_	_
-17	of	of	ADP	IN	_	16	comp:obl	_	_
+17	of	of	ADP	IN	_	16	udep	_	_
 18	the	the	DET	DT	Definite=Def|PronType=Art	19	det	_	_
 19	District	District	PROPN	NNP	Number=Sing	22	compound	_	_
-20	of	of	ADP	IN	_	19	comp:obl	_	_
+20	of	of	ADP	IN	_	19	udep	_	_
 21	Columbia	Columbia	PROPN	NNP	Number=Sing	20	comp:obj	_	_
 22	Court	Court	PROPN	NNP	Number=Sing	17	comp:obj	_	_
-23	of	of	ADP	IN	_	22	mod	_	_
+23	of	of	ADP	IN	_	22	udep	_	_
 24	Appeals	Appeal	PROPN	NNPS	Number=Plur	23	comp:obj	_	SpaceAfter=No
 25	,	,	PUNCT	,	_	26	punct	_	_
 26	replacing	replace	VERB	VBG	Tense=Pres|VerbForm=Part	3	mod	_	_
@@ -150,7 +150,7 @@
 21	the	the	DET	DT	Definite=Def|PronType=Art	23	det	_	_
 22	spiritual	spiritual	ADJ	JJ	Degree=Pos	23	mod	_	_
 23	leader	leader	NOUN	NN	Number=Sing|Shared=No	20	comp:pred	_	_
-24	of	of	ADP	IN	_	23	comp:obl	_	_
+24	of	of	ADP	IN	_	23	udep	_	_
 25	Hamas	Hamas	PROPN	NNP	Number=Sing	24	comp:obj	_	SpaceAfter=No
 26	,	,	PUNCT	,	_	29	punct	_	_
 27	but	but	CCONJ	CC	_	29	cc	_	_
@@ -196,7 +196,7 @@
 11	be	be	VERB	VB	VerbForm=Inf	10	comp:aux	_	Cxn=Existential-CopPred-ThereExpl
 12	a	a	DET	DT	Definite=Ind|PronType=Art	13	det	_	_
 13	wave	wave	NOUN	NN	Number=Sing	10	subj	_	CxnElt=11:Existential-CopPred-ThereExpl.Pivot
-14	of	of	ADP	IN	_	13	comp:obl	_	_
+14	of	of	ADP	IN	_	13	udep	_	_
 15	succesfull	successful	ADJ	JJ	Degree=Pos|Typo=Yes	17	mod	_	CorrectForm=successful
 16	arab	Arab	ADJ	JJ	Degree=Pos	17	mod	_	_
 17	attacks	attack	NOUN	NNS	Number=Plur	14	comp:obj	_	SpaceAfter=No
@@ -222,7 +222,7 @@
 2	the	the	DET	DT	Definite=Def|PronType=Art	4	det	_	_
 3	eastern	eastern	ADJ	JJ	Degree=Pos	4	mod	_	_
 4	city	city	NOUN	NN	Number=Sing	1	comp:obj	_	_
-5	of	of	ADP	IN	_	4	comp:obl	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	Baqubah	Baqubah	PROPN	NNP	Number=Sing	5	comp:obj	_	SpaceAfter=No
 7	,	,	PUNCT	,	_	1	punct	_	_
 8	guerrillas	guerrilla	NOUN	NNS	Number=Plur	9	subj	_	_
@@ -274,7 +274,7 @@
 2	Fallujah	Fallujah	PROPN	NNP	Number=Sing	1	comp:obj	_	SpaceAfter=No
 3	,	,	PUNCT	,	_	1	punct	_	_
 4	hundreds	hundred	NOUN	NNS	Number=Plur	7	subj	_	_
-5	of	of	ADP	IN	_	4	mod	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	demonstrators	demonstrator	NOUN	NNS	Number=Plur	5	comp:obj	_	_
 7	came	come	VERB	VBD	Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin	0	root	_	_
 8	out	out	ADV	RB	_	7	mod	_	_
@@ -304,7 +304,7 @@
 9	an	a	DET	DT	Definite=Ind|PronType=Art	11	det	_	_
 10	enormous	enormous	ADJ	JJ	Degree=Pos	11	mod	_	_
 11	amount	amount	NOUN	NN	Number=Sing	8	comp:obj	_	_
-12	of	of	ADP	IN	_	11	mod	_	_
+12	of	of	ADP	IN	_	11	udep	_	_
 13	information	information	NOUN	NN	Number=Sing	12	comp:obj	_	_
 14	from	from	ADP	IN	_	8	comp:obl	_	_
 15	her	her	PRON	PRP$	Case=Gen|Gender=Fem|Number=Sing|Person=3|Poss=Yes|PronType=Prs	16	mod@poss	_	_
@@ -579,7 +579,7 @@
 4	on	on	ADP	IN	_	3	mod	_	_
 5	the	the	DET	DT	Definite=Def|PronType=Art	6	det	_	_
 6	implications	implication	NOUN	NNS	Number=Plur	4	comp:obj	_	_
-7	of	of	ADP	IN	_	6	comp:obl	_	_
+7	of	of	ADP	IN	_	6	udep	_	_
 8-9	Arafat's	_	_	_	_	_	_	_	_
 8	Arafat	Arafat	PROPN	NNP	Number=Sing	9	comp:obj	_	_
 9	's	's	PART	POS	_	10	udep@poss	_	_
@@ -628,7 +628,7 @@
 23	if	if	SCONJ	IN	_	15	mod	_	_
 24	the	the	DET	DT	Definite=Def|PronType=Art	25	det	_	_
 25	road	road	NOUN	NN	Number=Sing	28	subj	_	_
-26	of	of	ADP	IN	_	25	mod	_	_
+26	of	of	ADP	IN	_	25	udep	_	_
 27	negotiations	negotiation	NOUN	NNS	Number=Plur	26	comp:obj	_	_
 28	remained	remain	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	23	comp:obj	_	CxnElt=15:Conditional-UnspecifiedEpistemic-NoInversion.Protasis
 29	rocky	rocky	ADJ	JJ	Degree=Pos	28	comp:pred	_	SpaceAfter=No
@@ -700,7 +700,7 @@
 1	Sharon	Sharon	PROPN	NNP	Number=Sing	2	comp:obj	_	_
 2	's	's	PART	POS	_	3	udep@poss	_	_
 3	assassination	assassination	NOUN	NN	Number=Sing	8	subj	_	_
-4	of	of	ADP	IN	_	3	mod	_	_
+4	of	of	ADP	IN	_	3	udep	_	_
 5	major	major	ADJ	JJ	Degree=Pos	7	mod	_	_
 6	Hamas	Hamas	PROPN	NNP	Number=Sing	7	compound	_	_
 7	leaders	leader	NOUN	NNS	Number=Plur	4	comp:obj	_	_
@@ -826,7 +826,7 @@
 4	a	a	DET	DT	Definite=Ind|PronType=Art	6	det	_	_
 5	wide	wide	ADJ	JJ	Degree=Pos	6	mod	_	_
 6	range	range	NOUN	NN	Number=Sing	13	subj	_	_
-7	of	of	ADP	IN	_	6	mod	_	_
+7	of	of	ADP	IN	_	6	udep	_	_
 8	Iraqi	Iraqi	ADJ	JJ	Degree=Pos	10	mod	_	_
 9	political	political	ADJ	JJ	Degree=Pos	10	mod	_	_
 10	forces	force	NOUN	NNS	Number=Plur	7	comp:obj	_	_
@@ -837,7 +837,7 @@
 14	Sharon	Sharon	PROPN	NNP	Number=Sing	15	comp:obj	_	_
 15	's	's	PART	POS	_	16	udep@poss	_	_
 16	murder	murder	NOUN	NN	Number=Sing	13	comp:obj	_	_
-17	of	of	ADP	IN	_	16	comp:obl	_	_
+17	of	of	ADP	IN	_	16	udep	_	_
 18	Sheikh	Sheikh	PROPN	NNP	Number=Sing	19	mod@desc	_	_
 19	Ahmed	Ahmed	PROPN	NNP	Number=Sing	17	comp:obj	_	_
 20	Yassin	Yassin	PROPN	NNP	Number=Sing	19	flat	_	SpaceAfter=No
@@ -845,7 +845,7 @@
 22	a	a	DET	DT	Definite=Ind|PronType=Art	24	det	_	_
 23	religious	religious	ADJ	JJ	Degree=Pos	24	mod	_	_
 24	leader	leader	NOUN	NN	Number=Sing	19	conj:appos	_	_
-25	of	of	ADP	IN	_	24	comp:obl	_	_
+25	of	of	ADP	IN	_	24	udep	_	_
 26	Hamas	Hamas	PROPN	NNP	Number=Sing	25	comp:obj	_	SpaceAfter=No
 27	,	,	PUNCT	,	_	29	punct	_	_
 28	the	the	DET	DT	Definite=Def|PronType=Art	29	det	_	_
@@ -857,7 +857,7 @@
 # text = The Board of Muslim clerics in Fallujah, 50 km west of Baghdad, "condemned the assassination and promised immediate revenge against the coalition soldiers in Iraq."
 1	The	the	DET	DT	Definite=Def|PronType=Art	2	det	_	_
 2	Board	board	NOUN	NN	Number=Sing|Shared=Yes	16	subj	_	_
-3	of	of	ADP	IN	_	2	mod	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	Muslim	Muslim	ADJ	JJ	Degree=Pos	5	mod	_	_
 5	clerics	cleric	NOUN	NNS	Number=Plur	3	comp:obj	_	_
 6	in	in	ADP	IN	_	2	mod	_	_
@@ -990,17 +990,17 @@
 12	is	be	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	8	comp:obj	_	_
 13	a	a	DET	DT	Definite=Ind|PronType=Art	14	det	_	_
 14	proof	proof	NOUN	NN	Number=Sing	12	comp:pred	_	_
-15	of	of	ADP	IN	_	14	comp:obl	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	the	the	DET	DT	Definite=Def|PronType=Art|Shared=No	17	det	_	_
 17	emptiness	emptiness	NOUN	NN	Number=Sing	15	comp:obj	_	_
-18	of	of	ADP	IN	_	17	comp:obl	_	_
+18	of	of	ADP	IN	_	17	udep	_	_
 19	the	the	DET	DT	Definite=Def|PronType=Art	21	det	_	_
 20	Israeli	Israeli	ADJ	JJ	Degree=Pos	21	mod	_	_
 21	authority	authority	NOUN	NN	Number=Sing	18	comp:obj	_	_
 22	and	and	CCONJ	CC	_	24	cc	_	_
 23	a	a	DET	DT	Definite=Ind|PronType=Art	24	det	_	_
 24	destruction	destruction	NOUN	NN	Number=Sing	17	conj:coord	_	_
-25	of	of	ADP	IN	Shared=No	24	mod	_	_
+25	of	of	ADP	IN	Shared=No	24	udep	_	_
 26	the	the	DET	DT	Definite=Def|PronType=Art	28	det	_	_
 27	peace	peace	NOUN	NN	Number=Sing	28	compound	_	_
 28	endeavors	endeavor	NOUN	NNS	Number=Plur	25	comp:obj	_	_
@@ -1055,7 +1055,7 @@
 12	the	the	DET	DT	Definite=Def|PronType=Art	14	det	_	_
 13	American	American	ADJ	JJ	Degree=Pos	14	mod	_	_
 14	occupation	occupation	NOUN	NN	Number=Sing	11	comp:obj	_	_
-15	of	of	ADP	IN	_	14	comp:obl	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	Iraq	Iraq	PROPN	NNP	Number=Sing	15	comp:obj	_	SpaceAfter=No
 17	,	,	PUNCT	,	_	5	punct	_	_
 18	relate	relate	VERB	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	3	comp:obj	_	_
@@ -1096,7 +1096,7 @@
 17	including	include	VERB	VBG	Tense=Pres|VerbForm=Part	11	mod	_	_
 18	a	a	DET	DT	Definite=Ind|PronType=Art	19	det	_	_
 19	group	group	NOUN	NN	Number=Sing	17	comp:obj	_	_
-20	of	of	ADP	IN	_	19	comp:obl	_	_
+20	of	of	ADP	IN	_	19	udep	_	_
 21	police	police	NOUN	NN	Number=Sing	22	compound	_	_
 22	trainees	trainee	NOUN	NNS	Number=Plur	20	comp:obj	_	_
 23	in	in	ADP	IN	_	19	mod	_	_
@@ -1251,7 +1251,7 @@
 31	by	by	ADP	IN	_	30	mod	_	_
 32	the	the	DET	DT	Definite=Def|PronType=Art	33	det	_	_
 33	grace	grace	NOUN	NN	Number=Sing	31	comp:obj	_	_
-34	of	of	ADP	IN	_	33	mod	_	_
+34	of	of	ADP	IN	_	33	udep	_	_
 35	simplicity	simplicity	NOUN	NN	Number=Sing	34	comp:obj	_	SpaceAfter=No
 36	.	.	PUNCT	.	_	4	punct	_	_
 
@@ -1265,7 +1265,7 @@
 6	,	,	PUNCT	,	_	5	punct	_	_
 7	laudatory	laudatory	ADJ	JJ	Degree=Pos|Shared=No	8	mod	_	_
 8	lack	lack	NOUN	NN	Number=Sing	2	comp:obj	_	_
-9	of	of	ADP	IN	_	8	comp:obl	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	clutter	clutter	NOUN	NN	Number=Sing	9	comp:obj	_	SpaceAfter=No
 11	,	,	PUNCT	,	_	19	punct	_	_
 12	the	the	DET	DT	Definite=Def|PronType=Art	19	det	_	_
@@ -1419,7 +1419,7 @@
 21	a	a	DET	DT	Definite=Ind|PronType=Art	23	det	_	_
 22	huge	huge	ADJ	JJ	Degree=Pos	23	mod	_	_
 23	chunk	chunk	NOUN	NN	Number=Sing	20	comp:obj	_	_
-24	of	of	ADP	IN	_	23	comp:obl	_	_
+24	of	of	ADP	IN	_	23	udep	_	_
 25	their	their	PRON	PRP$	Case=Gen|Number=Plur|Person=3|Poss=Yes|PronType=Prs	27	mod@poss	_	_
 26	customer	customer	NOUN	NN	Number=Sing	27	compound	_	_
 27	base	base	NOUN	NN	Number=Sing	24	comp:obj	_	_
@@ -1444,7 +1444,7 @@
 3	a	a	DET	DT	Definite=Ind|PronType=Art	5	det	_	_
 4	whole	whole	ADJ	JJ	Degree=Pos	5	mod	_	_
 5	lot	lot	NOUN	NN	Number=Sing	8	subj	_	_
-6	of	of	ADP	IN	_	5	mod	_	_
+6	of	of	ADP	IN	_	5	udep	_	_
 7	people	people	NOUN	NNS	Number=Plur	6	comp:obj	_	_
 8	had	have	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	1	mod	_	_
 9	to	to	PART	TO	_	8	comp:obl	_	_
@@ -1456,7 +1456,7 @@
 15	printed	print	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	11	comp:obj	_	_
 16	those	that	DET	DT	Number=Plur|PronType=Dem	17	det	_	_
 17	cartoons	cartoon	NOUN	NNS	Number=Plur	15	comp:obj	_	_
-18	of	of	ADP	IN	_	17	comp:obl	_	_
+18	of	of	ADP	IN	_	17	udep	_	_
 19	the	the	DET	DT	Definite=Def|PronType=Art	20	det	_	_
 20	Prophet	Prophet	PROPN	NNP	Number=Sing	18	comp:obj	_	_
 21	Mohammed	Mohammed	PROPN	NNP	Number=Sing	20	conj:appos	_	SpaceAfter=No
@@ -1494,7 +1494,7 @@
 5	think	think	VERB	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
 6	a	a	DET	DT	Definite=Ind|PronType=Art	7	det	_	_
 7	cartoon	cartoon	NOUN	NN	Number=Sing	10	subj	_	_
-8	of	of	ADP	IN	_	7	comp:obl	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	Mohammed	Mohammed	PROPN	NNP	Number=Sing	8	comp:obj	_	_
 10	is	be	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	5	comp:obj	_	_
 11	comparable	comparable	ADJ	JJ	Degree=Pos	10	comp:pred	_	_
@@ -1523,7 +1523,7 @@
 1	An	a	DET	DT	Definite=Ind|PronType=Art	3	det	_	_
 2	international	international	ADJ	JJ	Degree=Pos	3	mod	_	_
 3	contest	contest	NOUN	NN	Number=Sing	9	subj	_	_
-4	of	of	ADP	IN	_	3	comp:obl	_	_
+4	of	of	ADP	IN	_	3	udep	_	_
 5	cartoons	cartoon	NOUN	NNS	Number=Plur	4	comp:obj	_	_
 6	on	on	ADP	IN	_	5	mod	_	_
 7	the	the	DET	DT	Definite=Def|PronType=Art	8	det	_	_
@@ -1541,9 +1541,9 @@
 19	papers	paper	NOUN	NNS	Number=Plur	17	comp:obj	_	_
 20	last	last	ADJ	JJ	Degree=Pos	21	mod	_	_
 21	September	September	PROPN	NNP	Number=Sing	16	mod@unmarked	_	TemporalNPAdjunct=Yes
-22	of	of	ADP	IN	_	16	comp:obl	_	_
+22	of	of	ADP	IN	_	16	udep	_	_
 23	caricatures	caricature	NOUN	NNS	Number=Plur	22	comp:obj	_	_
-24	of	of	ADP	IN	_	23	comp:obl	_	_
+24	of	of	ADP	IN	_	23	udep	_	_
 25	the	the	DET	DT	Definite=Def|PronType=Art	26	det	_	_
 26	Prophet	Prophet	PROPN	NNP	Number=Sing	24	comp:obj	_	_
 27	Mohammed	Mohammed	PROPN	NNP	Number=Sing	26	conj:appos	_	SpaceAfter=No
@@ -1571,7 +1571,7 @@
 18	Shojai	Shojai	PROPN	NNP	Number=Sing	17	flat	_	SpaceAfter=No
 19	,	,	PUNCT	,	Shared=Yes	20	punct	_	_
 20	head	head	NOUN	NN	Number=Sing	17	conj:appos	_	_
-21	of	of	ADP	IN	_	20	comp:obl	_	_
+21	of	of	ADP	IN	_	20	udep	_	_
 22	the	the	DET	DT	Definite=Def|PronType=Art	23	det	_	_
 23-24	country's	_	_	_	_	_	_	_	_
 23	country	country	NOUN	NN	Number=Sing	24	comp:obj	_	_
@@ -1664,7 +1664,7 @@
 3	the	the	DET	DT	Definite=Def|PronType=Art	5	det	_	_
 4	opening	open	VERB	VBG	VerbForm=Ger	5	mod	_	_
 5	ceremony	ceremony	NOUN	NN	Number=Sing	2	comp:obl	_	_
-6	of	of	ADP	IN	_	5	comp:obl	_	_
+6	of	of	ADP	IN	_	5	udep	_	_
 7	the	the	DET	DT	Definite=Def|PronType=Art	11	det	_	_
 8	month	month	NOUN	NN	Number=Sing	10	udep@unmarked	_	SpaceAfter=No
 9	-	-	PUNCT	HYPH	_	8	punct	_	SpaceAfter=No
@@ -1728,7 +1728,7 @@
 17	being	be	AUX	VBG	Tense=Pres|VerbForm=Part	14	comp:obj	_	_
 18	awarded	award	VERB	VBN	Tense=Past|VerbForm=Part|Voice=Pass	17	comp:aux@pass	_	_
 19	prizes	prize	NOUN	NNS	Number=Plur	18	comp:obj	_	_
-20	of	of	ADP	IN	_	19	comp:obl	_	_
+20	of	of	ADP	IN	_	19	udep	_	_
 21	12,000	12000	NUM	CD	NumForm=Digit|NumType=Card	26	mod	_	SpaceAfter=No
 22	,	,	PUNCT	,	_	23	punct	_	_
 23	8,000	8000	NUM	CD	NumForm=Digit|NumType=Card	21	conj:coord	_	_
@@ -1765,7 +1765,7 @@
 3	saw	see	VERB	VBD	Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin	11	mod	_	_
 4	a	a	DET	DT	Definite=Ind|PronType=Art	5	det	_	_
 5	cartoon	cartoon	NOUN	NN	Number=Sing	3	comp:obj	_	_
-6	of	of	ADP	IN	_	5	comp:obl	_	_
+6	of	of	ADP	IN	_	5	udep	_	_
 7	their	their	PRON	PRP$	Case=Gen|Number=Plur|Person=3|Poss=Yes|PronType=Prs	8	mod@poss	_	_
 8	prophet	prophet	NOUN	NN	Number=Sing	6	comp:obj	_	SpaceAfter=No
 9	,	,	PUNCT	,	_	3	punct	_	_
@@ -1792,7 +1792,7 @@
 13	like	like	ADP	IN	_	12	comp:pred	_	_
 14	the	the	DET	DT	Definite=Def|PronType=Art	15	det	_	_
 15	end	end	NOUN	NN	Number=Sing	13	comp:obj	_	_
-16	of	of	ADP	IN	_	15	comp:obl	_	_
+16	of	of	ADP	IN	_	15	udep	_	_
 17	the	the	DET	DT	Definite=Def|PronType=Art	18	det	_	_
 18	world	world	NOUN	NN	Number=Sing	16	comp:obj	_	SpaceAfter=No
 19	.	.	PUNCT	.	_	9	punct	_	_
@@ -1817,7 +1817,7 @@
 14	still	still	ADV	RB	_	13	mod	_	_
 15	meeting	meet	VERB	VBG	Tense=Pres|VerbForm=Part	13	comp:aux	_	_
 16	pockets	pocket	NOUN	NNS	Number=Plur	15	comp:obj	_	_
-17	of	of	ADP	IN	_	16	mod	_	_
+17	of	of	ADP	IN	_	16	udep	_	_
 18	resistance	resistance	NOUN	NN	Number=Sing	17	comp:obj	_	SpaceAfter=No
 19	.	.	PUNCT	.	_	3	punct	_	_
 
@@ -1830,7 +1830,7 @@
 5	killed	kill	VERB	VBN	Tense=Past|VerbForm=Part	4	comp:aux	_	_
 6	fair	fair	ADJ	JJ	Degree=Pos	7	mod	_	_
 7	numbers	number	NOUN	NNS	Number=Plur	5	comp:obj	_	_
-8	of	of	ADP	IN	_	7	comp:obl	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	Iraqi	Iraqi	ADJ	JJ	Degree=Pos	10	mod	_	_
 10	noncombatants	noncombatant	NOUN	NNS	Number=Plur	8	comp:obj	_	SpaceAfter=No
 11	,	,	PUNCT	,	_	12	punct	_	_
@@ -1845,7 +1845,7 @@
 20	the	the	DET	DT	Definite=Def|PronType=Art	22	det	_	_
 21	respected	respect	VERB	VBN	Tense=Past|VerbForm=Part|Voice=Pass	22	mod	_	_
 22	Association	Association	PROPN	NNP	Number=Sing	19	comp:obj	_	_
-23	of	of	ADP	IN	_	22	mod	_	_
+23	of	of	ADP	IN	_	22	udep	_	_
 24	Muslim	Muslim	ADJ	NNP	Degree=Pos	25	mod	_	_
 25	Scholars	Scholar	PROPN	NNP	Number=Sing	23	comp:obj	_	SpaceAfter=No
 26	.	.	PUNCT	.	_	4	punct	_	_
@@ -1881,7 +1881,7 @@
 # sent_id = weblog-juancole.com_juancole_20041111060900_ENG_20041111_060900-0004
 # text = Hundreds of persons mounted demonstrations against the Fallujah campaign in Tikrit and Huwaijah, as well, according to az-Zaman .
 1	Hundreds	hundred	NOUN	NNS	Number=Plur	4	subj	_	_
-2	of	of	ADP	IN	_	1	mod	_	_
+2	of	of	ADP	IN	_	1	udep	_	_
 3	persons	person	NOUN	NNS	Number=Plur	2	comp:obj	_	_
 4	mounted	mount	VERB	VBD	Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin	0	root	_	_
 5	demonstrations	demonstration	NOUN	NNS	Number=Plur	4	comp:obj	_	_
@@ -1932,7 +1932,7 @@
 8	Allawi	Allawi	PROPN	NNP	Number=Sing	7	flat	_	_
 9	and	and	CCONJ	CC	_	13	cc	_	_
 10	Minister	Minister	PROPN	NNP	Number=Sing	13	mod@desc	_	_
-11	of	of	ADP	IN	_	13	mod	_	_
+11	of	of	ADP	IN	_	13	udep	_	_
 12	Defense	Defense	PROPN	NNP	Number=Sing	11	comp:obj	_	_
 13	Hazem	Hazem	PROPN	NNP	Number=Sing	7	conj:coord	_	_
 14	Shaalan	Shaalan	PROPN	NNP	Number=Sing|Shared=No	13	flat	_	_
@@ -2030,7 +2030,7 @@
 11	still	still	ADV	RB	_	12	mod	_	_
 12	face	face	VERB	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	4	conj:coord	_	_
 13	pockets	pocket	NOUN	NNS	Number=Plur|Shared=No	12	comp:obj	_	_
-14	of	of	ADP	IN	_	13	mod	_	_
+14	of	of	ADP	IN	_	13	udep	_	_
 15	resistance	resistance	NOUN	NN	Number=Sing	14	comp:obj	_	SpaceAfter=No
 16	.	.	PUNCT	.	_	4	punct	_	_
 
@@ -2047,7 +2047,7 @@
 9	,	,	PUNCT	,	_	1	punct	_	_
 10	those	that	DET	DT	Number=Plur|PronType=Dem	11	det	_	_
 11	pockets	pocket	NOUN	NNS	Number=Plur	14	subj	_	_
-12	of	of	ADP	IN	_	11	mod	_	_
+12	of	of	ADP	IN	_	11	udep	_	_
 13	resistance	resistance	NOUN	NN	Number=Sing	12	comp:obj	_	_
 14	could	could	AUX	MD	VerbForm=Fin	0	root	_	_
 15	go	go	VERB	VB	VerbForm=Inf	14	comp:aux	_	Cxn=Conditional-UnspecifiedEpistemic-NoInversion|CxnElt=15:Conditional-UnspecifiedEpistemic-NoInversion.Apodosis
@@ -2068,7 +2068,7 @@
 2	intrepid	intrepid	ADJ	JJ	Degree=Pos	3	mod	_	_
 3	Ed	Ed	PROPN	NNP	Number=Sing	8	subj	_	_
 4	Wong	Wong	PROPN	NNP	Number=Sing	3	flat	_	_
-5	of	of	ADP	IN	_	3	mod	_	_
+5	of	of	ADP	IN	_	3	udep	_	_
 6	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 7	NYT	NYT	PROPN	NNP	Number=Sing	5	comp:obj	_	_
 8	has	have	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
@@ -2077,7 +2077,7 @@
 11	the	the	DET	DT	Definite=Def|PronType=Art	13	det	_	_
 12	Sunni	Sunni	ADJ	JJ	Degree=Pos	13	mod	_	_
 13	boycott	boycott	NOUN	NN	Number=Sing	10	comp:obj	_	_
-14	of	of	ADP	IN	_	13	comp:obl	_	_
+14	of	of	ADP	IN	_	13	udep	_	_
 15	the	the	DET	DT	Definite=Def|PronType=Art	16	det	_	_
 16	elections	election	NOUN	NNS	Number=Plur	14	comp:obj	_	SpaceAfter=No
 17	.	.	PUNCT	.	_	8	punct	_	_
@@ -2123,7 +2123,7 @@
 # text = The outbreak of demonstrations and violence throughout the Sunni Arab regions on Wednesday did not bode well for Sunni participation in the January elections.
 1	The	the	DET	DT	Definite=Def|PronType=Art	2	det	_	_
 2	outbreak	outbreak	NOUN	NN	Number=Sing	14	subj	_	_
-3	of	of	ADP	IN	_	2	comp:obl	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	demonstrations	demonstration	NOUN	NNS	Number=Plur	3	comp:obj	_	_
 5	and	and	CCONJ	CC	_	6	cc	_	_
 6	violence	violence	NOUN	NN	Number=Sing	4	conj:coord	_	_
@@ -2157,7 +2157,7 @@
 6	the	the	DET	DT	Definite=Def|PronType=Art	8	det	_	_
 7	political	political	ADJ	JJ	Degree=Pos	8	mod	_	_
 8	implications	implication	NOUN	NNS	Number=Plur	5	comp:obj	_	_
-9	of	of	ADP	IN	_	8	comp:obl	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	the	the	DET	DT	Definite=Def|PronType=Art	12	det	_	_
 11	Fallujah	Fallujah	PROPN	NNP	Number=Sing	12	compound	_	_
 12	assault	assault	NOUN	NN	Number=Sing	9	comp:obj	_	SpaceAfter=No
@@ -2215,7 +2215,7 @@
 19	the	the	DET	DT	Definite=Def|PronType=Art	21	det	_	_
 20	next	next	ADJ	JJ	Degree=Pos	21	mod	_	_
 21	couple	couple	NOUN	NN	Number=Sing	17	udep@unmarked	_	TemporalNPAdjunct=Yes
-22	of	of	ADP	IN	_	21	mod	_	_
+22	of	of	ADP	IN	_	21	udep	_	_
 23	days	day	NOUN	NNS	Number=Plur	22	comp:obj	_	SpaceAfter=No
 24	.	.	PUNCT	.	_	2	punct	_	SpaceAfter=No
 25	]	]	PUNCT	-RRB-	_	2	punct	_	_
@@ -2268,7 +2268,7 @@
 26	all	all	DET	DT	PronType=Tot	25	mod@unmarked	_	_
 27	a	a	DET	DT	Definite=Ind|PronType=Art	28	det	_	_
 28	piece	piece	NOUN	NN	Number=Sing	24	comp:obj	_	_
-29	of	of	ADP	IN	_	28	comp:obl	_	_
+29	of	of	ADP	IN	_	28	udep	_	_
 30	coal	coal	NOUN	NN	Number=Sing	29	comp:obj	_	SpaceAfter=No
 31	.	.	PUNCT	.	_	4	punct	_	_
 
@@ -2308,7 +2308,7 @@
 31	with	with	ADP	IN	_	30	comp:obl	_	_
 32	the	the	DET	DT	Definite=Def|PronType=Art	33	det	_	_
 33	approval	approval	NOUN	NN	Number=Sing	31	comp:obj	_	_
-34	of	of	ADP	IN	_	33	comp:obl	_	_
+34	of	of	ADP	IN	_	33	udep	_	_
 35	the	the	DET	DT	Definite=Def|PronType=Art	39	det	_	_
 36	International	International	ADJ	NNP	Degree=Pos	39	mod	_	_
 37	Atomic	Atomic	ADJ	NNP	Degree=Pos	38	mod	_	_
@@ -2332,7 +2332,7 @@
 12	they	they	PRON	PRP	Case=Nom|Number=Plur|Person=3|PronType=Prs	13	subj	_	_
 13	call	call	VERB	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	10	comp:obj	_	Cxn=Interrogative-WHInfo-Indirect|CxnElt=13:Interrogative-WHInfo-Indirect.Clause
 14	proof	proof	NOUN	NN	Number=Sing	13	comp:pred	_	_
-15	of	of	ADP	IN	_	14	comp:obl	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	a	a	DET	DT	Definite=Ind|PronType=Art	20	det	_	_
 17	covert	covert	ADJ	JJ	Degree=Pos	20	mod	_	_
 18	nuclear	nuclear	ADJ	JJ	Degree=Pos	19	mod	_	_
@@ -2432,7 +2432,7 @@
 20	be	be	AUX	VB	VerbForm=Inf	19	comp:obj	_	Promoted=Yes
 21	the	the	DET	DT	Definite=Def|PronType=Art	22	det	_	_
 22	Santa	Santa	PROPN	NNP	Number=Sing	14	comp:pred	_	_
-23	of	of	ADP	IN	_	22	comp:obl	_	_
+23	of	of	ADP	IN	_	22	udep	_	_
 24	nuclear	nuclear	ADJ	JJ	Degree=Pos	25	mod	_	_
 25	weapons	weapon	NOUN	NNS	Number=Plur	23	comp:obj	_	SpaceAfter=No
 26	.	.	PUNCT	.	_	9	punct	_	_
@@ -2484,7 +2484,7 @@
 7	nuclear	nuclear	ADJ	JJ	Degree=Pos	8	mod	_	_
 8	weapons	weapon	NOUN	NNS	Number=Plur	9	compound	_	_
 9	program	program	NOUN	NN	Number=Sing	5	comp:obj	_	_
-10	of	of	ADP	IN	_	9	comp:obl	_	_
+10	of	of	ADP	IN	_	9	udep	_	_
 11	Iran	Iran	PROPN	NNP	Number=Sing	10	comp:obj	_	SpaceAfter=No
 12	,	,	PUNCT	,	_	30	punct	_	_
 13	yet	yet	CCONJ	CC	_	30	cc	_	_
@@ -2555,7 +2555,7 @@
 11	at	at	ADP	IN	_	8	mod	_	_
 12	the	the	DET	DT	Definite=Def|PronType=Art	13	det	_	_
 13	top	top	NOUN	NN	Number=Sing	11	comp:obj	_	_
-14	of	of	ADP	IN	_	13	mod	_	_
+14	of	of	ADP	IN	_	13	udep	_	_
 15	his	his	PRON	PRP$	Case=Gen|Gender=Masc|Number=Sing|Person=3|Poss=Yes|PronType=Prs	16	mod@poss	_	_
 16	list	list	NOUN	NN	Number=Sing	14	comp:obj	_	_
 17	and	and	CCONJ	CC	_	19	cc	_	_
@@ -2619,7 +2619,7 @@
 5	has	have	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
 6	a	a	DET	DT	Definite=Ind|PronType=Art	7	det	_	_
 7	feeling	feeling	NOUN	NN	Number=Sing	5	comp:obj	_	_
-8	of	of	ADP	IN	_	7	comp:obl	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	Déjà	déjà	X	FW	Foreign=Yes	8	comp:obj	_	_
 10	vu	vu	X	FW	Foreign=Yes	9	flat	_	SpaceAfter=No
 11	.	.	PUNCT	.	_	5	punct	_	_
@@ -2709,7 +2709,7 @@
 10	evacuates	evacuate	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	4	conj:coord	_	_
 11	a	a	DET	DT	Definite=Ind|PronType=Art	12	det	_	_
 12	bunch	bunch	NOUN	NN	Number=Sing|Shared=No	10	comp:obj	_	_
-13	of	of	ADP	IN	_	12	comp:obl	_	_
+13	of	of	ADP	IN	_	12	udep	_	_
 14	U.S.	U.S.	PROPN	NNP	Number=Sing	15	compound	_	_
 15	citizens	citizen	NOUN	NNS	Number=Plur	13	comp:obj	_	_
 16	(	(	PUNCT	-LRB-	_	20	punct	_	SpaceAfter=No
@@ -2735,7 +2735,7 @@
 6	,	,	PUNCT	,	_	3	punct	_	_
 7	the	the	DET	DT	Definite=Def|PronType=Art	8	det	_	_
 8	Department	Department	PROPN	NNP	Number=Sing	11	subj	_	_
-9	of	of	ADP	IN	_	8	comp:obl	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	State	State	PROPN	NNP	Number=Sing	9	comp:obj	_	_
 11	waived	waive	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	0	root	_	_
 12	the	the	DET	DT	Definite=Def|PronType=Art	13	det	_	_
@@ -2787,7 +2787,7 @@
 12	that	that	SCONJ	IN	_	11	comp:obj	_	_
 13	some	some	DET	DT	PronType=Ind	14	det	_	_
 14	form	form	NOUN	NN	Number=Sing	18	subj	_	_
-15	of	of	ADP	IN	_	14	comp:obl	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	military	military	ADJ	JJ	Degree=Pos	17	mod	_	_
 17	violence	violence	NOUN	NN	Number=Sing	15	comp:obj	_	_
 18	was	be	AUX	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	12	comp:obj	_	_
@@ -2806,7 +2806,7 @@
 31	experiencing	experience	VERB	VBG	Tense=Pres|VerbForm=Part	30	comp:aux	_	_
 32	some	some	DET	DT	PronType=Ind	33	det	_	_
 33	form	form	NOUN	NN	Number=Sing	31	comp:obj	_	_
-34	of	of	ADP	IN	_	33	comp:obl	_	_
+34	of	of	ADP	IN	_	33	udep	_	_
 35	conflict	conflict	NOUN	NN	Number=Sing	34	comp:obj	_	_
 36	for	for	ADP	IN	_	31	mod	_	_
 37	approximately	approximately	ADV	RB	_	41	mod	_	_
@@ -2995,7 +2995,7 @@
 23	the	the	DET	DT	Definite=Def|PronType=Art	25	det	_	_
 24	southern	southern	ADJ	JJ	Degree=Pos	25	mod	_	_
 25	city	city	NOUN	NN	Number=Sing	22	comp:obj	_	_
-26	of	of	ADP	IN	_	25	mod	_	_
+26	of	of	ADP	IN	_	25	udep	_	_
 27	Tyre	Tyre	PROPN	NNP	Number=Sing	26	comp:obj	_	_
 28	was	be	AUX	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	19	comp:obj	_	_
 29	set	set	VERB	VBN	Tense=Past|VerbForm=Part|Voice=Pass	28	comp:aux@pass	_	_
@@ -3018,7 +3018,7 @@
 10	fled	flee	VERB	VBD	Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin	7	comp:obj	_	_
 11	the	the	DET	DT	Definite=Def|PronType=Art	12	det	_	_
 12	outbreak	outbreak	NOUN	NN	Number=Sing	10	comp:obj	_	_
-13	of	of	ADP	IN	_	12	comp:obl	_	_
+13	of	of	ADP	IN	_	12	udep	_	_
 14	the	the	DET	DT	Definite=Def|PronType=Art	15	det	_	_
 15	war	war	NOUN	NN	Number=Sing	13	comp:obj	_	SpaceAfter=No
 16	,	,	PUNCT	,	_	18	punct	_	_
@@ -3196,7 +3196,7 @@
 14	people	people	NOUN	NNS	Number=Plur|Shared=No	13	comp:obj	_	_
 15	from	from	ADP	IN	Shared=No	13	comp:obl	_	_
 16	dilemmas	dilemma	NOUN	NNS	Number=Plur	15	comp:obj	_	_
-17	of	of	ADP	IN	_	16	mod	_	_
+17	of	of	ADP	IN	_	16	udep	_	_
 18	their	their	PRON	PRP$	Case=Gen|Number=Plur|Person=3|Poss=Yes|PronType=Prs	20	mod@poss	_	_
 19	own	own	ADJ	JJ	Degree=Pos	20	mod	_	_
 20	making	making	NOUN	NN	Number=Sing	17	comp:obj	_	SpaceAfter=No
@@ -3319,7 +3319,7 @@
 11	's	be	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	3	parataxis	_	Cxn=Existential-CopPred-ThereExpl
 12	a	a	DET	DT	Definite=Ind|PronType=Art	13	det	_	_
 13	lot	lot	NOUN	NN	Number=Sing	11	subj	_	CxnElt=11:Existential-CopPred-ThereExpl.Pivot
-14	of	of	ADP	IN	_	13	mod	_	_
+14	of	of	ADP	IN	_	13	udep	_	_
 15	talk	talk	NOUN	NN	Number=Sing	14	comp:obj	_	_
 16	right	right	ADV	RB	_	17	mod	_	_
 17	now	now	ADV	RB	PronType=Dem	11	mod	_	_
@@ -3563,7 +3563,7 @@
 20	backyard	backyard	NOUN	NN	Number=Sing	18	comp:obj	_	_
 21	in	in	ADP	IN	_	14	mod	_	_
 22	July	July	PROPN	NNP	Number=Sing	21	comp:obj	_	_
-23	of	of	ADP	IN	_	22	mod	_	_
+23	of	of	ADP	IN	_	22	udep	_	_
 24	1977	1977	NUM	CD	NumForm=Digit|NumType=Card	23	comp:obj	_	SpaceAfter=No
 25	.	.	PUNCT	.	_	2	punct	_	_
 
@@ -4049,7 +4049,7 @@
 7	,	,	PUNCT	,	_	1	punct	_	_
 8	my	my	PRON	PRP$	Case=Gen|Number=Sing|Person=1|Poss=Yes|PronType=Prs	9	mod@poss	_	_
 9	source	source	NOUN	NN	Number=Sing	12	subj	_	_
-10	of	of	ADP	IN	_	9	comp:obl	_	_
+10	of	of	ADP	IN	_	9	udep	_	_
 11	income	income	NOUN	NN	Number=Sing	10	comp:obj	_	_
 12	changed	change	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	0	root	_	_
 13	from	from	ADP	IN	_	12	comp:obl	_	_
@@ -4060,7 +4060,7 @@
 18	Google	Google	PROPN	NNP	Number=Sing	17	comp:obj	_	SpaceAfter=No
 19	,	,	PUNCT	,	_	18	punct	_	_
 20	Inc.	Inc.	PROPN	NNP	Number=Sing	18	mod@desc	_	_
-21	of	of	ADP	IN	_	18	mod	_	_
+21	of	of	ADP	IN	_	18	udep	_	_
 22	Mountain	Mountain	PROPN	NNP	Number=Sing	23	compound	_	_
 23	View	View	PROPN	NNP	Number=Sing	21	comp:obj	_	SpaceAfter=No
 24	,	,	PUNCT	,	_	25	punct	_	_
@@ -4100,7 +4100,7 @@
 29	the	the	DET	DT	Definite=Def|PronType=Art	31	det	_	_
 30	new	new	ADJ	JJ	Degree=Pos	31	mod	_	_
 31	goal	goal	NOUN	NN	Number=Sing	28	comp:obj	_	_
-32	of	of	ADP	IN	_	31	comp:obl	_	_
+32	of	of	ADP	IN	_	31	udep	_	_
 33	successful	successful	ADJ	JJ	Degree=Pos	39	mod	_	_
 34	1.1	1.1	NUM	CD	NumForm=Digit|NumType=Frac	39	compound	_	SpaceAfter=No
 35	,	,	PUNCT	,	_	36	punct	_	_
@@ -4121,7 +4121,7 @@
 7	to	to	ADP	IN	_	3	comp:obl	_	_
 8	the	the	DET	DT	Definite=Def|PronType=Art	9	det	_	_
 9	advancement	advancement	NOUN	NN	Number=Sing	7	comp:obj	_	_
-10	of	of	ADP	IN	_	9	comp:obl	_	_
+10	of	of	ADP	IN	_	9	udep	_	_
 11	Firefox	Firefox	PROPN	NNP	Number=Sing	10	comp:obj	_	SpaceAfter=No
 12	,	,	PUNCT	,	_	15	punct	_	_
 13	the	the	DET	DT	Definite=Def|PronType=Art	15	det	_	_
@@ -4217,7 +4217,7 @@
 2	on	on	ADP	IN	_	1	comp:obj	_	_
 3	the	the	DET	DT	Definite=Def|PronType=Art	4	det	_	_
 4	heels	heel	NOUN	NNS	Number=Plur	2	comp:obj	_	_
-5	of	of	ADP	IN	_	4	mod	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6-7	Ben's	_	_	_	_	_	_	_	_
 6	Ben	Ben	PROPN	NNP	Number=Sing	7	comp:obj	_	_
 7	's	's	PART	POS	_	8	udep@poss	_	_
@@ -4310,7 +4310,7 @@
 10	to	to	ADP	IN	_	9	comp:obl	_	_
 11	the	the	DET	DT	Definite=Def|PronType=Art	12	det	_	_
 12	success	success	NOUN	NN	Number=Sing	10	comp:obj	_	_
-13	of	of	ADP	IN	_	12	comp:obl	_	_
+13	of	of	ADP	IN	_	12	udep	_	_
 14	Mozilla	Mozilla	PROPN	NNP	Number=Sing	15	compound	_	_
 15	software	software	NOUN	NN	Number=Sing	13	comp:obj	_	_
 16	over	over	ADP	IN	_	4	udep	_	_
@@ -4426,7 +4426,7 @@
 20	the	the	DET	DT	Definite=Def|PronType=Art	22	det	_	_
 21	future	future	ADJ	JJ	Degree=Pos	22	mod	_	_
 22	history	history	NOUN	NN	Number=Sing|Shared=No	19	comp:obj	_	_
-23	of	of	ADP	IN	_	22	comp:obl	_	_
+23	of	of	ADP	IN	_	22	udep	_	_
 24	media	media	NOUN	NN	Number=Sing	23	comp:obj	_	_
 25	as	as	SCONJ	IN	Shared=No	19	mod	_	_
 26	conceived	conceive	VERB	VBN	Tense=Past|VerbForm=Part|Voice=Pass	25	comp:obj	_	_
@@ -4460,7 +4460,7 @@
 12	brave	brave	ADJ	JJ	Degree=Pos	14	mod	_	_
 13	new	new	ADJ	JJ	Degree=Pos	14	mod	_	_
 14	world	world	NOUN	NN	Number=Sing	10	comp:obj	_	_
-15	of	of	ADP	IN	_	14	mod	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	media	media	NOUN	NN	Number=Sing	15	comp:obj	_	_
 17	in	in	ADP	IN	_	10	mod	_	_
 18	2008	2008	NUM	CD	NumForm=Digit|NumType=Card	17	comp:obj	_	SpaceAfter=No
@@ -4573,7 +4573,7 @@
 17	support	support	VERB	VB	VerbForm=Inf	15	conj:coord	_	_
 18	the	the	DET	DT	Definite=Def|PronType=Art	19	det	_	_
 19	growth	growth	NOUN	NN	Number=Sing|Shared=Yes	17	comp:obj	_	_
-20	of	of	ADP	IN	_	19	comp:obl	_	_
+20	of	of	ADP	IN	_	19	udep	_	_
 21	the	the	DET	DT	Definite=Def|PronType=Art	25	det	_	_
 22	most	most	ADV	RBS	Degree=Sup	23	mod	_	_
 23	popular	popular	ADJ	JJ	Degree=Pos	25	mod	_	_
@@ -4599,7 +4599,7 @@
 42	the	the	DET	DT	Definite=Def|PronType=Art	44	det	_	_
 43	continued	continue	VERB	VBN	Tense=Past|VerbForm=Part|Voice=Pass	44	mod	_	_
 44	life	life	NOUN	NN	Number=Sing	41	comp:obj	_	_
-45	of	of	ADP	IN	_	44	comp:obl	_	_
+45	of	of	ADP	IN	_	44	udep	_	_
 46	the	the	DET	DT	Definite=Def|PronType=Art	47	det	_	_
 47	project	project	NOUN	NN	Number=Sing	45	comp:obj	_	SpaceAfter=No
 48	,	,	PUNCT	,	_	50	punct	_	_
@@ -4624,7 +4624,7 @@
 67	the	the	DET	DT	Definite=Def|PronType=Art	69	det	_	_
 68	higher	high	ADJ	JJR	Degree=Cmp	69	mod	_	_
 69	echelons	echelon	NOUN	NNS	Number=Plur	66	comp:obj	_	_
-70	of	of	ADP	IN	_	69	mod	_	_
+70	of	of	ADP	IN	_	69	udep	_	_
 71	the	the	DET	DT	Definite=Def|PronType=Art	74	det	_	_
 72	firefox	firefox	PROPN	NNP	Number=Sing	73	compound	_	_
 73	development	development	NOUN	NN	Number=Sing	74	compound	_	_
@@ -4638,7 +4638,7 @@
 2	's	be	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
 3	this	this	DET	DT	Number=Sing|PronType=Dem	4	det	_	_
 4	sort	sort	NOUN	NN	Number=Sing	2	comp:pred	_	_
-5	of	of	ADP	IN	_	4	mod	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	enlightened	enlightened	ADJ	JJ	Degree=Pos	8	mod	_	_
 7	self	self	NOUN	NN	Number=Sing	8	compound	_	_
 8	interest	interest	NOUN	NN	Number=Sing	5	comp:obj	_	_
@@ -4655,7 +4655,7 @@
 # text = Fascinating viewpoint of the future in Epic.
 1	Fascinating	fascinating	ADJ	JJ	Degree=Pos	2	mod	_	_
 2	viewpoint	viewpoint	NOUN	NN	Number=Sing	0	root	_	_
-3	of	of	ADP	IN	_	2	mod	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	5	det	_	_
 5	future	future	NOUN	NN	Number=Sing	3	comp:obj	_	_
 6	in	in	ADP	IN	_	2	mod	_	_
@@ -4774,7 +4774,7 @@
 31	as	as	ADP	IN	_	30	comp:obl	_	_
 32	a	a	DET	DT	Definite=Ind|PronType=Art	33	det	_	_
 33	form	form	NOUN	NN	Number=Sing	31	comp:obj	_	_
-34	of	of	ADP	IN	_	33	comp:obl	_	_
+34	of	of	ADP	IN	_	33	udep	_	_
 35	gross	gross	ADJ	JJ	Degree=Pos	36	mod	_	_
 36	incompetence	incompetence	NOUN	NN	Number=Sing	34	comp:obj	_	_
 37	in	in	ADP	IN	_	36	mod	_	_
@@ -4806,7 +4806,7 @@
 21	for	for	ADP	IN	_	20	comp:obl	_	_
 22	the	the	DET	DT	Definite=Def|PronType=Art	23	det	_	_
 23	removal	removal	NOUN	NN	Number=Sing	21	comp:obj	_	_
-24	of	of	ADP	IN	_	23	comp:obl	_	_
+24	of	of	ADP	IN	_	23	udep	_	_
 25	Saddam	Saddam	PROPN	NNP	Number=Sing	24	comp:obj	_	_
 26	Hussein	Hussein	PROPN	NNP	Number=Sing	25	flat	_	SpaceAfter=No
 27	,	,	PUNCT	,	_	28	punct	_	_
@@ -4921,7 +4921,7 @@
 3	in	in	ADP	IN	_	2	mod	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	5	det	_	_
 5	Department	Department	PROPN	NNP	Number=Sing	3	comp:obj	_	_
-6	of	of	ADP	IN	_	5	comp:obl	_	_
+6	of	of	ADP	IN	_	5	udep	_	_
 7	Defense	Defense	PROPN	NNP	Number=Sing	6	comp:obj	_	_
 8	only	only	ADV	RB	_	9	mod	_	_
 9	know	know	VERB	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
@@ -5045,7 +5045,7 @@
 31	,	,	PUNCT	,	_	33	punct	_	_
 32	some	some	DET	DT	PronType=Ind	33	det	_	_
 33	sort	sort	NOUN	NN	Number=Sing	30	conj:coord	_	_
-34	of	of	ADP	IN	Shared=No	33	mod	_	_
+34	of	of	ADP	IN	Shared=No	33	udep	_	_
 35	sweetheart	sweetheart	NOUN	NN	Number=Sing	36	compound	_	_
 36	deal	deal	NOUN	NN	Number=Sing	34	comp:obj	_	_
 37	for	for	ADP	IN	_	36	mod	_	_
@@ -5088,7 +5088,7 @@
 19	double	double	ADJ	JJ	Degree=Pos	21	mod	_	SpaceAfter=No
 20	-	-	PUNCT	HYPH	_	19	punct	_	SpaceAfter=No
 21	dealing	dealing	NOUN	NN	Number=Sing	16	conj:coord	_	_
-22	of	of	ADP	IN	Shared=Yes	21	comp:obl	_	_
+22	of	of	ADP	IN	Shared=Yes	21	udep	_	_
 23	many	many	ADJ	JJ	Degree=Pos	22	comp:obj	_	_
 24	in	in	ADP	IN	_	23	mod	_	_
 25	the	the	DET	DT	Definite=Def|PronType=Art	26	det	_	_
@@ -5123,7 +5123,7 @@
 24	the	the	DET	DT	Definite=Def|PronType=Art	26	det	_	_
 25	ulterior	ulterior	ADJ	JJ	Degree=Pos	26	mod	_	_
 26	motive	motive	NOUN	NN	Number=Sing	35	subj	_	_
-27	of	of	ADP	IN	_	26	mod	_	_
+27	of	of	ADP	IN	_	26	udep	_	_
 28	the	the	DET	DT	Definite=Def|PronType=Art	30	det	_	_
 29	Bush	Bush	PROPN	NNP	Number=Sing	30	compound	_	_
 30	administration	administration	NOUN	NN	Number=Sing	27	comp:obj	_	_
@@ -5154,7 +5154,7 @@
 5	a	a	DET	DT	Definite=Ind|PronType=Art	7	det	_	_
 6	trenchant	trenchant	ADJ	JJ	Degree=Pos	7	mod	_	_
 7	critic	critic	NOUN	NN	Number=Sing	4	comp:pred	_	_
-8	of	of	ADP	IN	_	7	comp:obl	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	the	the	DET	DT	Definite=Def|PronType=Art	10	det	_	_
 10	Sadrists	Sadrist	PROPN	NNPS	Number=Plur	8	comp:obj	_	SpaceAfter=No
 11	.	.	PUNCT	.	_	2	punct	_	_
@@ -5335,7 +5335,7 @@
 26	the	the	DET	DT	Definite=Def|PronType=Art	28	det	_	_
 27	upper	upper	ADJ	JJ	Degree=Pos	28	mod	_	_
 28	reaches	reach	NOUN	NNS	Number=Plur|Shared=No	25	comp:obj	_	_
-29	of	of	ADP	IN	_	28	mod	_	_
+29	of	of	ADP	IN	_	28	udep	_	_
 30	the	the	DET	DT	Definite=Def|PronType=Art	32	det	_	_
 31	Defense	Defense	PROPN	NNP	Number=Sing	32	compound	_	_
 32	Department	Department	PROPN	NNP	Number=Sing	29	comp:obj	_	_
@@ -5425,7 +5425,7 @@
 36	,	,	PUNCT	,	_	38	punct	_	_
 37	the	the	DET	DT	Definite=Def|PronType=Art	38	det	_	_
 38	leader	leader	NOUN	NN	Number=Sing	35	conj:appos	_	_
-39	of	of	ADP	IN	_	38	comp:obl	_	_
+39	of	of	ADP	IN	_	38	udep	_	_
 40	the	the	DET	DT	Definite=Def|PronType=Art	44	det	_	_
 41	militant	militant	ADJ	JJ	Degree=Pos	44	mod	_	_
 42	Lebanese	Lebanese	ADJ	JJ	Degree=Pos	44	mod	_	_
@@ -5468,7 +5468,7 @@
 13	because	because	SCONJ	IN	_	6	mod	_	_
 14	the	the	DET	DT	Definite=Def|PronType=Art	15	det	_	_
 15	fate	fate	NOUN	NN	Number=Sing	20	subj	_	_
-16	of	of	ADP	IN	_	15	comp:obl	_	_
+16	of	of	ADP	IN	_	15	udep	_	_
 17	Iraq	Iraq	PROPN	NNP	Number=Sing	16	comp:obj	_	_
 18	and	and	CCONJ	CC	_	19	cc	_	_
 19	Palestine	Palestine	PROPN	NNP	Number=Sing	17	conj:coord	_	_
@@ -5531,7 +5531,7 @@
 15	13	13	NUM	CD	NumForm=Digit|NumType=Card	17	mod	_	_
 16	other	other	ADJ	JJ	Degree=Pos	17	mod	_	_
 17	members	member	NOUN	NNS	Number=Plur	14	comp:obj	_	_
-18	of	of	ADP	IN	_	17	mod	_	_
+18	of	of	ADP	IN	_	17	udep	_	_
 19	his	his	PRON	PRP$	Case=Gen|Gender=Masc|Number=Sing|Person=3|Poss=Yes|PronType=Prs	20	mod@poss	_	_
 20	organization	organization	NOUN	NN	Number=Sing	18	comp:obj	_	SpaceAfter=No
 21	,	,	PUNCT	,	_	26	punct	_	_
@@ -5607,7 +5607,7 @@
 # text = Anthony Shadid of the Washington Post reveals that the warrants for the arrests had been issued months be for.
 1	Anthony	Anthony	PROPN	NNP	Number=Sing	7	subj	_	_
 2	Shadid	Shadid	PROPN	NNP	Number=Sing	1	flat	_	_
-3	of	of	ADP	IN	_	1	mod	_	_
+3	of	of	ADP	IN	_	1	udep	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	6	det	_	_
 5	Washington	Washington	PROPN	NNP	Number=Sing	6	compound	_	_
 6	Post	Post	PROPN	NNP	Number=Sing	3	comp:obj	_	_
@@ -6514,7 +6514,7 @@
 1	Any	any	DET	DT	PronType=Ind	3	det	_	_
 2	other	other	ADJ	JJ	Degree=Pos	3	mod	_	_
 3	use	use	NOUN	NN	Number=Sing	9	subj@pass	_	_
-4	of	of	ADP	IN	_	3	comp:obl	_	_
+4	of	of	ADP	IN	_	3	udep	_	_
 5	the	the	DET	DT	Definite=Def|PronType=Art	6	det	_	_
 6	email	email	NOUN	NN	Number=Sing	4	comp:obj	_	_
 7	by	by	ADP	IN	_	3	comp:obl	_	_
@@ -6855,7 +6855,7 @@
 15	to	to	PART	TO	_	4	mod	_	_
 16	discuss	discuss	VERB	VB	VerbForm=Inf	15	comp:obj	_	_
 17	U	U	PROPN	NNP	Number=Sing	20	comp:obj	_	CorrectSpaceAfter=Yes|SpaceAfter=No
-18	of	of	ADP	IN	_	17	mod	_	_
+18	of	of	ADP	IN	_	17	udep	_	_
 19-20	H's	_	_	_	_	_	_	_	_
 19	H	H	PROPN	NNP	Number=Sing	18	comp:obj	_	_
 20	's	's	PART	POS	_	22	udep@poss	_	_
@@ -7112,7 +7112,7 @@
 11	,	,	PUNCT	,	_	13	punct	_	_
 12	or	or	CCONJ	CC	_	13	cc	_	_
 13	taking	taking	NOUN	NN	Number=Sing	9	conj:coord	_	_
-14	of	of	ADP	IN	Shared=No	13	comp:obl	_	_
+14	of	of	ADP	IN	Shared=No	13	udep	_	_
 15	any	any	DET	DT	PronType=Ind	16	det	_	_
 16	action	action	NOUN	NN	Number=Sing	14	comp:obj	_	_
 17	in	in	ADP	IN	Shared=No	13	mod	_	_
@@ -7186,13 +7186,13 @@
 8	black	black	NOUN	NN	Number=Sing	10	compound	_	SpaceAfter=No
 9	-	-	PUNCT	HYPH	_	8	punct	_	SpaceAfter=No
 10	line	line	NOUN	NN	Number=Sing	5	comp:obj	_	_
-11	of	of	ADP	IN	_	10	mod	_	_
+11	of	of	ADP	IN	_	10	udep	_	_
 12	the	the	DET	DT	Definite=Def|PronType=Art	13	det	_	_
 13	Guarantee	guarantee	NOUN	NN	Number=Sing	11	comp:obj	_	_
 14	vs	versus	ADP	IN	Abbr=Yes	10	mod	_	_
 15	the	the	DET	DT	Definite=Def|PronType=Art	16	det	_	_
 16	form	form	NOUN	NN	Number=Sing	14	comp:obj	_	_
-17	of	of	ADP	IN	_	16	comp:obl	_	_
+17	of	of	ADP	IN	_	16	udep	_	_
 18	guarantee	guarantee	NOUN	NN	Number=Sing	17	comp:obj	_	_
 19	in	in	ADP	IN	_	16	mod	_	_
 20	the	the	DET	DT	Definite=Def|PronType=Art	22	det	_	_
@@ -7331,7 +7331,7 @@
 5	on	on	ADP	IN	_	4	comp:obl	_	_
 6	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 7	value	value	NOUN	NN	Number=Sing	5	comp:obj	_	_
-8	of	of	ADP	IN	_	7	comp:obl	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	the	the	DET	DT	Definite=Def|PronType=Art	11	det	_	_
 10	highest	high	ADJ	JJS	Degree=Sup	11	mod	_	_
 11	bid	bid	NOUN	NN	Number=Sing	8	comp:obj	_	SpaceAfter=No
@@ -7558,7 +7558,7 @@
 18	by	by	ADP	IN	Shared=Yes	17	comp:obl	_	Promoted=Yes
 19	on	on	ADP	IN	_	18	conj:coord	_	_
 20	behalf	behalf	NOUN	NN	Number=Sing|Shared=No	19	comp:obj	_	_
-21	of	of	ADP	IN	_	20	comp:obl	_	_
+21	of	of	ADP	IN	_	20	udep	_	_
 22	Carr	Carr	PROPN	NNP	Number=Sing	21	comp:obj	_	_
 23	Futures	Future	PROPN	NNPS	Number=Plur	22	flat	_	_
 24	or	or	CCONJ	CC	Shared=Yes	26	cc	_	_
@@ -7591,7 +7591,7 @@
 7	most	most	ADV	RBS	Degree=Sup	8	mod	_	_
 8	recent	recent	ADJ	JJ	Degree=Pos	9	mod	_	_
 9	version	version	NOUN	NN	Number=Sing	5	comp:obj	_	_
-10	of	of	ADP	IN	_	9	comp:obl	_	_
+10	of	of	ADP	IN	_	9	udep	_	_
 11	Adobe	Adobe	PROPN	NNP	Number=Sing	12	compound	_	_
 12	Acrobat	Acrobat	PROPN	NNP	Number=Sing	10	comp:obj	_	FlatType=Enumerated
 13	4.0	4.0	NUM	CD	NumForm=Digit|NumType=Frac	12	flat	_	_
@@ -7795,7 +7795,7 @@
 12	Senior	senior	ADJ	JJ	Degree=Pos	14	mod	_	_
 13	Vice	vice	NOUN	NN	Number=Sing	14	compound	_	_
 14	President	president	NOUN	NN	Number=Sing	10	conj:appos	_	_
-15	of	of	ADP	IN	_	14	comp:obl	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	CCNG	CCNG	PROPN	NNP	Number=Sing	15	comp:obj	_	SpaceAfter=No
 17	,	,	PUNCT	,	_	16	punct	_	_
 18	Inc.	Inc.	PROPN	NNP	Number=Sing	16	mod@desc	_	_
@@ -7828,7 +7828,7 @@
 6	that	that	SCONJ	IN	_	4	comp:obj	_	_
 7	Section	section	NOUN	NN	Number=Sing	30	subj@pass	_	FlatType=Enumerated
 8	7	7	NUM	CD	NumForm=Digit|NumType=Card	7	flat	_	_
-9	of	of	ADP	IN	_	7	mod	_	_
+9	of	of	ADP	IN	_	7	udep	_	_
 10	the	the	DET	DT	Definite=Def|PronType=Art	11	det	_	_
 11	agreement	agreement	NOUN	NN	Number=Sing	9	comp:obj	_	SpaceAfter=No
 12	,	,	PUNCT	,	_	14	punct	_	_
@@ -7845,7 +7845,7 @@
 23	and	and	CCONJ	CC	_	25	cc	_	_
 24	adverse	adverse	ADJ	JJ	Degree=Pos	25	mod	_	_
 25	claims	claim	NOUN	NNS	Number=Plur	22	conj:coord	_	_
-26	of	of	ADP	IN	Shared=Yes	25	mod	_	_
+26	of	of	ADP	IN	Shared=Yes	25	udep	_	_
 27	every	every	DET	DT	PronType=Tot	28	det	_	_
 28	kind	kind	NOUN	NN	Number=Sing	26	comp:obj	_	SpaceAfter=No
 29	,	,	PUNCT	,	_	7	punct	_	_
@@ -7895,7 +7895,7 @@
 18	corrections	correction	NOUN	NNS	Number=Plur	15	comp:obj	_	_
 19	and	and	CCONJ	CC	_	20	cc	_	_
 20	re-wording	re-wording	NOUN	NN	Number=Sing	18	conj:coord	_	_
-21	of	of	ADP	IN	Shared=No	20	mod	_	_
+21	of	of	ADP	IN	Shared=No	20	udep	_	_
 22	Section	section	NOUN	NN	Number=Sing	21	comp:obj	_	FlatType=Enumerated
 23	7	7	NUM	CD	NumForm=Digit|NumType=Card	22	flat	_	SpaceAfter=No
 24	.	.	PUNCT	.	_	2	punct	_	_
@@ -8854,7 +8854,7 @@
 5	finding	find	VERB	VBG	Tense=Pres|VerbForm=Part	4	comp:obj	_	_
 6	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 7	meaning	meaning	NOUN	NN	Number=Sing	5	comp:obj	_	_
-8	of	of	ADP	IN	_	7	mod	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	life	life	NOUN	NN	Number=Sing	8	comp:obj	_	_
 10	at	at	ADP	IN	_	5	mod	_	_
 11	work	work	NOUN	NN	Number=Sing	10	comp:obj	_	SpaceAfter=No
@@ -8994,7 +8994,7 @@
 4	into	into	ADP	IN	_	3	comp:obl	_	_
 5	certain	certain	ADJ	JJ	Degree=Pos	6	mod	_	_
 6	parts	part	NOUN	NNS	Number=Plur	4	comp:obj	_	_
-7	of	of	ADP	IN	_	6	mod	_	_
+7	of	of	ADP	IN	_	6	udep	_	_
 8	the	the	DET	DT	Definite=Def|PronType=Art	9	det	_	_
 9	article	article	NOUN	NN	Number=Sing	7	comp:obj	_	SpaceAfter=No
 10	.	.	PUNCT	.	_	3	punct	_	_
@@ -9128,7 +9128,7 @@
 2	your	your	PRON	PRP$	Case=Gen|Person=2|Poss=Yes|PronType=Prs	4	mod@poss	_	_
 3	FREE	free	ADJ	JJ	Degree=Pos	4	mod	_	_
 4	download	download	NOUN	NN	Number=Sing	1	comp:obj	_	_
-5	of	of	ADP	IN	_	4	comp:obl	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	MSN	MSN	PROPN	NNP	Number=Sing	7	compound	_	_
 7	Explorer	Explorer	PROPN	NNP	Number=Sing	5	comp:obj	_	_
 8	at	at	ADP	IN	_	1	mod	_	_
@@ -9338,7 +9338,7 @@
 27	distribution	distribution	NOUN	NN	Number=Sing	25	conj:coord	_	_
 28	or	or	CCONJ	CC	_	29	cc	_	_
 29	copying	copying	NOUN	NN	Number=Sing	27	conj:coord	_	_
-30	of	of	ADP	IN	Shared=Yes	29	comp:obl	_	_
+30	of	of	ADP	IN	Shared=Yes	29	udep	_	_
 31	this	this	DET	DT	Number=Sing|PronType=Dem	32	det	_	_
 32	transmittal	transmittal	NOUN	NN	Number=Sing	30	comp:obj	_	_
 33	is	be	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	10	parataxis	_	_
@@ -9517,7 +9517,7 @@
 5	been	be	AUX	VBN	Tense=Past|VerbForm=Part	4	comp:aux	_	_
 6	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 7	realisation	realisation	NOUN	NN	Number=Sing	5	comp:pred	_	_
-8	of	of	ADP	IN	_	7	comp:obl	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	an	a	DET	DT	Definite=Ind|PronType=Art	11	det	_	_
 10	intimate	intimate	ADJ	JJ	Degree=Pos	11	mod	_	_
 11	union	union	NOUN	NN	Number=Sing	8	comp:obj	_	_
@@ -9760,7 +9760,7 @@
 32	develop	develop	VERB	VB	Shared=No|VerbForm=Inf	28	comp:aux	_	_
 33	a	a	DET	DT	Definite=Ind|PronType=Art	34	det	_	_
 34	foundation	foundation	NOUN	NN	Number=Sing	32	comp:obj	_	_
-35	of	of	ADP	IN	_	34	comp:obl	_	_
+35	of	of	ADP	IN	_	34	udep	_	_
 36	trust	trust	NOUN	NN	Number=Sing	35	comp:obj	_	_
 37	based	base	VERB	VBN	Tense=Past|VerbForm=Part|Voice=Pass	34	udep	_	_
 38	on	on	ADP	IN	_	37	comp:obj	_	_
@@ -9779,7 +9779,7 @@
 8	you	you	PRON	PRP	Case=Nom|Person=2|PronType=Prs	9	subj	_	_
 9	demand	demand	VERB	VBP	Mood=Ind|Number=Sing|Person=2|Tense=Pres|VerbForm=Fin	2	conj:coord	_	_
 10	freedom	freedom	NOUN	NN	Number=Sing|Shared=No	9	comp:obj	_	_
-11	of	of	ADP	IN	_	10	mod	_	_
+11	of	of	ADP	IN	_	10	udep	_	_
 12	thought	thought	NOUN	NN	Number=Sing	11	comp:obj	_	_
 13	...	...	PUNCT	,	_	14	punct	_	SpaceAfter=No
 14	to	to	PART	TO	_	10	udep	_	_
@@ -9832,7 +9832,7 @@
 13	no	no	DET	DT	PronType=Neg	15	det	_	_
 14	more	more	ADJ	JJR	Degree=Cmp	15	mod	_	_
 15	differences	difference	NOUN	NNS	Number=Plur	11	conj:coord	_	_
-16	of	of	ADP	IN	Shared=No	15	comp:obl	_	_
+16	of	of	ADP	IN	Shared=No	15	udep	_	_
 17	opinion	opinion	NOUN	NN	Number=Sing	16	comp:obj	_	_
 18	...	...	PUNCT	.	_	11	punct	_	_
 
@@ -9852,7 +9852,7 @@
 11	in	in	ADP	IN	_	10	mod	_	_
 12	any	any	DET	DT	PronType=Ind	13	det	_	_
 13	arguments	argument	NOUN	NNS	Number=Plur	11	comp:obj	_	_
-14	of	of	ADP	IN	_	13	mod	_	_
+14	of	of	ADP	IN	_	13	udep	_	_
 15	any	any	DET	DT	PronType=Ind	16	det	_	_
 16	shape	shape	NOUN	NN	Number=Sing	14	comp:obj	_	_
 17	or	or	CCONJ	CC	_	18	cc	_	_
@@ -9918,7 +9918,7 @@
 5	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 6	fisrt	first	ADJ	JJ	Degree=Pos|Typo=Yes	7	mod	_	CorrectForm=first
 7	tab	tab	NOUN	NN	Number=Sing	4	comp:obj	_	_
-8	of	of	ADP	IN	_	7	comp:obl	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	the	the	DET	DT	Definite=Def|PronType=Art	10	det	_	_
 10	file	file	NOUN	NN	Number=Sing	8	comp:obj	_	_
 11	to	to	ADP	IN	_	7	mod	_	_
@@ -10196,7 +10196,7 @@
 4	a	a	DET	DT	Definite=Ind|PronType=Art	6	det	_	_
 5	revised	revise	VERB	VBN	Tense=Past|VerbForm=Part|Voice=Pass	6	mod	_	_
 6	copy	copy	NOUN	NN	Number=Sing	3	comp:obj	_	_
-7	of	of	ADP	IN	_	6	comp:obl	_	_
+7	of	of	ADP	IN	_	6	udep	_	_
 8	the	the	DET	DT	Definite=Def|PronType=Art	10	det	_	_
 9	GISB	GISB	NOUN	NN	Number=Sing|Shared=No	10	compound	_	_
 10	Agreement	agreement	NOUN	NN	Number=Sing	7	comp:obj	_	_
@@ -10217,7 +10217,7 @@
 3	completing	complete	VERB	VBG	VerbForm=Ger	2	comp:obj	_	Subject=SubjRaising
 4	the	the	DET	DT	Definite=Def|PronType=Art	5	det	_	_
 5	review	review	NOUN	NN	Number=Sing	3	comp:obj	_	_
-6	of	of	ADP	IN	_	5	comp:obl	_	_
+6	of	of	ADP	IN	_	5	udep	_	_
 7	the	the	DET	DT	Definite=Def|PronType=Art	10	det	_	_
 8	Master	master	NOUN	NN	Number=Sing	9	compound	_	_
 9	Agreement	agreement	NOUN	NN	Number=Sing	10	compound	_	_
@@ -10250,7 +10250,7 @@
 15	the	the	DET	DT	Definite=Def|PronType=Art	17	det	_	_
 16	Gas	gas	NOUN	NN	Number=Sing	17	compound	_	_
 17	segment	segment	NOUN	NN	Number=Sing	14	comp:obj	_	_
-18	of	of	ADP	IN	_	17	comp:obl	_	_
+18	of	of	ADP	IN	_	17	udep	_	_
 19	Enron	Enron	PROPN	NNP	Number=Sing	18	comp:obj	_	_
 20	On	on	ADP	IN	_	19	mod	_	SpaceAfter=No
 21	-	-	PUNCT	HYPH	_	20	punct	_	SpaceAfter=No
@@ -10596,7 +10596,7 @@
 12	w	with	ADP	IN	Abbr=Yes	11	mod	_	SpaceAfter=No
 13	/	/	PUNCT	,	_	12	punct	_	_
 14	City	city	NOUN	NN	Number=Sing	12	comp:obj	_	_
-15	of	of	ADP	IN	_	14	comp:obl	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	Springfield	Springfield	PROPN	NNP	Number=Sing	15	comp:obj	_	SpaceAfter=No
 17	.	.	PUNCT	.	_	7	punct	_	_
 
@@ -10636,7 +10636,7 @@
 2	is	be	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
 3	an	a	DET	DT	Definite=Ind|PronType=Art	4	det	_	_
 4	image	image	NOUN	NN	Number=Sing	2	subj@pass	_	_
-5	of	of	ADP	IN	_	4	comp:obl	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 7	GISB	GISB	NOUN	NN	Number=Sing	5	comp:obj	_	SpaceAfter=No
 8	.	.	PUNCT	.	_	2	punct	_	_
@@ -11052,7 +11052,7 @@
 2	forward	forward	VERB	VB	Mood=Imp|VerbForm=Fin	0	root	_	_
 3	a	a	DET	DT	Definite=Ind|PronType=Art	4	det	_	_
 4	copy	copy	NOUN	NN	Number=Sing	2	comp:obj	_	_
-5	of	of	ADP	IN	_	4	comp:obl	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	the	the	DET	DT	Definite=Def|PronType=Art	10	det	_	_
 7	J.M.	J.M.	PROPN	NNP	Number=Sing	9	compound	_	_
 8	Huber	Huber	PROPN	NNP	Number=Sing	7	flat	_	_
@@ -11393,7 +11393,7 @@
 2	your	your	PRON	PRP$	Case=Gen|Person=2|Poss=Yes|PronType=Prs	4	mod@poss	_	_
 3	FREE	free	ADJ	JJ	Degree=Pos	4	mod	_	_
 4	download	download	NOUN	NN	Number=Sing	1	comp:obj	_	_
-5	of	of	ADP	IN	_	4	comp:obl	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	MSN	MSN	PROPN	NNP	Number=Sing	7	compound	_	_
 7	Explorer	Explorer	PROPN	NNP	Number=Sing	5	comp:obj	_	_
 8	at	at	ADP	IN	_	1	mod	_	_
@@ -11425,7 +11425,7 @@
 9	regarding	regard	VERB	VBG	Tense=Pres|VerbForm=Part	2	mod	_	_
 10	a	a	DET	DT	Definite=Ind|PronType=Art	11	det	_	_
 11	copy	copy	NOUN	NN	Number=Sing	9	comp:obj	_	_
-12	of	of	ADP	IN	_	11	comp:obl	_	_
+12	of	of	ADP	IN	_	11	udep	_	_
 13	an	a	DET	DT	Definite=Ind|PronType=Art	14	det	_	_
 14	article	article	NOUN	NN	Number=Sing	12	comp:obj	_	SpaceAfter=No
 15	.	.	PUNCT	.	_	2	punct	_	_
@@ -11516,7 +11516,7 @@
 26	after	after	ADP	IN	_	23	mod	_	_
 27	the	the	DET	DT	Definite=Def|PronType=Art	28	det	_	_
 28	first	first	NOUN	NN	Number=Sing|NumForm=Word|NumType=Ord	26	comp:obj	_	_
-29	of	of	ADP	IN	_	28	mod	_	_
+29	of	of	ADP	IN	_	28	udep	_	_
 30	the	the	DET	DT	Definite=Def|PronType=Art	31	det	_	_
 31	year	year	NOUN	NN	Number=Sing	29	comp:obj	_	SpaceAfter=No
 32	.	.	PUNCT	.	_	5	punct	_	_
@@ -11807,7 +11807,7 @@
 7	send	send	VERB	VB	VerbForm=Inf	6	comp:obj	_	Subject=SubjRaising
 8	a	a	DET	DT	Definite=Ind|PronType=Art	9	det	_	_
 9	copy	copy	NOUN	NN	Number=Sing	7	comp:obj	_	_
-10	of	of	ADP	IN	_	9	comp:obl	_	_
+10	of	of	ADP	IN	_	9	udep	_	_
 11	resume	resume	NOUN	NN	Number=Sing	10	comp:obj	_	_
 12	and	and	CCONJ	CC	_	14	cc	_	_
 13	cover	cover	NOUN	NN	Number=Sing	14	compound	_	_
@@ -11901,10 +11901,10 @@
 8	Finance	finance	NOUN	NN	Number=Sing	7	comp:obj	_	_
 9	Georgia	Georgia	PROPN	NNP	Number=Sing	10	compound	_	_
 10	Institute	Institute	PROPN	NNP	Number=Sing	1	list	_	_
-11	of	of	ADP	IN	_	10	mod	_	_
+11	of	of	ADP	IN	_	10	udep	_	_
 12	Technology	Technology	PROPN	NNP	Number=Sing	11	comp:obj	_	_
 13	School	School	PROPN	NNP	Number=Sing	1	list	_	_
-14	of	of	ADP	IN	_	13	mod	_	_
+14	of	of	ADP	IN	_	13	udep	_	_
 15	Industrial	Industrial	ADJ	NNP	Degree=Pos	18	mod	_	_
 16	and	and	CCONJ	CC	_	17	cc	_	_
 17	Systems	System	PROPN	NNPS	Number=Plur	15	conj:coord	_	_
@@ -12406,14 +12406,14 @@
 # sent_id = email-enronsent00_02-0027
 # text = Amount of Benefit Payments reads "The value of the shares, and resulting payment amount will be based on the closing price of Enron Corp. common stock on the January 1 before the date of payment, and such payment shall be made in shares of Enron Corp. common stock."
 1	Amount	Amount	PROPN	NNP	Number=Sing	5	subj	_	_
-2	of	of	ADP	IN	_	1	mod	_	_
+2	of	of	ADP	IN	_	1	udep	_	_
 3	Benefit	Benefit	PROPN	NNP	Number=Sing	4	compound	_	_
 4	Payments	Payment	PROPN	NNPS	Number=Plur	2	comp:obj	_	_
 5	reads	read	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
 6	"	"	PUNCT	``	Shared=Yes	17	punct	_	SpaceAfter=No
 7	The	the	DET	DT	Definite=Def|PronType=Art	8	det	_	_
 8	value	value	NOUN	NN	Number=Sing|Shared=No	17	subj@pass	_	_
-9	of	of	ADP	IN	_	8	comp:obl	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	the	the	DET	DT	Definite=Def|PronType=Art	11	det	_	_
 11	shares	share	NOUN	NNS	Number=Plur	9	comp:obj	_	SpaceAfter=No
 12	,	,	PUNCT	,	_	16	punct	_	_
@@ -12428,7 +12428,7 @@
 21	the	the	DET	DT	Definite=Def|PronType=Art	23	det	_	_
 22	closing	close	VERB	VBG	VerbForm=Ger	23	mod	_	_
 23	price	price	NOUN	NN	Number=Sing	20	comp:obj	_	_
-24	of	of	ADP	IN	_	23	comp:obl	_	_
+24	of	of	ADP	IN	_	23	udep	_	_
 25	Enron	Enron	PROPN	NNP	Number=Sing	28	compound	_	_
 26	Corp.	Corp.	PROPN	NNP	Number=Sing	25	mod@desc	_	_
 27	common	common	ADJ	JJ	Degree=Pos	28	mod	_	_
@@ -12440,7 +12440,7 @@
 33	before	before	ADP	IN	_	32	udep	_	_
 34	the	the	DET	DT	Definite=Def|PronType=Art	35	det	_	_
 35	date	date	NOUN	NN	Number=Sing	33	comp:obj	_	_
-36	of	of	ADP	IN	_	35	comp:obl	_	_
+36	of	of	ADP	IN	_	35	udep	_	_
 37	payment	payment	NOUN	NN	Number=Sing	36	comp:obj	_	SpaceAfter=No
 38	,	,	PUNCT	,	_	42	punct	_	_
 39	and	and	CCONJ	CC	_	42	cc	_	_
@@ -12451,7 +12451,7 @@
 44	made	make	VERB	VBN	Tense=Past|VerbForm=Part|Voice=Pass	43	comp:aux@pass	_	_
 45	in	in	ADP	IN	_	44	comp:obl	_	_
 46	shares	share	NOUN	NNS	Number=Plur	45	comp:obj	_	_
-47	of	of	ADP	IN	_	46	comp:obl	_	_
+47	of	of	ADP	IN	_	46	udep	_	_
 48	Enron	Enron	PROPN	NNP	Number=Sing	51	compound	_	_
 49	Corp.	Corp.	PROPN	NNP	Number=Sing	48	mod@desc	_	_
 50	common	common	ADJ	JJ	Degree=Pos	51	mod	_	_
@@ -12959,7 +12959,7 @@
 6	the	the	DET	DT	Definite=Def|PronType=Art	8	det	_	_
 7	FIRST	first	ADJ	JJ	Degree=Pos|NumForm=Word|NumType=Ord	8	mod	_	_
 8	site	site	NOUN	NN	Number=Sing	5	comp:pred	_	_
-9	of	of	ADP	IN	_	8	comp:obl	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	ragnarok	Ragnarok	PROPN	NNP	Number=Sing	9	comp:obj	_	FlatType=Enumerated
 11	2	2	NUM	NNP	NumForm=Digit|NumType=Card	10	flat	_	_
 12	hahaha	hahaha	INTJ	UH	_	3	discourse	_	_
@@ -13125,7 +13125,7 @@
 # text = large selection of fiction, science fiction and best sellers.
 1	large	large	ADJ	JJ	Degree=Pos	2	mod	_	_
 2	selection	selection	NOUN	NN	Number=Sing	0	root	_	_
-3	of	of	ADP	IN	_	2	comp:obl	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	fiction	fiction	NOUN	NN	Number=Sing	3	comp:obj	_	SpaceAfter=No
 5	,	,	PUNCT	,	_	7	punct	_	_
 6	science	science	NOUN	NN	Number=Sing	7	compound	_	_
@@ -13178,7 +13178,7 @@
 19	!	!	PUNCT	.	_	1	punct	_	_
 20	large	large	ADJ	JJ	Degree=Pos	21	mod	_	_
 21	selection	selection	NOUN	NN	Number=Sing	1	parataxis	_	_
-22	of	of	ADP	IN	_	21	comp:obl	_	_
+22	of	of	ADP	IN	_	21	udep	_	_
 23	fiction	fiction	NOUN	NN	Number=Sing	22	comp:obj	_	SpaceAfter=No
 24	,	,	PUNCT	,	_	26	punct	_	_
 25	science	science	NOUN	NN	Number=Sing	26	compound	_	_
@@ -13433,7 +13433,7 @@
 # text = The end of the year is a time for compiling statistics - and according to the World Conservation Union (IUCN), the year 2003 has been bad news for plants and non-human animals, with many species now closer to extinction than ever before.
 1	The	the	DET	DT	Definite=Def|PronType=Art	2	det	_	_
 2	end	end	NOUN	NN	Number=Sing|Shared=No	6	subj	_	_
-3	of	of	ADP	IN	_	2	comp:obl	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	5	det	_	_
 5	year	year	NOUN	NN	Number=Sing	3	comp:obj	_	_
 6	is	be	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
@@ -14054,7 +14054,7 @@
 9	,	,	PUNCT	,	_	10	punct	_	_
 10	needs	need	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	1	conj:coord	_	_
 11	lots	lot	NOUN	NNS	Number=Plur|Shared=No	10	comp:obj	_	_
-12	of	of	ADP	IN	_	11	mod	_	_
+12	of	of	ADP	IN	_	11	udep	_	_
 13	attention	attention	NOUN	NN	Number=Sing	12	comp:obj	_	SpaceAfter=No
 14	,	,	PUNCT	,	_	16	punct	_	_
 15	very	very	ADV	RB	_	16	mod	_	_
@@ -14448,7 +14448,7 @@
 11	at	at	ADP	IN	_	9	comp:pred	_	_
 12	the	the	DET	DT	Definite=Def|PronType=Art	13	det	_	_
 13	helm	helm	NOUN	NN	Number=Sing	11	comp:obj	_	_
-14	of	of	ADP	IN	_	13	comp:obl	_	_
+14	of	of	ADP	IN	_	13	udep	_	_
 15	the	the	DET	DT	Definite=Def|PronType=Art	19	det	_	_
 16	18,000	18000	NUM	CD	NumForm=Digit|NumType=Card	18	mod	_	SpaceAfter=No
 17	-	-	PUNCT	HYPH	_	16	punct	_	SpaceAfter=No
@@ -14463,7 +14463,7 @@
 3	like	like	SCONJ	IN	_	2	comp:pred	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	5	det	_	_
 5	future	future	NOUN	NN	Number=Sing	9	subj	_	_
-6	of	of	ADP	IN	_	5	comp:obl	_	_
+6	of	of	ADP	IN	_	5	udep	_	_
 7	space	space	NOUN	NN	Number=Sing	8	compound	_	_
 8	exploration	exploration	NOUN	NN	Number=Sing	6	comp:obj	_	_
 9	might	might	AUX	MD	VerbForm=Fin	3	comp:obj	_	_
@@ -14590,7 +14590,7 @@
 29	the	the	DET	DT	Definite=Def|PronType=Art	31	det	_	_
 30	close	close	ADJ	JJ	Degree=Pos	31	mod	_	_
 31	affliction	affliction	NOUN	NN	Number=Sing	28	comp:obj	_	_
-32	of	of	ADP	IN	_	31	comp:obl	_	_
+32	of	of	ADP	IN	_	31	udep	_	_
 33	transit	transit	ADJ	JJ	Degree=Pos	34	mod	_	_
 34	Rahu	Rahu	PROPN	NNP	Number=Sing	32	comp:obj	_	SpaceAfter=No
 35	.	.	PUNCT	.	_	26	punct	_	_
@@ -14646,7 +14646,7 @@
 24	the	the	DET	DT	Definite=Def|PronType=Art	26	det	_	_
 25	transit	transit	NOUN	NN	Number=Sing	26	compound	_	_
 26	affliction	affliction	NOUN	NN	Number=Sing	23	comp:obj	_	_
-27	of	of	ADP	IN	_	26	comp:obl	_	_
+27	of	of	ADP	IN	_	26	udep	_	_
 28	Rahu	Rahu	PROPN	NNP	Number=Sing	27	comp:obj	_	_
 29	which	which	PRON	WDT	PronType=Rel	30	subj	_	_
 30	has	have	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	26	mod@relcl	_	_
@@ -14656,12 +14656,12 @@
 34	in	in	ADP	IN	_	33	mod	_	_
 35	many	many	ADJ	JJ	Degree=Pos	36	mod	_	_
 36	parts	part	NOUN	NNS	Number=Plur	34	comp:obj	_	_
-37	of	of	ADP	IN	_	36	mod	_	_
+37	of	of	ADP	IN	_	36	udep	_	_
 38	the	the	DET	DT	Definite=Def|PronType=Art	39	det	_	_
 39	country	country	NOUN	NN	Number=Sing	37	comp:obj	_	_
 40	taking	take	VERB	VBG	VerbForm=Ger	33	mod	_	_
 41	toll	toll	NOUN	NN	Number=Sing	40	comp:obj	_	_
-42	of	of	ADP	IN	_	41	comp:obl	_	_
+42	of	of	ADP	IN	_	41	udep	_	_
 43	human	human	ADJ	JJ	Degree=Pos	44	mod	_	_
 44	lives	life	NOUN	NNS	Number=Plur	42	comp:obj	_	SpaceAfter=No
 45	,	,	PUNCT	,	_	46	punct	_	_
@@ -14724,7 +14724,7 @@
 9	48	48	NUM	CD	NumForm=Digit|NumType=Card	11	mod	_	_
 10	new	new	ADJ	JJ	Degree=Pos	11	mod	_	_
 11	pictures	picture	NOUN	NNS	Number=Plur	8	comp:obj	_	_
-12	of	of	ADP	IN	_	11	comp:obl	_	_
+12	of	of	ADP	IN	_	11	udep	_	_
 13	cats	cat	NOUN	NNS	Number=Plur	12	comp:obj	_	_
 14	and	and	CCONJ	CC	_	15	cc	_	_
 15	kittens	kitten	NOUN	NNS	Number=Plur	13	conj:coord	_	_
@@ -14784,7 +14784,7 @@
 20	than	than	ADP	IN	_	19	unk	_	InIdiom=Yes
 21	1100	1100	NUM	CD	NumForm=Digit|NumType=Card	22	mod	_	_
 22	pictures	picture	NOUN	NNS	Number=Plur	18	comp:obj	_	_
-23	of	of	ADP	IN	_	22	comp:obl	_	_
+23	of	of	ADP	IN	_	22	udep	_	_
 24	cute	cute	ADJ	JJ	Degree=Pos	25	mod	_	_
 25	cats	cat	NOUN	NNS	Number=Plur	23	comp:obj	_	_
 26	at	at	ADP	IN	_	18	mod	_	_
@@ -14855,7 +14855,7 @@
 10	a	a	DET	DT	Definite=Ind|PronType=Art	12	det	_	_
 11	huge	huge	ADJ	JJ	Degree=Pos	12	mod	_	_
 12	archive	archive	NOUN	NN	Number=Sing	9	comp:obj	_	_
-13	of	of	ADP	IN	_	12	comp:obl	_	_
+13	of	of	ADP	IN	_	12	udep	_	_
 14	cat	cat	NOUN	NN	Number=Sing	15	compound	_	_
 15	pictures	picture	NOUN	NNS	Number=Plur	13	comp:obj	_	SpaceAfter=No
 16	.	.	PUNCT	.	_	4	punct	_	_
@@ -15156,7 +15156,7 @@
 10	get	get	VERB	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	8	mod@relcl	_	Cxn=rc-that-nsubj
 11	a	a	DET	DT	Definite=Ind|PronType=Art	12	det	_	_
 12	lot	lot	NOUN	NN	Number=Sing	10	comp:obj	_	_
-13	of	of	ADP	IN	_	12	mod	_	_
+13	of	of	ADP	IN	_	12	udep	_	_
 14	discount	discount	NOUN	NN	Number=Sing	13	comp:obj	_	_
 15	in	in	ADP	IN	_	14	mod	_	_
 16	the	the	DET	DT	Definite=Def|PronType=Art	17	det	_	_
@@ -15271,7 +15271,7 @@
 12	during	during	ADP	IN	_	7	mod	_	_
 13	some	some	DET	DT	PronType=Ind	14	det	_	_
 14	part	part	NOUN	NN	Number=Sing	12	comp:obj	_	_
-15	of	of	ADP	IN	_	14	comp:obl	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	the	the	DET	DT	Definite=Def|PronType=Art	17	det	_	_
 17	year	year	NOUN	NN	Number=Sing	15	comp:obj	_	SpaceAfter=No
 18	.	.	PUNCT	.	_	7	punct	_	_
@@ -15467,7 +15467,7 @@
 2	am	be	AUX	VBP	Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin	0	root	_	_
 3	in	in	ADP	IN	_	2	comp:pred	_	_
 4	need	need	NOUN	NN	Number=Sing	3	comp:obj	_	_
-5	of	of	ADP	IN	_	4	comp:obl	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	test	test	NOUN	NN	Number=Sing	7	compound	_	_
 7	subjects	subject	NOUN	NNS	Number=Plur	5	comp:obj	_	_
 8	and	and	CCONJ	CC	_	9	cc	_	_
@@ -15632,7 +15632,7 @@
 14	hearing	hear	VERB	VBG	Tense=Pres|VerbForm=Part	12	comp:obj	_	_
 15	of	of	ADP	IN	_	14	mod	_	_
 16	torture	torture	NOUN	NN	Number=Sing	15	comp:obj	_	_
-17	of	of	ADP	IN	_	16	comp:obl	_	_
+17	of	of	ADP	IN	_	16	udep	_	_
 18	animals	animal	NOUN	NNS	Number=Plur	17	comp:obj	_	SpaceAfter=No
 19	,	,	PUNCT	,	Shared=Yes	23	punct	_	_
 20	now	now	ADV	RB	PronType=Dem	23	mod	_	_
@@ -15863,7 +15863,7 @@
 16	)	)	PUNCT	-RRB-	_	9	punct	_	_
 17	and	and	CCONJ	CC	_	18	cc	_	_
 18	hundreds	hundred	NOUN	NNS	Number=Plur	7	conj:coord	_	_
-19	of	of	ADP	IN	Shared=No	18	mod	_	_
+19	of	of	ADP	IN	Shared=No	18	udep	_	_
 20	magazine	magazine	NOUN	NN	Number=Sing	21	compound	_	_
 21	articles	article	NOUN	NNS	Number=Plur	19	comp:obj	_	SpaceAfter=No
 22	,	,	PUNCT	,	_	24	punct	_	_
@@ -15886,7 +15886,7 @@
 39	in	in	ADP	IN	_	37	mod	_	SpaceAfter=No
 40	-	-	PUNCT	HYPH	_	39	punct	_	SpaceAfter=No
 41	chief	chief	ADJ	JJ	Degree=Pos	39	comp:obj	_	_
-42	of	of	ADP	IN	_	37	comp:obl	_	_
+42	of	of	ADP	IN	_	37	udep	_	_
 43	Prevention	Prevention	PROPN	NNP	Number=Sing	42	comp:obj	_	_
 44	and	and	CCONJ	CC	_	46	cc	_	_
 45	Rodale	Rodale	PROPN	NNP	Number=Sing	46	compound	_	_
@@ -15918,7 +15918,7 @@
 21	,	,	PUNCT	,	_	23	punct	_	_
 22	a	a	DET	DT	Definite=Ind|PronType=Art	23	det	_	_
 23	Professor	professor	NOUN	NN	Number=Sing	17	conj:appos	_	_
-24	of	of	ADP	IN	_	23	comp:obl	_	_
+24	of	of	ADP	IN	_	23	udep	_	_
 25	Medicine	medicine	NOUN	NN	Number=Sing	24	comp:obj	_	_
 26	at	at	ADP	IN	_	23	mod	_	_
 27	Georgetown	Georgetown	PROPN	NNP	Number=Sing	28	compound	_	_
@@ -16099,7 +16099,7 @@
 30	in	in	ADP	IN	_	29	mod	_	_
 31	the	the	DET	DT	Definite=Def|PronType=Art	32	det	_	_
 32	state	state	NOUN	NN	Number=Sing	30	comp:obj	_	_
-33	of	of	ADP	IN	_	32	comp:obl	_	_
+33	of	of	ADP	IN	_	32	udep	_	_
 34	Kerala	Kerala	PROPN	NNP	Number=Sing	33	comp:obj	_	SpaceAfter=No
 35	.	.	PUNCT	.	_	19	punct	_	_
 
@@ -16111,7 +16111,7 @@
 4	sucking	suck	VERB	VBG	VerbForm=Ger	3	comp:obj	_	_
 5	vast	vast	ADJ	JJ	Degree=Pos	6	mod	_	_
 6	amounts	amount	NOUN	NNS	Number=Plur	4	comp:obj	_	_
-7	of	of	ADP	IN	_	6	mod	_	_
+7	of	of	ADP	IN	_	6	udep	_	_
 8	water	water	NOUN	NN	Number=Sing	7	comp:obj	_	_
 9	out	out	ADP	IN	_	4	comp:obl	_	_
 10	of	of	ADP	IN	_	9	comp:obj	_	_
@@ -16168,7 +16168,7 @@
 4	calmed	calm	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	0	root	_	_
 5	the	the	DET	DT	Definite=Def|PronType=Art	6	det	_	_
 6	concerns	concern	NOUN	NNS	Number=Plur	4	comp:obj	_	_
-7	of	of	ADP	IN	_	6	comp:obl	_	_
+7	of	of	ADP	IN	_	6	udep	_	_
 8	the	the	DET	DT	Definite=Def|PronType=Art	9	det	_	_
 9	people	people	NOUN	NNS	Number=Plur	7	comp:obj	_	_
 10	and	and	CCONJ	CC	_	11	cc	_	_
@@ -16183,7 +16183,7 @@
 19	them	they	PRON	PRP	Case=Acc|Number=Plur|Person=3|PronType=Prs	18	comp:obl	_	_
 20	vast	vast	ADJ	JJ	Degree=Pos	21	mod	_	_
 21	amounts	amount	NOUN	NNS	Number=Plur	18	comp:obj	_	_
-22	of	of	ADP	IN	_	21	mod	_	_
+22	of	of	ADP	IN	_	21	udep	_	_
 23	free	free	ADJ	JJ	Degree=Pos	24	mod	_	_
 24	fertilizer	fertilizer	NOUN	NN	Number=Sing	22	comp:obj	_	SpaceAfter=No
 25	,	,	PUNCT	,	_	26	punct	_	_
@@ -16204,7 +16204,7 @@
 1	After	after	ADP	IN	_	8	mod	_	_
 2	several	several	ADJ	JJ	Degree=Pos	3	mod	_	_
 3	years	year	NOUN	NNS	Number=Plur	1	comp:obj	_	_
-4	of	of	ADP	IN	_	3	mod	_	_
+4	of	of	ADP	IN	_	3	udep	_	_
 5	use	use	NOUN	NN	Number=Sing	4	comp:obj	_	SpaceAfter=No
 6	,	,	PUNCT	,	_	1	punct	_	_
 7	we	we	PRON	PRP	Case=Nom|Number=Plur|Person=1|PronType=Prs	8	subj	_	_
@@ -16279,7 +16279,7 @@
 # sent_id = newsgroup-groups.google.com_eHolistic_e470976a8f836699_ENG_20050829_183800-0007
 # text = Moral of the story: Don't drink Coke..........drink Pepsi!
 1	Moral	moral	NOUN	NN	Number=Sing	0	root	_	_
-2	of	of	ADP	IN	_	1	mod	_	_
+2	of	of	ADP	IN	_	1	udep	_	_
 3	the	the	DET	DT	Definite=Def|PronType=Art	4	det	_	_
 4	story	story	NOUN	NN	Number=Sing	2	comp:obj	_	SpaceAfter=No
 5	:	:	PUNCT	:	_	6	punct	_	_
@@ -16342,7 +16342,7 @@
 18	the	the	DET	DT	Definite=Def|PronType=Art	20	det	_	_
 19	Housing	Housing	PROPN	NNP	Number=Sing	20	compound	_	_
 20	Authority	Authority	PROPN	NNP	Number=Sing	17	comp:obj	_	_
-21	of	of	ADP	IN	_	20	comp:obl	_	_
+21	of	of	ADP	IN	_	20	udep	_	_
 22	New	New	ADJ	NNP	Degree=Pos	23	mod	_	_
 23	Orleans	Orleans	PROPN	NNP	Number=Sing	21	comp:obj	_	_
 24	(	(	PUNCT	-LRB-	_	25	punct	_	SpaceAfter=No
@@ -16363,7 +16363,7 @@
 7	United	United	ADJ	NNP	Degree=Pos	8	mod	_	_
 8	States	State	PROPN	NNPS	Number=Plur	9	compound	_	_
 9	Department	Department	PROPN	NNP	Number=Sing	5	comp:obj	_	_
-10	of	of	ADP	IN	_	9	comp:obl	_	_
+10	of	of	ADP	IN	_	9	udep	_	_
 11	Housing	Housing	PROPN	NNP	Number=Sing	10	comp:obj	_	_
 12	and	and	CCONJ	CC	_	14	cc	_	_
 13	Urban	Urban	ADJ	NNP	Degree=Pos	14	mod	_	_
@@ -16389,7 +16389,7 @@
 33	,	,	PUNCT	,	_	35	punct	_	_
 34	the	the	DET	DT	Definite=Def|PronType=Art	35	det	_	_
 35	City	City	PROPN	NNP	Number=Sing	32	conj:coord	_	_
-36	of	of	ADP	IN	_	35	comp:obl	_	_
+36	of	of	ADP	IN	_	35	udep	_	_
 37	New	New	ADJ	NNP	Degree=Pos	38	mod	_	_
 38	Orleans	Orleans	PROPN	NNP	Number=Sing	36	comp:obj	_	SpaceAfter=No
 39	,	,	PUNCT	,	_	40	punct	_	_
@@ -16399,7 +16399,7 @@
 43	the	the	DET	DT	Definite=Def|PronType=Art	45	det	_	_
 44	U.S.	U.S.	PROPN	NNP	Number=Sing	45	compound	_	_
 45	Department	Department	PROPN	NNP	Number=Sing	40	conj:coord	_	_
-46	of	of	ADP	IN	Shared=No	45	comp:obl	_	_
+46	of	of	ADP	IN	Shared=No	45	udep	_	_
 47	Housing	Housing	PROPN	NNP	Number=Sing	46	comp:obj	_	_
 48	and	and	CCONJ	CC	_	50	cc	_	_
 49	Urban	Urban	ADJ	NNP	Degree=Pos	50	mod	_	_
@@ -16532,7 +16532,7 @@
 2	In	in	ADP	IN	_	14	udep	_	_
 3	the	the	DET	DT	Definite=Def|PronType=Art	4	det	_	_
 4	wake	wake	NOUN	NN	Number=Sing	2	comp:obj	_	_
-5	of	of	ADP	IN	_	4	mod	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	Hurricane	Hurricane	PROPN	NNP	Number=Sing	7	compound	_	_
 7	Katrina	Katrina	PROPN	NNP	Number=Sing	5	comp:obj	_	SpaceAfter=No
 8	,	,	PUNCT	,	_	2	punct	_	_
@@ -16602,7 +16602,7 @@
 23	in	in	ADP	IN	_	22	mod	_	_
 24	the	the	DET	DT	Definite=Def|PronType=Art	25	det	_	_
 25	Gulf	Gulf	PROPN	NNP	Number=Sing	23	comp:obj	_	_
-26	of	of	ADP	IN	_	25	mod	_	_
+26	of	of	ADP	IN	_	25	udep	_	_
 27	Mexico	Mexico	PROPN	NNP	Number=Sing	26	comp:obj	_	SpaceAfter=No
 28	.	.	PUNCT	.	_	5	punct	_	_
 
@@ -16641,7 +16641,7 @@
 3	,	,	PUNCT	,	_	1	punct	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	5	det	_	_
 5	price	price	NOUN	NN	Number=Sing	14	subj	_	_
-6	of	of	ADP	IN	_	5	comp:obl	_	_
+6	of	of	ADP	IN	_	5	udep	_	_
 7	Brent	Brent	PROPN	NNP	Number=Sing	10	compound	_	_
 8	North	North	PROPN	NNP	Number=Sing	9	compound	_	_
 9	Sea	Sea	PROPN	NNP	Number=Sing	10	compound	_	_
@@ -16671,7 +16671,7 @@
 10	Rita	Rita	PROPN	NNP	Number=Sing	11	subj	_	_
 11	packed	pack	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	0	root	_	_
 12	winds	wind	NOUN	NNS	Number=Plur	11	comp:obj	_	_
-13	of	of	ADP	IN	_	12	mod	_	_
+13	of	of	ADP	IN	_	12	udep	_	_
 14	about	about	ADV	RB	_	15	mod	_	_
 15	240	240	NUM	CD	NumForm=Digit|NumType=Card	16	mod	_	_
 16	kilometers	kilometer	NOUN	NNS	Number=Plur	13	comp:obj	_	_
@@ -16683,7 +16683,7 @@
 22	across	across	ADP	IN	_	21	comp:obl	_	_
 23	the	the	DET	DT	Definite=Def|PronType=Art	24	det	_	_
 24	Gulf	Gulf	PROPN	NNP	Number=Sing	22	comp:obj	_	_
-25	of	of	ADP	IN	_	24	mod	_	_
+25	of	of	ADP	IN	_	24	udep	_	_
 26	Mexico	Mexico	PROPN	NNP	Number=Sing	25	comp:obj	_	SpaceAfter=No
 27	.	.	PUNCT	.	_	11	punct	_	_
 
@@ -16729,14 +16729,14 @@
 6	in	in	ADP	IN	_	5	udep	_	_
 7	the	the	DET	DT	Definite=Def|PronType=Art	8	det	_	_
 8	Gulf	Gulf	PROPN	NNP	Number=Sing	6	comp:obj	_	_
-9	of	of	ADP	IN	_	8	mod	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	Mexico	Mexico	PROPN	NNP	Number=Sing	9	comp:obj	_	_
 11	where	where	ADV	WRB	PronType=Rel	20	mod	_	_
 12	about	about	ADV	RB	_	15	mod	_	_
 13	one	one	NUM	CD	NumForm=Word|NumType=Card	15	compound	_	SpaceAfter=No
 14	-	-	PUNCT	HYPH	_	13	punct	_	SpaceAfter=No
 15	quarter	quarter	NOUN	NN	Number=Sing	20	subj@pass	_	_
-16	of	of	ADP	IN	_	15	comp:obl	_	_
+16	of	of	ADP	IN	_	15	udep	_	_
 17	US	US	PROPN	NNP	Number=Sing	19	compound	_	_
 18	oil	oil	NOUN	NN	Number=Sing	19	compound	_	_
 19	operations	operation	NOUN	NNS	Number=Plur	16	comp:obj	_	_
@@ -16842,7 +16842,7 @@
 15	a	a	DET	DT	Definite=Ind|PronType=Art	17	det	_	_
 16	record	record	ADJ	JJ	Degree=Pos	17	mod	_	_
 17	high	high	NOUN	NN	Number=Sing	14	comp:obj	_	_
-18	of	of	ADP	IN	_	17	comp:obl	_	_
+18	of	of	ADP	IN	_	17	udep	_	_
 19	70.85	70.85	NUM	CD	NumForm=Digit|NumType=Frac	20	mod	_	_
 20	dollars	dollar	NOUN	NNS	Number=Plur	18	comp:obj	_	_
 21	a	a	DET	DT	Definite=Ind|PronType=Art	22	det	_	_
@@ -17004,7 +17004,7 @@
 10	considering	consider	VERB	VBG	Tense=Pres|VerbForm=Part	8	mod	_	_
 11	the	the	DET	DT	Definite=Def|PronType=Art	12	det	_	_
 12	accomplishments	accomplishment	NOUN	NNS	Number=Plur	10	comp:obj	_	_
-13	of	of	ADP	IN	_	12	comp:obl	_	_
+13	of	of	ADP	IN	_	12	udep	_	_
 14	the	the	DET	DT	Definite=Def|PronType=Art	16	det	_	_
 15	private	private	ADJ	JJ	Degree=Pos	16	mod	_	_
 16	sector	sector	NOUN	NN	Number=Sing	13	comp:obj	_	_
@@ -17101,7 +17101,7 @@
 1	"	"	PUNCT	``	_	11	punct	_	SpaceAfter=No
 2	That	that	DET	DT	Number=Sing|PronType=Dem	3	det	_	_
 3	kind	kind	NOUN	NN	Number=Sing	11	subj	_	_
-4	of	of	ADP	IN	_	3	mod	_	_
+4	of	of	ADP	IN	_	3	udep	_	_
 5	a	a	DET	DT	Definite=Ind|PronType=Art	7	det	_	_
 6	financial	financial	ADJ	JJ	Degree=Pos	7	mod	_	_
 7	incentive	incentive	NOUN	NN	Number=Sing	4	comp:obj	_	_
@@ -17200,7 +17200,7 @@
 19	about	about	ADV	RB	_	21	mod	_	_
 20	a	a	DET	DT	Definite=Ind|PronType=Art	21	det	_	_
 21	fifth	fifth	NOUN	NN	Number=Sing|NumForm=Word|NumType=Frac	18	comp:obj	_	_
-22	of	of	ADP	IN	_	21	mod	_	_
+22	of	of	ADP	IN	_	21	udep	_	_
 23	the	the	DET	DT	Definite=Def|PronType=Art	24	det	_	_
 24	cost	cost	NOUN	NN	Number=Sing	22	comp:obj	_	SpaceAfter=No
 25	)	)	PUNCT	-RRB-	_	18	punct	_	SpaceAfter=No
@@ -17399,7 +17399,7 @@
 29	West	West	PROPN	NNP	Number=Sing	31	compound	_	_
 30	Bank	Bank	PROPN	NNP	Number=Sing	31	compound	_	_
 31	town	town	NOUN	NN	Number=Sing	27	comp:obj	_	_
-32	of	of	ADP	IN	_	31	comp:obl	_	_
+32	of	of	ADP	IN	_	31	udep	_	_
 33	Ramallah	Ramallah	PROPN	NNP	Number=Sing	32	comp:obj	_	SpaceAfter=No
 34	,	,	PUNCT	,	_	35	punct	_	_
 35	Saturday	Saturday	PROPN	NNP	Number=Sing	20	udep@unmarked	_	TemporalNPAdjunct=Yes
@@ -17426,7 +17426,7 @@
 12	fulfill	fulfill	VERB	VB	VerbForm=Inf	11	comp:obj	_	Subject=SubjRaising
 13	Palestinian	Palestinian	ADJ	JJ	Degree=Pos	14	mod	_	_
 14	dreams	dream	NOUN	NNS	Number=Plur	12	comp:obj	_	_
-15	of	of	ADP	IN	_	14	comp:obl	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	statehood	statehood	NOUN	NN	Number=Sing	15	comp:obj	_	SpaceAfter=No
 17	.	.	PUNCT	.	_	10	punct	_	_
 
@@ -17523,9 +17523,9 @@
 5	resolve	resolve	VERB	VB	VerbForm=Inf	4	comp:obj	_	Subject=SubjRaising
 6	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 7	problem	problem	NOUN	NN	Number=Sing	5	comp:obj	_	_
-8	of	of	ADP	IN	_	7	comp:obl	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	millions	million	NOUN	NNS	Number=Plur	8	comp:obj	_	_
-10	of	of	ADP	IN	_	9	mod	_	_
+10	of	of	ADP	IN	_	9	udep	_	_
 11	Palestinian	Palestinian	ADJ	JJ	Degree=Pos	12	mod	_	_
 12	refugees	refugee	NOUN	NNS	Number=Plur	10	comp:obj	_	_
 13	and	and	CCONJ	CC	_	15	cc	_	_
@@ -17548,7 +17548,7 @@
 11	northern	northern	ADJ	JJ	Degree=Pos	13	mod	_	_
 12	Israeli	Israeli	ADJ	JJ	Degree=Pos	13	mod	_	_
 13	city	city	NOUN	NN	Number=Sing	8	comp:pred	_	Cxn=rc-free-nsubj
-14	of	of	ADP	IN	_	13	comp:obl	_	_
+14	of	of	ADP	IN	_	13	udep	_	_
 15	Safed	Safed	PROPN	NNP	Number=Sing	14	comp:obj	_	SpaceAfter=No
 16	,	,	PUNCT	,	_	1	punct	_	_
 17	called	call	VERB	VBD	Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin	0	root	_	_
@@ -17606,7 +17606,7 @@
 10	continues	continue	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	3	conj:coord	_	_
 11	the	the	DET	DT	Definite=Def|PronType=Art	12	det	_	_
 12	path	path	NOUN	NN	Number=Sing|Shared=No	10	comp:obj	_	_
-13	of	of	ADP	IN	_	12	comp:obl	_	_
+13	of	of	ADP	IN	_	12	udep	_	_
 14	Yasser	Yasser	PROPN	NNP	Number=Sing	13	comp:obj	_	_
 15	Arafat	Arafat	PROPN	NNP	Number=Sing	14	flat	_	SpaceAfter=No
 16	,	,	PUNCT	,	_	1	punct	_	_
@@ -17915,7 +17915,7 @@
 13	and	and	CCONJ	CC	_	14	cc	_	_
 14	in	in	ADP	IN	_	10	conj:coord	_	_
 15	light	light	NOUN	NN	Number=Sing|Shared=No	14	comp:obj	_	_
-16	of	of	ADP	IN	_	15	mod	_	_
+16	of	of	ADP	IN	_	15	udep	_	_
 17	the	the	DET	DT	Definite=Def|PronType=Art	19	det	_	_
 18	Israeli	Israeli	ADJ	JJ	Degree=Pos	19	mod	_	_
 19	escalation	escalation	NOUN	NN	Number=Sing	16	comp:obj	_	_
@@ -18389,7 +18389,7 @@
 4	's	's	PART	POS	_	6	udep@poss	_	_
 5	cubism	cubism	NOUN	NN	Number=Sing	6	compound	_	_
 6	style	style	NOUN	NN	Number=Sing	2	comp:obj	_	_
-7	of	of	ADP	IN	_	6	mod	_	_
+7	of	of	ADP	IN	_	6	udep	_	_
 8	painting	painting	NOUN	NN	Number=Sing	7	comp:obj	_	SpaceAfter=No
 9	?	?	PUNCT	.	_	2	punct	_	_
 
@@ -18498,7 +18498,7 @@
 7	in	in	ADP	IN	_	6	mod	_	_
 8	the	the	DET	DT	Definite=Def|PronType=Art	9	det	_	_
 9	state	state	NOUN	NN	Number=Sing	7	comp:obj	_	_
-10	of	of	ADP	IN	_	9	mod	_	_
+10	of	of	ADP	IN	_	9	udep	_	_
 11	NY	NY	PROPN	NNP	Number=Sing	10	comp:obj	_	_
 12	but	but	CCONJ	CC	_	14	cc	_	_
 13	I	I	PRON	PRP	Case=Nom|Number=Sing|Person=1|PronType=Prs	14	subj	_	_
@@ -18584,7 +18584,7 @@
 8	for	for	ADP	IN	_	3	mod	_	_
 9	human	human	ADJ	JJ	Degree=Pos	10	mod	_	_
 10	statue	statue	NOUN	NN	Number=Sing	8	comp:obj	_	_
-11	of	of	ADP	IN	_	10	mod	_	_
+11	of	of	ADP	IN	_	10	udep	_	_
 12	size	size	NOUN	NN	Number=Sing	11	comp:obj	_	_
 13	375	375	NUM	CD	NumForm=Digit|NumType=Card	14	mod	_	SpaceAfter=No
 14	mm	mm	NOUN	NNS	Number=Plur	12	conj:appos	_	_
@@ -18831,7 +18831,7 @@
 # text = Certain elements of the travelling community engage in this activity, but overall no not really.
 1	Certain	certain	ADJ	JJ	Degree=Pos	2	mod	_	_
 2	elements	element	NOUN	NNS	Number=Plur|Shared=Yes	7	subj	_	_
-3	of	of	ADP	IN	_	2	mod	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	6	det	_	_
 5	travelling	travelling	NOUN	NN	Number=Sing	6	compound	_	_
 6	community	community	NOUN	NN	Number=Sing	3	comp:obj	_	_
@@ -18860,7 +18860,7 @@
 # text = some members of the traveler community bare knuckle box.
 1	some	some	DET	DT	PronType=Ind	2	det	_	_
 2	members	member	NOUN	NNS	Number=Plur	9	subj	_	_
-3	of	of	ADP	IN	_	2	comp:obl	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	6	det	_	_
 5	traveler	traveler	NOUN	NN	Number=Sing	6	compound	_	_
 6	community	community	NOUN	NN	Number=Sing	3	comp:obj	_	_
@@ -18956,7 +18956,7 @@
 1	I	I	PRON	PRP	Case=Nom|Number=Sing|Person=1|PronType=Prs	2	subj	_	_
 2	have	have	VERB	VBP	Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin	0	root	_	_
 3	hundreds	hundred	NOUN	NNS	Number=Plur	2	comp:obj	_	_
-4	of	of	ADP	IN	_	3	mod	_	_
+4	of	of	ADP	IN	_	3	udep	_	_
 5	VHS	vhs	NOUN	NN	Number=Sing	6	compound	_	_
 6	movies	movie	NOUN	NNS	Number=Plur	4	comp:obj	_	_
 7	lying	lie	VERB	VBG	VerbForm=Ger	3	mod	_	_
@@ -19323,7 +19323,7 @@
 7	in	in	ADP	IN	_	6	mod	_	_
 8	that	that	DET	DT	Number=Sing|PronType=Dem	9	det	_	_
 9	part	part	NOUN	NN	Number=Sing	7	comp:obj	_	_
-10	of	of	ADP	IN	_	9	comp:obl	_	_
+10	of	of	ADP	IN	_	9	udep	_	_
 11	the	the	DET	DT	Definite=Def|PronType=Art	12	det	_	_
 12	world	world	NOUN	NN	Number=Sing	10	comp:obj	_	_
 13	but	but	CCONJ	CC	_	15	cc	_	_
@@ -19635,7 +19635,7 @@
 6	est	estimate	VERB	VBN	Abbr=Yes|Tense=Past|VerbForm=Part|Voice=Pass	8	mod	_	_
 7	stolen	steal	VERB	VBN	Tense=Past|VerbForm=Part|Voice=Pass	8	mod	_	_
 8	works	work	NOUN	NNS	Number=Plur	2	comp:obj	_	_
-9	of	of	ADP	IN	_	8	mod	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	art	art	NOUN	NN	Number=Sing	9	comp:obj	_	_
 11	by	by	ADP	IN	_	8	mod	_	_
 12	the	the	DET	DT	Definite=Def|PronType=Art	13	det	_	_
@@ -19802,7 +19802,7 @@
 8	from	from	ADP	IN	Shared=No	7	mod	_	_
 9	that	that	DET	DT	Number=Sing|PronType=Dem	10	det	_	_
 10	area	area	NOUN	NN	Number=Sing	8	comp:obj	_	_
-11	of	of	ADP	IN	_	10	mod	_	_
+11	of	of	ADP	IN	_	10	udep	_	_
 12	Argentina	Argentina	PROPN	NNP	Number=Sing	11	comp:obj	_	SpaceAfter=No
 13	?	?	PUNCT	.	_	1	punct	_	_
 
@@ -19825,21 +19825,21 @@
 # text = 1 cup of empanadas
 1	1	1	NUM	CD	NumForm=Digit|NumType=Card	2	mod	_	_
 2	cup	cup	NOUN	NN	Number=Sing	0	root	_	_
-3	of	of	ADP	IN	_	2	comp:obl	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	empanadas	empanada	NOUN	NNS	Foreign=Yes|Number=Plur	3	comp:obj	_	_
 
 # sent_id = answers-20081229195853AAYQ8mR_ans-0006
 # text = 1 cup of arabes
 1	1	1	NUM	CD	NumForm=Digit|NumType=Card	2	mod	_	_
 2	cup	cup	NOUN	NN	Number=Sing	0	root	_	_
-3	of	of	ADP	IN	_	2	comp:obl	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	arabes	arabes	NOUN	NN	Foreign=Yes|Number=Sing	3	comp:obj	_	_
 
 # sent_id = answers-20081229195853AAYQ8mR_ans-0007
 # text = 1 cup of other empanadas
 1	1	1	NUM	CD	NumForm=Digit|NumType=Card	2	mod	_	_
 2	cup	cup	NOUN	NN	Number=Sing	0	root	_	_
-3	of	of	ADP	IN	_	2	comp:obl	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	other	other	ADJ	JJ	Degree=Pos	5	mod	_	_
 5	empanadas	empanada	NOUN	NNS	Foreign=Yes|Number=Plur	3	comp:obj	_	_
 
@@ -19847,11 +19847,11 @@
 # text = 1 cup of from that area of Argentina
 1	1	1	NUM	CD	NumForm=Digit|NumType=Card	2	mod	_	_
 2	cup	cup	NOUN	NN	Number=Sing	0	root	_	_
-3	of	of	ADP	IN	_	2	mod	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	from	from	ADP	IN	_	3	comp:obj	_	_
 5	that	that	DET	DT	Number=Sing|PronType=Dem	6	det	_	_
 6	area	area	NOUN	NN	Number=Sing	4	comp:obj	_	_
-7	of	of	ADP	IN	_	6	mod	_	_
+7	of	of	ADP	IN	_	6	udep	_	_
 8	Argentina	Argentina	PROPN	NNP	Number=Sing	7	comp:obj	_	_
 
 # sent_id = answers-20081229195853AAYQ8mR_ans-0009
@@ -20627,7 +20627,7 @@
 4	post	post	VERB	VB	VerbForm=Inf	2	comp:aux	_	Cxn=Interrogative-WHInfo-Direct|CxnElt=4:Interrogative-WHInfo-Direct.Clause
 5	the	the	DET	DT	Definite=Def|PronType=Art	6	det	_	_
 6	location	location	NOUN	NN	Number=Sing	4	comp:obj	_	_
-7	of	of	ADP	IN	_	6	mod	_	_
+7	of	of	ADP	IN	_	6	udep	_	_
 8	a	a	DET	DT	Definite=Ind|PronType=Art	9	det	_	_
 9	dealer	dealer	NOUN	NN	Number=Sing	7	comp:obj	_	_
 10	in	in	ADP	IN	_	4	mod	_	_
@@ -20900,7 +20900,7 @@
 6	flew	fly	VERB	VBD	Mood=Ind|Number=Sing|Person=2|Tense=Past|VerbForm=Fin	4	comp:obj	_	CxnElt=3:Conditional-UnspecifiedEpistemic-NoInversion.Protasis
 7	the	the	DET	DT	Definite=Def|PronType=Art	8	det	_	_
 8	flag	flag	NOUN	NN	Number=Sing	6	comp:obj	_	_
-9	of	of	ADP	IN	_	8	comp:obl	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	South	South	PROPN	NNP	Number=Sing	11	compound	_	_
 11	Vietnam	Vietnam	PROPN	NNP	Number=Sing	9	comp:obj	_	_
 12	in	in	ADP	IN	_	6	mod	_	_
@@ -20920,7 +20920,7 @@
 6	flying	fly	VERB	VBG	Tense=Pres|VerbForm=Part	5	comp:obj	_	_
 7	the	the	DET	DT	Definite=Def|PronType=Art	8	det	_	_
 8	flag	flag	NOUN	NN	Number=Sing	6	comp:obj	_	_
-9	of	of	ADP	IN	_	8	comp:obl	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	the	the	DET	DT	Definite=Def|PronType=Art	12	det	_	_
 11	Third	Third	ADJ	NNP	Degree=Pos|NumForm=Word|NumType=Ord	12	mod	_	_
 12	Reich	Reich	PROPN	NNP	Number=Sing	9	comp:obj	_	_
@@ -20976,7 +20976,7 @@
 4	face	face	VERB	VB	VerbForm=Inf	2	comp:aux	_	_
 5	the	the	DET	DT	Definite=Def|PronType=Art	6	det	_	_
 6	ire	ire	NOUN	NN	Number=Sing	4	comp:obj	_	_
-7	of	of	ADP	IN	_	6	mod	_	_
+7	of	of	ADP	IN	_	6	udep	_	_
 8	most	most	ADJ	JJS	Degree=Sup	9	mod	_	_
 9	people	people	NOUN	NNS	Number=Plur	7	comp:obj	_	_
 10	there	there	ADV	RB	PronType=Dem	9	mod	_	SpaceAfter=No
@@ -21167,7 +21167,7 @@
 14	,	,	PUNCT	,	_	16	punct	_	SpaceAfter=No
 15	21	21	NUM	CD	NumForm=Digit|NumType=Card	16	mod	_	_
 16	years	year	NOUN	NNS	Number=Plur	7	conj:appos	_	_
-17	of	of	ADP	IN	_	16	mod	_	_
+17	of	of	ADP	IN	_	16	udep	_	_
 18	age	age	NOUN	NN	Number=Sing	17	comp:obj	_	SpaceAfter=No
 19	,	,	PUNCT	,	_	21	punct	_	_
 20	I	I	PRON	PRP	Case=Nom|Number=Sing|Person=1|PronType=Prs	21	subj	_	_
@@ -21258,7 +21258,7 @@
 # text = What kind of Meal do peopel in Argentina have?
 1	What	what	DET	WDT	PronType=Int	2	det	_	CxnElt=9:Interrogative-WHInfo-Direct.WHWord
 2	kind	kind	NOUN	NN	Number=Sing	9	comp:obj	_	_
-3	of	of	ADP	IN	_	2	mod	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	Meal	meal	NOUN	NN	Number=Sing	3	comp:obj	_	_
 5	do	do	AUX	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
 6	peopel	people	NOUN	NNS	Number=Plur|Typo=Yes	5	subj	_	CorrectForm=people
@@ -21304,7 +21304,7 @@
 6	/	/	SYM	,	_	7	cc	_	_
 7	main	main	ADJ	JJ	Degree=Pos	5	conj:coord	_	_
 8	meal	meal	NOUN	NN	Number=Sing	3	subj	_	_
-9	of	of	ADP	IN	_	8	mod	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	the	the	DET	DT	Definite=Def|PronType=Art	11	det	_	_
 11	day	day	NOUN	NN	Number=Sing	9	comp:obj	_	SpaceAfter=No
 12	.	.	PUNCT	.	_	3	punct	_	_
@@ -21420,7 +21420,7 @@
 11	do	do	VERB	VB	VerbForm=Inf	10	comp:obj	_	Subject=SubjRaising
 12	that	that	DET	DT	Number=Sing|PronType=Dem	13	det	_	_
 13	sort	sort	NOUN	NN	Number=Sing	11	comp:obj	_	_
-14	of	of	ADP	IN	_	13	mod	_	_
+14	of	of	ADP	IN	_	13	udep	_	_
 15	job	job	NOUN	NN	Number=Sing	14	comp:obj	_	SpaceAfter=No
 16	?	?	PUNCT	.	_	2	punct	_	_
 
@@ -21442,7 +21442,7 @@
 14	a	a	DET	DT	Definite=Ind|PronType=Art	16	det	_	_
 15	little	little	ADJ	JJ	Degree=Pos	16	mod	_	_
 16	bit	bit	NOUN	NN	Number=Sing|Shared=No	13	comp:obj	_	_
-17	of	of	ADP	IN	_	16	comp:obl	_	_
+17	of	of	ADP	IN	_	16	udep	_	_
 18	internet	internet	NOUN	NN	Number=Sing	19	compound	_	_
 19	searching	searching	NOUN	NN	Number=Sing	17	comp:obj	_	_
 20	to	to	PART	TO	Shared=No	13	mod	_	_
@@ -21747,7 +21747,7 @@
 20	at	at	ADP	IN	_	19	mod	_	_
 21	the	the	DET	DT	Definite=Def|PronType=Art	22	det	_	_
 22	time	time	NOUN	NN	Number=Sing	20	comp:obj	_	_
-23	of	of	ADP	IN	_	22	mod	_	_
+23	of	of	ADP	IN	_	22	udep	_	_
 24	the	the	DET	DT	Definite=Def|PronType=Art	25	det	_	_
 25	interview	interview	NOUN	NN	Number=Sing	23	comp:obj	_	_
 26	but	but	CCONJ	CC	_	33	cc	_	_
@@ -21847,7 +21847,7 @@
 17	@	at	SYM	SYM	Abbr=Yes|ExtPos=ADP|Shared=No	14	udep	_	_
 18	da	the	DET	DT	Abbr=Yes|Definite=Def|PronType=Art	19	det	_	CorrectForm=the
 19	syd	side	NOUN	NN	Abbr=Yes|Number=Sing	17	comp:obj	_	CorrectForm=side
-20	f	of	ADP	IN	Abbr=Yes	19	mod	_	CorrectForm=of
+20	f	of	ADP	IN	Abbr=Yes	19	udep	_	CorrectForm=of
 21	Ashtamudi	Ashtamudi	PROPN	NNP	Number=Sing	22	compound	_	_
 22	Lake	Lake	PROPN	NNP	Number=Sing	20	comp:obj	_	_
 23	in	in	ADP	IN	_	22	mod	_	_
@@ -21925,7 +21925,7 @@
 14	in	in	ADP	IN	_	11	mod	_	_
 15	the	the	DET	DT	Definite=Def|PronType=Art	16	det	_	_
 16	bottom	bottom	NOUN	NN	Number=Sing	14	comp:obj	_	_
-17	of	of	ADP	IN	_	16	comp:obl	_	_
+17	of	of	ADP	IN	_	16	udep	_	_
 18	the	the	DET	DT	Definite=Def|PronType=Art	19	det	_	_
 19	cage	cage	NOUN	NN	Number=Sing	17	comp:obj	_	SpaceAfter=No
 20	,	,	PUNCT	,	_	21	punct	_	_
@@ -22071,7 +22071,7 @@
 5	about	about	ADP	IN	_	4	comp:obl	_	_
 6	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 7	origin	origin	NOUN	NN	Number=Sing	5	comp:obj	_	_
-8	of	of	ADP	IN	_	7	comp:obl	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	the	the	DET	DT	Definite=Def|PronType=Art	10	det	_	_
 10	name	name	NOUN	NN	Number=Sing	8	comp:obj	_	_
 11	but	but	CCONJ	CC	_	13	cc	_	_
@@ -22079,7 +22079,7 @@
 13	are	be	VERB	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	2	conj:coord	_	Cxn=Existential-CopPred-ThereExpl
 14	a	a	DET	DT	Definite=Ind|PronType=Art	15	det	_	_
 15	lot	lot	NOUN	NN	Number=Sing|Shared=No	13	subj	_	CxnElt=13:Existential-CopPred-ThereExpl.Pivot
-16	of	of	ADP	IN	_	15	mod	_	_
+16	of	of	ADP	IN	_	15	udep	_	_
 17	different	different	ADJ	JJ	Degree=Pos	18	mod	_	_
 18	cities	city	NOUN	NNS	Number=Plur	16	comp:obj	_	_
 19	with	with	ADP	IN	_	18	mod	_	_
@@ -22173,7 +22173,7 @@
 8	,	,	PUNCT	,	_	10	punct	_	_
 9	the	the	DET	DT	Definite=Def|PronType=Art	10	det	_	_
 10	site	site	NOUN	NN	Number=Sing	5	conj:appos	_	_
-11	of	of	ADP	IN	_	10	comp:obl	_	_
+11	of	of	ADP	IN	_	10	udep	_	_
 12	a	a	DET	DT	Definite=Ind|PronType=Art	17	det	_	_
 13	rather	rather	ADV	RB	_	14	mod	_	_
 14	large	large	ADJ	JJ	Degree=Pos	17	mod	_	_
@@ -22724,7 +22724,7 @@
 2	)	)	PUNCT	-RRB-	_	1	punct	_	_
 3	what	what	DET	WDT	PronType=Int	4	det	_	_
 4	islad	island	NOUN	NN	Number=Sing|Typo=Yes	7	comp:pred	_	CorrectForm=island
-5	of	of	ADP	IN	_	4	mod	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	Fiji	Fiji	PROPN	NNP	Number=Sing	5	comp:obj	_	_
 7	is	be	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
 8	a	a	DET	DT	Definite=Ind|PronType=Art	10	det	_	_
@@ -22939,7 +22939,7 @@
 12	sell	sell	VERB	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	6	mod@relcl	_	Cxn=rc-wh-obl
 13	all	all	DET	DT	PronType=Tot	14	det	_	_
 14	types	type	NOUN	NNS	Number=Plur	12	comp:obj	_	_
-15	of	of	ADP	IN	_	14	mod	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	sausages	sausage	NOUN	NNS	Number=Plur	15	comp:obj	_	SpaceAfter=No
 17	,	,	PUNCT	,	_	18	punct	_	_
 18	including	include	VERB	VBG	Tense=Pres|VerbForm=Part	14	udep	_	_
@@ -23016,7 +23016,7 @@
 2	there	there	PRON	EX	PronType=Dem	1	comp@expl	_	_
 3	any	any	DET	DT	PronType=Ind	4	det	_	_
 4	kind	kind	NOUN	NN	Number=Sing	1	subj	_	CxnElt=1:Existential-CopPred-ThereExpl.Pivot
-5	of	of	ADP	IN	_	4	mod	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	public	public	ADJ	JJ	Degree=Pos	7	mod	_	_
 7	transport	transport	NOUN	NN	Number=Sing	5	comp:obj	_	_
 8	available	available	ADJ	JJ	Degree=Pos	4	mod	_	_
@@ -23109,7 +23109,7 @@
 5	can	can	AUX	MD	VerbForm=Fin	0	root	_	_
 6	find	find	VERB	VB	VerbForm=Inf	5	comp:aux	_	_
 7	lots	lot	NOUN	NNS	Number=Plur	6	comp:obj	_	_
-8	of	of	ADP	IN	_	7	mod	_	_
+8	of	of	ADP	IN	_	7	udep	_	_
 9	public	public	ADJ	JJ	Degree=Pos	10	mod	_	_
 10	transport	transport	NOUN	NN	Number=Sing	11	compound	_	_
 11	options	option	NOUN	NNS	Number=Plur	8	comp:obj	_	_
@@ -23430,7 +23430,7 @@
 2	and	and	CCONJ	CC	_	4	cc	_	_
 3	the	the	DET	DT	Definite=Def|PronType=Art	4	det	_	_
 4	impact	impact	NOUN	NN	Number=Sing	1	conj:coord	_	_
-5	of	of	ADP	IN	Shared=No	4	comp:obl	_	_
+5	of	of	ADP	IN	Shared=No	4	udep	_	_
 6	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 7	location	location	NOUN	NN	Number=Sing	5	comp:obj	_	_
 
@@ -23460,7 +23460,7 @@
 # sent_id = answers-20111107115952AAqfsHV_ans-0010
 # text = cost of the U.S. in money and men?
 1	cost	cost	NOUN	NN	Number=Sing	0	root	_	_
-2	of	of	ADP	IN	_	1	comp:obl	_	_
+2	of	of	ADP	IN	_	1	udep	_	_
 3	the	the	DET	DT	Definite=Def|PronType=Art	4	det	_	_
 4	U.S.	U.S.	PROPN	NNP	Number=Sing	2	comp:obj	_	_
 5	in	in	ADP	IN	_	1	comp:obl	_	_
@@ -23473,7 +23473,7 @@
 # text = political costs of the war?
 1	political	political	ADJ	JJ	Degree=Pos	2	mod	_	_
 2	costs	cost	NOUN	NNS	Number=Plur	0	root	_	_
-3	of	of	ADP	IN	_	2	comp:obl	_	_
+3	of	of	ADP	IN	_	2	udep	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	5	det	_	_
 5	war	war	NOUN	NN	Number=Sing	3	comp:obj	_	SpaceAfter=No
 6	?	?	PUNCT	.	_	2	punct	_	_
@@ -23481,7 +23481,7 @@
 # sent_id = answers-20111107115952AAqfsHV_ans-0012
 # text = impact of the war on the American people?
 1	impact	impact	NOUN	NN	Number=Sing	0	root	_	_
-2	of	of	ADP	IN	_	1	comp:obl	_	_
+2	of	of	ADP	IN	_	1	udep	_	_
 3	the	the	DET	DT	Definite=Def|PronType=Art	4	det	_	_
 4	war	war	NOUN	NN	Number=Sing	2	comp:obj	_	_
 5	on	on	ADP	IN	_	1	comp:obl	_	_
@@ -23667,7 +23667,7 @@
 3	is	be	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
 4	the	the	DET	DT	Definite=Def|PronType=Art	5	det	_	_
 5	STAR	star	NOUN	NN	Number=Sing	3	comp:pred	_	_
-6	of	of	ADP	IN	_	5	comp:obl	_	_
+6	of	of	ADP	IN	_	5	udep	_	_
 7	the	the	DET	DT	Definite=Def|PronType=Art	8	det	_	_
 8	family	family	NOUN	NN	Number=Sing	6	comp:obj	_	SpaceAfter=No
 9	.	.	PUNCT	.	_	3	punct	_	_
@@ -24104,7 +24104,7 @@
 8	about	about	ADV	RB	_	10	mod	_	_
 9	a	a	DET	DT	Definite=Ind|PronType=Art	10	det	_	_
 10	third	third	NOUN	NN	Number=Sing|NumForm=Word|NumType=Frac	7	comp:obj	_	_
-11	of	of	ADP	IN	_	10	comp:obl	_	_
+11	of	of	ADP	IN	_	10	udep	_	_
 12	the	the	DET	DT	Definite=Def|PronType=Art	13	det	_	_
 13	price	price	NOUN	NN	Number=Sing	11	comp:obj	_	SpaceAfter=No
 14	.	.	PUNCT	.	_	1	punct	_	_
@@ -24413,7 +24413,7 @@
 1	I	I	PRON	PRP	Case=Nom|Number=Sing|Person=1|PronType=Prs	2	subj	_	_
 2	have	have	VERB	VBP	Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin	0	root	_	_
 3	lots	lot	NOUN	NNS	Number=Plur	2	comp:obj	_	_
-4	of	of	ADP	IN	_	3	mod	_	_
+4	of	of	ADP	IN	_	3	udep	_	_
 5	containers	container	NOUN	NNS	Number=Plur	4	comp:obj	_	_
 6	in	in	ADP	IN	_	2	mod	_	_
 7	there	there	ADV	RB	PronType=Dem	6	comp:obj	_	SpaceAfter=No
@@ -24522,7 +24522,7 @@
 9	put	put	VERB	VB	Mood=Imp|VerbForm=Fin	1	conj:coord	_	_
 10	a	a	DET	DT	Definite=Ind|PronType=Art	11	det	_	_
 11	bowl	bowl	NOUN	NN	Number=Sing|Shared=No	9	comp:obj	_	_
-12	of	of	ADP	IN	_	11	comp:obl	_	_
+12	of	of	ADP	IN	_	11	udep	_	_
 13	food	food	NOUN	NN	Number=Sing	12	comp:obj	_	_
 14	out	out	ADP	RP	Shared=No	9	compound@prt	_	SpaceAfter=No
 15	.	.	PUNCT	.	_	1	punct	_	_
@@ -24686,7 +24686,7 @@
 2	require	require	VERB	VBP	Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	_
 3	a	a	DET	DT	Definite=Ind|PronType=Art	4	det	_	_
 4	lot	lot	NOUN	NN	Number=Sing	2	comp:obj	_	_
-5	of	of	ADP	IN	_	4	mod	_	_
+5	of	of	ADP	IN	_	4	udep	_	_
 6	attention	attention	NOUN	NN	Number=Sing	5	comp:obj	_	_
 7	or	or	CCONJ	CC	Shared=Yes	9	cc	_	_
 8	they	they	PRON	PRP	Case=Nom|Number=Plur|Person=3|PronType=Prs|Shared=Yes	9	subj	_	_
@@ -24784,7 +24784,7 @@
 10	for	for	ADP	IN	_	4	mod	_	_
 11	a	a	DET	DT	Definite=Ind|PronType=Art	12	det	_	_
 12	couple	couple	NOUN	NN	Number=Sing	10	comp:obj	_	_
-13	of	of	ADP	IN	_	12	mod	_	_
+13	of	of	ADP	IN	_	12	udep	_	_
 14	months	month	NOUN	NNS	Number=Plur	13	comp:obj	_	_
 15	now	now	ADV	RB	PronType=Dem	2	mod	_	SpaceAfter=No
 16	.	.	PUNCT	.	_	2	punct	_	_
@@ -25826,7 +25826,7 @@
 7	and	and	CCONJ	CC	_	8	cc	_	_
 8	on	on	ADP	IN	_	4	conj:coord	_	MWECat=PP|MWELemma=on top of|MWELen=3|PRel[config]=default|PRel[obj]=11:everything|Supersense[coding]=p.Locus|Supersense[scene]=p.Characteristic
 9	top	top	NOUN	NN	Number=Sing|Shared=No	8	comp:obj	_	_
-10	of	of	ADP	IN	_	9	mod	_	_
+10	of	of	ADP	IN	_	9	udep	_	_
 11	everything	everything	PRON	NN	Number=Sing|PronType=Tot	10	comp:obj	_	SpaceAfter=No
 12	!	!	PUNCT	.	_	4	punct	_	_
 
@@ -25889,7 +25889,7 @@
 6	for	for	ADP	IN	_	4	mod	_	PRel[config]=default|PRel[gov]=4:kick|PRel[obj]=8:cup|Supersense=p.Circumstance
 7	a	a	DET	DT	Definite=Ind|PronType=Art|Shared=No	8	det	_	_
 8	cup	cup	NOUN	NN	Number=Sing	6	comp:obj	_	MWECat=N|MWELemma=cup of joe|MWELen=3|Supersense=n.FOOD
-9	of	of	ADP	IN	_	8	mod	_	_
+9	of	of	ADP	IN	_	8	udep	_	_
 10	joe	joe	NOUN	NN	Number=Sing	9	comp:obj	_	_
 11	and	and	CCONJ	CC	_	13	cc	_	_
 12	a	a	DET	DT	Definite=Ind|PronType=Art	13	det	_	_
@@ -26467,7 +26467,7 @@
 1	Loved	love	VERB	VBD	Mood=Ind|Number=Sing|Person=1|Tense=Past|VerbForm=Fin	0	root	_	Supersense=v.emotion
 2	every	every	DET	DT	PronType=Tot	3	det	_	_
 3	bit	bit	NOUN	NN	Number=Sing	1	comp:obj	_	Supersense=n.QUANTITY
-4	of	of	ADP	IN	_	3	mod	_	PRel[config]=default|PRel[gov]=3:bit|PRel[obj]=5:it|Supersense[coding]=p.Whole|Supersense[scene]=p.QuantityItem
+4	of	of	ADP	IN	_	3	udep	_	PRel[config]=default|PRel[gov]=3:bit|PRel[obj]=5:it|Supersense[coding]=p.Whole|Supersense[scene]=p.QuantityItem
 5	it	it	PRON	PRP	Case=Acc|Gender=Neut|Number=Sing|Person=3|PronType=Prs	4	comp:obj	_	SpaceAfter=No
 6	.	.	PUNCT	.	_	1	punct	_	_
 7	:)	:)	SYM	NFP	_	1	discourse	_	_
@@ -26724,7 +26724,7 @@
 11	had	have	VERB	VBN	Tense=Past|VerbForm=Part	10	comp:aux	_	Supersense=v.consumption
 12	a	a	DET	DT	Definite=Ind|PronType=Art	13	det	_	MWECat=N|MWELemma=a ton|MWELen=2|Supersense=n.QUANTITY
 13	ton	ton	NOUN	NN	Number=Sing	11	comp:obj	_	_
-14	of	of	ADP	IN	_	13	mod	_	PRel[config]=default|PRel[gov]=13:ton|PRel[obj]=15:pizza|Supersense=p.QuantityItem
+14	of	of	ADP	IN	_	13	udep	_	PRel[config]=default|PRel[gov]=13:ton|PRel[obj]=15:pizza|Supersense=p.QuantityItem
 15	pizza	pizza	NOUN	NN	Number=Sing	14	comp:obj	_	Supersense=n.FOOD
 16	other	other	ADJ	JJ	Degree=Pos	15	mod	_	MWECat=P|MWELemma=other than|MWELen=2|PRel[config]=default|PRel[gov]=15:pizza|PRel[obj]=18:pizza|Supersense=p.PartPortion
 17	than	than	ADP	IN	_	16	mod	_	_
@@ -28197,7 +28197,7 @@
 4	the	the	DET	DT	Definite=Def|PronType=Art	6	det	_	_
 5	northwest	northwest	NOUN	NN	Number=Sing	6	compound	_	Supersense=n.LOCATION
 6	corner	corner	NOUN	NN	Number=Sing	2	conj:appos	_	Supersense=n.LOCATION
-7	of	of	ADP	IN	_	6	comp:obl	_	PRel[config]=default|PRel[gov]=6:corner|PRel[obj]=12:Sts.|Supersense=p.Whole
+7	of	of	ADP	IN	_	6	udep	_	PRel[config]=default|PRel[gov]=6:corner|PRel[obj]=12:Sts.|Supersense=p.Whole
 8	S.	S.	PROPN	NNP	Number=Sing|Shared=No	9	compound	_	MWECat=N|MWELemma=S. 10th|MWELen=2|Supersense=n.LOCATION
 9	10th	10th	ADJ	NNP	Degree=Pos|NumForm=Combi|NumType=Ord	12	mod	_	_
 10	&	&	CCONJ	CC	_	11	cc	_	_
@@ -28408,7 +28408,7 @@
 5	,	,	PUNCT	,	_	10	punct	_	_
 6	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 7	assortment	assortment	NOUN	NN	Number=Sing	10	subj	_	Supersense=n.COGNITION
-8	of	of	ADP	IN	_	7	comp:obl	_	PRel[config]=default|PRel[gov]=7:assortment|PRel[obj]=9:customer|Supersense=p.Species
+8	of	of	ADP	IN	_	7	udep	_	PRel[config]=default|PRel[gov]=7:assortment|PRel[obj]=9:customer|Supersense=p.Species
 9	customers	customer	NOUN	NNS	Number=Plur	8	comp:obj	_	Supersense=n.PERSON
 10	adds	add	VERB	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	2	parataxis	_	Supersense=v.stative
 11	entertainment	entertainment	NOUN	NN	Number=Sing	10	comp:obj	_	Supersense=n.COGNITION
@@ -28506,7 +28506,7 @@
 14	to	to	ADP	IN	_	10	mod	_	PRel[config]=default|PRel[gov]=10:Bridge|PRel[obj]=16:west|Supersense[coding]=p.Goal|Supersense[scene]=p.Locus
 15	the	the	DET	DT	Definite=Def|PronType=Art	16	det	_	_
 16	west	west	NOUN	NN	Number=Sing	14	comp:obj	_	Supersense=n.RELATION
-17	of	of	ADP	IN	_	16	mod	_	PRel[config]=default|PRel[gov]=16:west|PRel[obj]=19:location|Supersense[coding]=p.Source|Supersense[scene]=p.Locus
+17	of	of	ADP	IN	_	16	udep	_	PRel[config]=default|PRel[gov]=16:west|PRel[obj]=19:location|Supersense[coding]=p.Source|Supersense[scene]=p.Locus
 18	this	this	DET	DT	Number=Sing|PronType=Dem	19	det	_	_
 19	location	location	NOUN	NN	Number=Sing	17	comp:obj	_	SpaceAfter=No|Supersense=n.LOCATION
 20	.	.	PUNCT	.	_	2	punct	_	_
@@ -28622,7 +28622,7 @@
 5	by	by	ADP	IN	_	4	comp:obl@agent	_	PRel[config]=default|PRel[gov]=4:bless|PRel[obj]=7:opening|Supersense=p.Means
 6	the	the	DET	DT	Definite=Def|PronType=Art	7	det	_	_
 7	opening	opening	NOUN	NN	Number=Sing	5	comp:obj	_	Supersense=n.EVENT
-8	of	of	ADP	IN	_	7	comp:obl	_	PRel[config]=default|PRel[gov]=7:opening|PRel[obj]=11:shop|Supersense=p.Theme
+8	of	of	ADP	IN	_	7	udep	_	PRel[config]=default|PRel[gov]=7:opening|PRel[obj]=11:shop|Supersense=p.Theme
 9	this	this	DET	DT	Number=Sing|PronType=Dem	11	det	_	_
 10	smoke	smoke	NOUN	NN	Number=Sing	11	compound	_	MWECat=N|MWELemma=smoke shop|MWELen=2|Supersense=n.GROUP
 11	shop	shop	NOUN	NN	Number=Sing	8	comp:obj	_	_
@@ -28646,7 +28646,7 @@
 12	off	off	ADV	RB	_	10	mod	_	PRel[config]=default|PRel[gov]=10:%|Supersense[coding]=p.Source|Supersense[scene]=p.Theme
 13	at	at	ADP	IN	_	9	mod	_	PRel[config]=default|PRel[gov]=9:receive|PRel[obj]=14:time|Supersense=p.Time
 14	time	time	NOUN	NN	Number=Sing	13	comp:obj	_	Supersense=n.EVENT
-15	of	of	ADP	IN	_	14	mod	_	PRel[config]=default|PRel[gov]=14:time|PRel[obj]=16:purchase|Supersense=p.Gestalt
+15	of	of	ADP	IN	_	14	udep	_	PRel[config]=default|PRel[gov]=14:time|PRel[obj]=16:purchase|Supersense=p.Gestalt
 16	purchase	purchase	NOUN	NN	Number=Sing	15	comp:obj	_	Supersense=n.POSSESSION
 
 # newdoc id = reviews-067423
@@ -29738,7 +29738,7 @@
 4	cloth	cloth	NOUN	NN	Number=Sing	6	compound	_	Supersense=n.ARTIFACT
 5	napkin	napkin	NOUN	NN	Number=Sing	6	compound	_	Supersense=n.ARTIFACT
 6	kind	kind	NOUN	NN	Number=Sing	2	comp:pred	_	Supersense=n.COGNITION
-7	of	of	ADP	IN	_	6	mod	_	PRel[config]=default|PRel[gov]=6:kind|PRel[obj]=8:place|Supersense=p.Species
+7	of	of	ADP	IN	_	6	udep	_	PRel[config]=default|PRel[gov]=6:kind|PRel[obj]=8:place|Supersense=p.Species
 8	place	place	NOUN	NN	Number=Sing	7	comp:obj	_	SpaceAfter=No|Supersense=n.GROUP
 9	,	,	PUNCT	,	_	14	punct	_	_
 10	but	but	CCONJ	CC	_	14	cc	_	_
@@ -29834,7 +29834,7 @@
 5	them	they	PRON	PRP	Case=Acc|Number=Plur|Person=3|PronType=Prs	4	comp:obj	_	_
 6	to	to	ADP	IN	_	13	mod	_	PRel[config]=default|PRel[gov]=13:go|PRel[obj]=7:launch|Supersense=p.EndTime
 7	launch	launch	NOUN	NN	Number=Sing	6	comp:obj	_	Supersense=n.EVENT
-8	of	of	ADP	IN	_	7	mod	_	PRel[config]=default|PRel[gov]=7:launch|PRel[obj]=10:website|Supersense=p.Theme
+8	of	of	ADP	IN	_	7	udep	_	PRel[config]=default|PRel[gov]=7:launch|PRel[obj]=10:website|Supersense=p.Theme
 9	my	my	PRON	PRP$	Case=Gen|Number=Sing|Person=1|Poss=Yes|PronType=Prs	10	mod@poss	_	PRel[config]=possessive|PRel[gov]=10:website|Supersense=p.Possessor
 10	website	website	NOUN	NN	Number=Sing	8	comp:obj	_	SpaceAfter=No|Supersense=n.COMMUNICATION
 11	,	,	PUNCT	,	_	6	punct	_	_
@@ -30041,7 +30041,7 @@
 4	a	a	DET	DT	Definite=Ind|PronType=Art	6	det	_	_
 5	good	good	ADJ	JJ	Degree=Pos	6	mod	_	_
 6	selection	selection	NOUN	NN	Number=Sing	3	comp:obj	_	Supersense=n.COGNITION
-7	of	of	ADP	IN	_	6	comp:obl	_	PRel[config]=default|PRel[gov]=6:selection|PRel[obj]=8:fabric|Supersense=p.Species
+7	of	of	ADP	IN	_	6	udep	_	PRel[config]=default|PRel[gov]=6:selection|PRel[obj]=8:fabric|Supersense=p.Species
 8	fabric	fabric	NOUN	NN	Number=Sing	7	comp:obj	_	Supersense=n.ARTIFACT
 9	and	and	CCONJ	CC	_	10	cc	_	_
 10	notions	notion	NOUN	NNS	Number=Plur	8	conj:coord	_	SpaceAfter=No|Supersense=n.COGNITION
@@ -30088,7 +30088,7 @@
 # sent_id = reviews-071017-0003
 # text = Lots of room for big rig parking.
 1	Lots	lot	NOUN	NNS	Number=Plur	0	root	_	Supersense=n.QUANTITY
-2	of	of	ADP	IN	_	1	mod	_	PRel[config]=default|PRel[gov]=1:lot|PRel[obj]=3:room|Supersense=p.QuantityItem
+2	of	of	ADP	IN	_	1	udep	_	PRel[config]=default|PRel[gov]=1:lot|PRel[obj]=3:room|Supersense=p.QuantityItem
 3	room	room	NOUN	NN	Number=Sing	2	comp:obj	_	Supersense=n.ATTRIBUTE
 4	for	for	ADP	IN	_	3	mod	_	PRel[config]=default|PRel[gov]=3:room|PRel[obj]=7:parking|Supersense=p.Purpose
 5	big	big	ADJ	JJ	Degree=Pos	6	mod	_	MWECat=N|MWELemma=big rig|MWELen=2|Supersense=n.ARTIFACT
@@ -30339,7 +30339,7 @@
 # sent_id = reviews-323248-0002
 # text = Quality of work is sufficient but not outstanding.
 1	Quality	quality	NOUN	NN	Number=Sing	4	subj	_	Supersense=n.ATTRIBUTE
-2	of	of	ADP	IN	_	1	mod	_	PRel[config]=default|PRel[gov]=1:quality|PRel[obj]=3:work|Supersense=p.Gestalt
+2	of	of	ADP	IN	_	1	udep	_	PRel[config]=default|PRel[gov]=1:quality|PRel[obj]=3:work|Supersense=p.Gestalt
 3	work	work	NOUN	NN	Number=Sing	2	comp:obj	_	Supersense=n.ACT
 4	is	be	AUX	VBZ	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin	0	root	_	Supersense=v.stative
 5	sufficient	sufficient	ADJ	JJ	Degree=Pos	4	comp:pred	_	_
@@ -30435,7 +30435,7 @@
 12	contact	contact	VERB	VB	Mood=Imp|VerbForm=Fin	0	root	_	Cxn=Conditional-UnspecifiedEpistemic-NoInversion|CxnElt=12:Conditional-UnspecifiedEpistemic-NoInversion.Apodosis|Supersense=v.communication
 13	Law	Law	PROPN	NNP	Number=Sing	14	compound	_	MWECat=N|MWELemma=Law Office of Armando Villega|MWELen=5|MWEString=Law Offices of Armando Villega|Supersense=n.GROUP
 14	Offices	Office	PROPN	NNPS	Number=Plur	12	comp:obj	_	_
-15	of	of	ADP	IN	_	14	mod	_	_
+15	of	of	ADP	IN	_	14	udep	_	_
 16	Armando	Armando	PROPN	NNP	Number=Sing	15	comp:obj	_	_
 17	Villega	Villega	PROPN	NNP	Number=Sing	16	flat	_	_
 
@@ -30554,7 +30554,7 @@
 13	and	and	CCONJ	CC	_	15	cc	_	_
 14	a	a	DET	DT	Definite=Ind|PronType=Art	15	det	_	MWECat=DET|MWELemma=a couple|MWELen=2
 15	couple	couple	NOUN	NN	Number=Sing	12	conj:coord	_	_
-16	of	of	ADP	IN	Shared=No	15	mod	_	PRel[config]=default|PRel[gov]=15:couple|PRel[obj]=19:belt|Supersense[coding]=p.Whole|Supersense[scene]=p.QuantityItem
+16	of	of	ADP	IN	Shared=No	15	udep	_	PRel[config]=default|PRel[gov]=15:couple|PRel[obj]=19:belt|Supersense[coding]=p.Whole|Supersense[scene]=p.QuantityItem
 17	your	your	PRON	PRP$	Case=Gen|Person=2|Poss=Yes|PronType=Prs	19	mod@poss	_	PRel[config]=possessive|PRel[gov]=19:belt|Supersense[coding]=p.Gestalt|Supersense[scene]=p.Originator
 18	overpriced	overpriced	ADJ	JJ	Degree=Pos	19	mod	_	_
 19	belts	belt	NOUN	NNS	Number=Plur	16	comp:obj	_	Supersense=n.ARTIFACT
@@ -30655,7 +30655,7 @@
 2	a	a	DET	DT	Definite=Ind|PronType=Art	4	det	_	MWELemma[weak]=a <1> gem of a|MWELen[weak]=5
 3	neat	neat	ADJ	JJ	Degree=Pos	4	mod	_	_
 4	gem	gem	NOUN	NN	Number=Sing	0	root	_	Supersense=n.NATURALOBJECT
-5	of	of	ADP	IN	_	4	comp:obl	_	PRel[config]=default|PRel[gov]=4:gem|PRel[obj]=7:restaurant|Supersense=p.Identity
+5	of	of	ADP	IN	_	4	udep	_	PRel[config]=default|PRel[gov]=4:gem|PRel[obj]=7:restaurant|Supersense=p.Identity
 6	a	a	DET	DT	Definite=Ind|PronType=Art	7	det	_	_
 7	restaurant	restaurant	NOUN	NN	Number=Sing	5	comp:obj	_	Supersense=n.GROUP
 8	in	in	ADP	IN	_	4	udep	_	PRel[config]=default|PRel[gov]=4:gem|PRel[obj]=10:corner|Supersense=p.Locus
@@ -30916,7 +30916,7 @@
 4	really	really	ADV	RB	_	5	mod	_	_
 5	good	good	ADJ	JJ	Degree=Pos	6	mod	_	_
 6	view	view	NOUN	NN	Number=Sing	2	comp:obj	_	Supersense=n.COGNITION
-7	of	of	ADP	IN	_	6	comp:obl	_	PRel[config]=default|PRel[gov]=6:view|PRel[obj]=9:city|Supersense[coding]=p.Theme|Supersense[scene]=p.Stimulus
+7	of	of	ADP	IN	_	6	udep	_	PRel[config]=default|PRel[gov]=6:view|PRel[obj]=9:city|Supersense[coding]=p.Theme|Supersense[scene]=p.Stimulus
 8	the	the	DET	DT	Definite=Def|PronType=Art	9	det	_	_
 9	city	city	NOUN	NN	Number=Sing	7	comp:obj	_	Supersense=n.LOCATION
 10	and	and	CCONJ	CC	_	12	cc	_	_
@@ -31127,7 +31127,7 @@
 17	a	a	DET	DT	Definite=Ind|PronType=Art	19	det	_	_
 18	gorgeous	gorgeous	ADJ	JJ	Degree=Pos	19	mod	_	_
 19	diversity	diversity	NOUN	NN	Number=Sing	16	comp:obj	_	Supersense=n.COGNITION
-20	of	of	ADP	IN	_	19	mod	_	PRel[config]=default|PRel[gov]=19:diversity|PRel[obj]=21:art|Supersense=p.Species
+20	of	of	ADP	IN	_	19	udep	_	PRel[config]=default|PRel[gov]=19:diversity|PRel[obj]=21:art|Supersense=p.Species
 21	art	art	NOUN	NN	Number=Sing	20	comp:obj	_	SpaceAfter=No|Supersense=n.COGNITION
 22	.	.	PUNCT	.	_	3	punct	_	_
 
@@ -31414,7 +31414,7 @@
 6	on	on	ADP	IN	_	2	mod	_	PRel[config]=default|PRel[gov]=2:work|PRel[obj]=8:back|Supersense=p.Locus
 7	the	the	DET	DT	Definite=Def|PronType=Art	8	det	_	_
 8	back	back	NOUN	NN	Number=Sing	6	comp:obj	_	Supersense=n.LOCATION
-9	of	of	ADP	IN	_	8	comp:obl	_	PRel[config]=default|PRel[gov]=8:back|PRel[obj]=11:car|Supersense=p.Whole
+9	of	of	ADP	IN	_	8	udep	_	PRel[config]=default|PRel[gov]=8:back|PRel[obj]=11:car|Supersense=p.Whole
 10	my	my	PRON	PRP$	Case=Gen|Number=Sing|Person=1|Poss=Yes|PronType=Prs	11	mod@poss	_	PRel[config]=possessive|PRel[gov]=11:car|Supersense=p.Possessor
 11	car	car	NOUN	NN	Number=Sing	9	comp:obj	_	SpaceAfter=No|Supersense=n.ARTIFACT
 12	.	.	PUNCT	.	_	2	punct	_	_
@@ -31751,7 +31751,7 @@
 23	the	the	DET	DT	Definite=Def|PronType=Art	25	det	_	_
 24	huge	huge	ADJ	JJ	Degree=Pos	25	mod	_	_
 25	menu	menu	NOUN	NN	Number=Sing	20	comp:obj	_	Supersense=n.COMMUNICATION
-26	of	of	ADP	IN	_	25	comp:obl	_	PRel[config]=default|PRel[gov]=25:menu|PRel[obj]=27:roll|Supersense[coding]=p.Stuff|Supersense[scene]=p.QuantityItem
+26	of	of	ADP	IN	_	25	udep	_	PRel[config]=default|PRel[gov]=25:menu|PRel[obj]=27:roll|Supersense[coding]=p.Stuff|Supersense[scene]=p.QuantityItem
 27	rolls	roll	NOUN	NNS	Number=Plur	26	comp:obj	_	SpaceAfter=No|Supersense=n.FOOD
 28	)	)	PUNCT	-RRB-	_	15	punct	_	_
 29	and	and	CCONJ	CC	_	31	cc	_	_
@@ -32314,7 +32314,7 @@
 3	a	a	DET	DT	Definite=Ind|PronType=Art	5	det	_	_
 4	large	large	ADJ	JJ	Degree=Pos	5	mod	_	_
 5	variety	variety	NOUN	NN	Number=Sing	2	comp:obj	_	Supersense=n.COGNITION
-6	of	of	ADP	IN	_	5	comp:obl	_	PRel[config]=default|PRel[gov]=5:variety|PRel[obj]=8:hotdog|Supersense=p.Species
+6	of	of	ADP	IN	_	5	udep	_	PRel[config]=default|PRel[gov]=5:variety|PRel[obj]=8:hotdog|Supersense=p.Species
 7	quality	quality	ADJ	JJ	Degree=Pos	8	mod	_	_
 8	hotdogs	hotdog	NOUN	NNS	Number=Plur	6	comp:obj	_	Supersense=n.FOOD
 9	and	and	CCONJ	CC	_	10	cc	_	_

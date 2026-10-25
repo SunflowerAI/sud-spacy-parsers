@@ -183,6 +183,35 @@ instead of the plain ones, so the SUD layer's Subject/Reported/Shared training c
 new DEPREL and the existing Reported gold together (verified: columns 1-8 identical to the plain
 `.udep_resolved.conllu`, only MISC differs).
 
+### Noun-level `of` back to the treebank's `udep`; one resolve table for every split (2026-10-25)
+
+**SUPERSEDES the command and counts above** (the `.udep_resolved` files on disk now come from this).
+
+*Noun-level `of`.* `relabel_ext.py` had asked qwen3:8b, per token, whether an `of`-PP under a noun
+was a complement or a modifier, with the verb-oriented `fewshot12_def` prompt and the whole head-noun
+subtree as context. The same head noun split almost evenly (EWT+GUM train: part of 56 comp:obl / 43
+mod, member of 28/21, end of 29/21, copy of 13/13; "a piece of paper" comp:obl but "a piece of paper
+that calls for ..." mod), and the clausal ones, never asked, were defaulted to `mod` by
+`resolve_udep.py`. By user decision these now keep the treebank's own label (`udep`, as SUD has it on
+2,908 of 2,927 in EWT train): `relabel_ext.py` skips them, `resolve_udep.py` keeps them, and
+`scripts/restore_noun_of.py` brought the files on disk into line (verified equal to a full rebuild of
+`en_sud-*.relabeled_ext` with the patched relabel, 0 model calls). en_ewtgum train/dev/test: 5,446 /
+703 / 673 tokens now `udep` (were comp:obl 2,631/371/358, mod 2,815/332/315). Originals in
+`backup_en_prenounof/`. **Every model trained on these files predates the change.**
+
+*One table.* `resolve_udep.py` used to derive its (head UPOS, dep UPOS) table from each split on
+its own, so dev and test were labelled by their own data and disagreed with train on 99 / 143 tokens
+(PRON <- ADP: dev `mod`, train `orphan`). `--table-from` now takes train's table for every split.
+DET-headed partitive `of` keeps `udep` (the partitive default above). Command:
+
+    A=assets/en_ewtgum-sud
+    .venv/bin/python scripts/resolve_udep.py $A-<split>.relabeled_ext[.reported].conllu \
+      --ruled $A-<split>.relabeled_ext.udep_ruled.conllu \
+      --table-from $A-train.relabeled_ext.conllu $A-train.relabeled_ext.udep_ruled.conllu \
+      --out $A-<split>.relabeled_ext[.reported].udep_resolved.conllu
+
+cxSUD's SUD corpus is built from these files by `scripts/build_cxsud_corpus.sh`.
+
 **Base arm** (`training_en_gum_udepresolved`, tok2vec+tagger+parser, `configs/config.cfg`,
 `corpus_en_gum_udepresolved/*.spacy`), test set, non-gold-preproc:
 
