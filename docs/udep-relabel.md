@@ -304,6 +304,53 @@ replacing the prior `en_sud_ewt_gum-0.2.0-py3-none-any.whl` asset in place (same
 other "re-clobbered at 0.2.0" entries in `CLAUDE.md`'s wheel table -- `en_gum` was not previously
 listed there, so this is its first clobber). `pip install -U` picks it up automatically.
 
+### Verb-level `comp:obl` vs `mod` decided by VerbNet (2026-10-25)
+
+**SUPERSEDES the LLM labels above for verb-level ADP.** The per-token qwen3:8b labels were only
+86.3% pure per (verb lemma, preposition) on EWT+GUM train, and 78.1% among pairs seen 20-99 times
+(go to 128/37, look for 39/28, live in 42/25, do with 24/23). By user decision the distinction now
+follows a published valency lexicon. `scripts/relabel_verbnet.py` decides every token that the SUD
+treebank marks `udep` and that is an ADP headed by a VERB, in this order:
+
+  b. rule -> `mod`: temporal PPs (during/throughout/amid always; in/on/at/by/over/within/since/until/
+     before/after/for with a temporal noun, year, decade, clock time or numeric date as object) and
+     fixed discourse/adverbial PPs (for example, in fact, at least, by mistake, in a ... way, in search
+     of ...). Overrides (a).
+  a. VerbNet 3.3 -> `comp:obl`: the preposition is licensed by a frame in at least half of the
+     VerbNet classes the lemma belongs to (`--polysemy majority`), counting subclasses with inherited
+     frames. A frame names its preposition literally, or by a role class (`dest_conf`, `src`,
+     `spatial` ...) expanded from the VerbNet preposition hierarchy. Particle verbs (`compound@prt`)
+     are looked up as `lemma_particle` (VerbNet lists 236, e.g. take_on).
+  c. residue -> the LLM label stays,
+  d. ... smoothed to the train majority of the residue labels per (verb key, preposition); ties keep
+     their own label.
+
+Noun-level `of` is not touched (it keeps `udep`, above).
+
+Train (11,590 tokens): (a) 3,496, (b) 1,342, (c) 6,028 kept, (d) 724 smoothed; 1,499 `mod` ->
+`comp:obl` and 402 `comp:obl` -> `mod`; comp:obl 5,508 -> 6,605. `--polysemy union` licenses 5,642
+tokens by VerbNet and gives 7,446 comp:obl; it was rejected because it over-generates (purity 95.2%
+against 96.0%).
+
+Purity per (verb, preposition), train, bands n = 2-4 / 5-19 / 20-99 / 100+ / all: before 85.7 / 82.0
+/ 78.1 / 80.9 / 86.3%, after 91.7 / 95.0 / 97.2 / 99.6 / 96.0%; dev 91.6% -> 98.9%. Agreement with
+`gold/gold_udep.jsonl` (NOT independent: that gold is also frame lexicon plus temporal rules, and the
+prompt was tuned on it): complement 87.0% -> 98.2%, modifier 96.8% -> 99.4%. A hand check of 50
+changed train tokens found about 32 right; the errors are VerbNet-licensed locative/manner adjuncts
+("happening in Sudan", "working with every budget") and smoothing that pushed a complement to `mod`
+(go through, start with, take part in). The rule list grew after that check (discourse PPs, decades,
+clock times, dates).
+
+VerbNet is NOT in this repo: NLTK data package `verbnet3` (VerbNet 3.3, 482,025-byte zip, sha256
+fa0136a7699c52f0bd532dc5adc0914745aa4369a52ae1465cb11841060ec1de, from
+`https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/verbnet3.zip`), unpacked
+at `../lexicons/verbnet3/verbnet3/` beside this repo; `--verbnet` or `$VERBNET_DIR` overrides. Applied
+in place, with one smoothing table computed from train before any file changed, to the 30 English
+files that `restore_noun_of.py` touched; the six `.udep_resolved` files were then regenerated with the
+command above. `build_en_ewt_gum.sh verify` still passes, and the hoist still reproduces
+`assets_sud/en_gum-*`. Originals in `backup_en_preverbnet/`. **Every model trained on these files
+predates the change.**
+
 ### Korean eojeol relabel (committed 2026-08-04)
 
 424 DEPREL cells across `assets_ko/SUD_Korean-GSD/ko_gsd-sud-{train,dev,test}.relabeled_ext.conllu`

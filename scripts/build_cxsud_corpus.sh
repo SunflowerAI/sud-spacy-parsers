@@ -24,7 +24,9 @@
 #        resolve_udep.py <.relabeled_ext.reported> --ruled <split's .udep_ruled> \
 #          --table-from <TRAIN .relabeled_ext> <TRAIN .udep_ruled>
 #      i.e. ONE table, from train, for every split; noun-level `of` and DET-headed partitive `of`
-#      keep the treebank's `udep` -- see restore_noun_of.py and resolve_udep.kept_udep)
+#      keep the treebank's `udep` -- see restore_noun_of.py and resolve_udep.kept_udep; verb-level
+#      comp:obl vs mod decided by VerbNet + rules -- see relabel_verbnet.py, applied in place to the
+#      .relabeled_ext/.reported/.udep_ruled inputs before this resolve)
 #   2. hoist_sud_gold.py --keys Subject Reported Shared, then SudShared -> Shared in FEATS (the name
 #      the converter reads; dedup_sud.py used to do this rename)
 #   3. cxSUD's normalize_sud.py (subjects to the outermost auxiliary; 'a little X' degree modifiers)
