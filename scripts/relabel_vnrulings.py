@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """Decide English verb-level `comp:obl` vs `mod` (successor of relabel_vnobj.py, user rulings of 2026-10-26).
 
-Same targets and object classes as relabel_vnobj.py (every ADP the SUD treebank marks `udep` under a VERB,
-currently mod or comp:obl). Per token, first match of:
+Same targets as relabel_vnobj.py (every ADP the SUD treebank marks `udep` under a VERB, currently mod or
+comp:obl). Object classes as relabel_vnobj.py, with two repairs (`objclass`): WordNet and the vector table
+are consulted only for a nominal object (NOUN / PROPN / NUM), and a WordNet first sense in noun.time counts
+only if at least half of the noun senses of the lemma are noun.time (grave, history, cycle are not times).
+Per token, first match of:
 
   1. ORIGIN `from` -> mod. `from` with a place-class object, whatever VerbNet says about the verb and
-     whether or not the verb is in VerbNet (ruling 2: origin `from` is a modifier, all of it). `from` with
-     any other object still falls under 2.
-  2. DIRECTIONAL -> comp:obl: a DIRECTIONAL preposition whose object is not a time expression.
+     whether or not the verb is in VerbNet (ruling 2: origin `from` is a modifier, all of it).
+  2. There is no directional rule any more (`nodir`): a directional PP goes through 3-7 like any other.
   3. CIRCUMSTANT -> mod: fronted, discourse, FIXED PP (a Wiktionary prepositional-phrase entry that is the
      whole PP: `in the end`, `on a whim`), time, place, occasion, manner, reason (as relabel_vnobj.py).
-     Exception, LOCATION SELECTION: a place PP is comp:obl when a frame of one of the verb's VerbNet classes
-     takes it in a Location / Destination / Goal / Source / Path ... slot (frame matched to the token's shape,
-     see 6). Occurrence and existence classes do NOT select locations (ruling 1): OCC_EXIST_CLASSES below,
-     so `happen in`, `exist in`, `reside in` fall back to the place rule.
+     Exception, LOCATION SELECTION: a place PP (a place object under a locative preposition, or under a
+     directional one, `dirlocsel`) is comp:obl when a frame of one of the verb's VerbNet classes takes it
+     in a Location / Destination / Goal / Source / Path ... slot (frame matched to the token's shape, see
+     6). Occurrence and existence classes do NOT select locations (ruling 1): OCC_EXIST_CLASSES below,
+     so `happen in`, `exist in`, `reside in` fall back to the place rule. A time-class object is not
+     overridden by a licence unless --with timesel / timesel-any is given (measured to over-fire).
   4. NOT IN VERBNET: a strict Wiktionary verb+preposition idiom -> comp:obl, else the current label is kept.
   5. Existential `be` -> mod.
   6. VERBNET LICENCE, MAJORITY: comp:obl iff at least half of the verb's VerbNet classes have a frame that
@@ -206,22 +210,44 @@ def circumstant(t, ocls, lex):
     return None
 
 
-def decide(t, ctx, members, frames, oc, lex, rulings=("occexist", "origin", "fixedpp")):
-    """-> (source, label); label None = keep the current one."""
+RULINGS = ("occexist", "origin", "fixedpp", "objclass", "nodir", "dirlocsel")
+OPTIONAL = ("timesel", "timesel-any")            # off by default; switched on with --with
+
+
+class ObjectClassifier(V.ObjectClassifier):
+    """relabel_vnobj's classifier with two repairs to WordNet-based classes (ruling of 2026-10-26, `objclass`):
+    WordNet and the vector table are consulted only for a common-noun object (a PP whose object slot holds an
+    adverb or preposition, `from all over X`, was classed by the cricket sense of `over`), and a first sense in
+    noun.time counts only when at least half of the noun senses of the lemma are noun.time (grave, history, cycle)."""
+
+    _skip = None
+
+    def wn_class(self, w):
+        if w == self._skip:
+            return None
+        if w not in self._wn:
+            ss = self.wn.synsets(w, "n")
+            c = V.ObjectClassifier.wn_class(self, w)
+            if c == "time" and 2 * sum(1 for x in ss if x.lexname() == "noun.time") < len(ss):
+                s = ss[0]
+                hyps = set(s.closure(lambda t: t.hypernyms() + t.instance_hypernyms())) | {s}
+                c = "place" if hyps & self.place_hyp else "other"
+            self._wn[w] = c
+        return self._wn[w]
+
+    def classify(self, obj, sent):
+        if obj is None or obj["upos"] in ("NOUN", "PROPN", "NUM"):
+            return V.ObjectClassifier.classify(self, obj, sent)
+        saved, self.vec, self._skip = self.vec, {}, obj["lemma"]
+        try:
+            return V.ObjectClassifier.classify(self, obj, sent)
+        finally:
+            self.vec, self._skip = saved, None
+
+
+def licence(t, ctx, classes, roles, nlic, lex):
+    """The non-circumstant tail: VerbNet majority over matched frames, then the idiom / G2 gap filling."""
     prep, key = t["prep"], t["key"]
-    ocls = oc.classify(t["obj"], t["sent"])
-    classes = members.get(key) or []
-    nlic = sum(1 for _, lic in classes if prep in lic)
-    if prep == "from" and ocls == "place" and ("origin" in rulings or (classes and nlic == 0)):
-        return "circ:origin", "mod"
-    if prep in V.DIRECTIONAL and ocls != "time":
-        return "dir", "comp:obl"
-    roles = class_roles(frames.get(key) or [], ctx, ctx["tid"])
-    ct = circumstant(t, ocls, lex if "fixedpp" in rulings else None)
-    if ct == "place" and any(r in LOCROLES for cid, r in roles if not ("occexist" in rulings and occ_exist(cid))):
-        return "vn:locsel", "comp:obl"
-    if ct:
-        return "circ:" + ct, "mod"
     if not classes:
         return ("idiom", "comp:obl") if ikey(t) in lex.vp else ("novn", None)
     if t["lemma"] == "be" and t["expl"]:
@@ -234,6 +260,30 @@ def decide(t, ctx, members, frames, oc, lex, rulings=("occexist", "origin", "fix
     if f"{key}|{prep}" in lex.g2:
         return "gap:g2", "comp:obl"
     return ("vn-unlic-shape" if nlic > 0 else "vn-unlic"), "mod"
+
+
+def decide(t, ctx, members, frames, oc, lex, rulings=RULINGS):
+    """-> (source, label); label None = keep the current one."""
+    prep, key = t["prep"], t["key"]
+    ocls = oc.classify(t["obj"], t["sent"])
+    classes = members.get(key) or []
+    nlic = sum(1 for _, lic in classes if prep in lic)
+    if prep == "from" and ocls == "place" and ("origin" in rulings or (classes and nlic == 0)):
+        return "circ:origin", "mod"
+    if "nodir" not in rulings and prep in V.DIRECTIONAL and ocls != "time":
+        return "dir", "comp:obl"
+    roles = class_roles(frames.get(key) or [], ctx, ctx["tid"])
+    ct = circumstant(t, ocls, lex if "fixedpp" in rulings else None)
+    placepp = ct == "place" or ("dirlocsel" in rulings and ct is None and ocls == "place" and prep in V.DIRECTIONAL)
+    if placepp and any(r in LOCROLES for cid, r in roles if not ("occexist" in rulings and occ_exist(cid))):
+        return "vn:locsel", "comp:obl"
+    lic = licence(t, ctx, classes, roles, nlic, lex)
+    if ct == "time" and prep not in R.TEMP_PREPS_ALWAYS and lic[1] == "comp:obl" and (
+            "timesel" in rulings and lic[0] in ("idiom", "gap:wiktionary") or "timesel-any" in rulings):
+        return lic[0] + ":timesel", "comp:obl"     # an idiom whose object denotes a period or date (wait for)
+    if ct:
+        return "circ:" + ct, "mod"
+    return lic
 
 
 def relabel(text, members, frames, gold, oc, lex, stats, rulings, log=None):
@@ -261,16 +311,18 @@ def main():
     ap.add_argument("files", nargs="*")
     ap.add_argument("--verbnet", default=R.DEFAULT_VN)
     ap.add_argument("--lexicon", default=str(LEXICON))
-    ap.add_argument("--without", action="append", default=[], choices=("occexist", "origin", "fixedpp"),
+    ap.add_argument("--without", action="append", default=[], choices=RULINGS,
                     help="switch a 2026-10-26 ruling off (for comparison)")
+    ap.add_argument("--with", dest="with_", action="append", default=[], choices=OPTIONAL,
+                    help="timesel-any: any licence (VerbNet majority, idiom, G2) beats a time-class object")
     ap.add_argument("--inplace", action="store_true")
     ap.add_argument("--log", help="write per-token decisions (TSV) here")
     a = ap.parse_args()
-    rulings = tuple(r for r in ("occexist", "origin", "fixedpp") if r not in a.without)
+    rulings = tuple(r for r in RULINGS if r not in a.without) + tuple(a.with_)
     members = R.load_verbnet(a.verbnet)
     frames = load_frames(a.verbnet)
     gold = load_pristine(DEFAULT_PRISTINE)
-    oc = V.ObjectClassifier()
+    oc = ObjectClassifier() if "objclass" in rulings else V.ObjectClassifier()
     lex = Lexicon(a.lexicon)
     print(f"VerbNet: {len(members)} members; lexicon: {len(lex.vp)} verb+P idioms, {len(lex.vnp)} verb+noun+P idioms, "
           f"{len(lex.g2)} G2 pairs, {len(lex.fixed)} fixed PPs; rulings {', '.join(rulings) or 'none'}")
