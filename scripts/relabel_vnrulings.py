@@ -9,7 +9,11 @@ Per token, first match of:
 
   1. ORIGIN `from` -> mod. `from` with a place-class object, whatever VerbNet says about the verb and
      whether or not the verb is in VerbNet (ruling 2: origin `from` is a modifier, all of it).
-  2. There is no directional rule any more (`nodir`): a directional PP goes through 3-7 like any other.
+  2. NARROW DIRECTIONAL -> comp:obl (`narrowdir`; the old blanket directional rule is gone, `nodir`): a
+     goal / source preposition (GOAL_SOURCE_P) or path preposition (PATH_P) under a verb that is a member of
+     a motion, caused-motion, transfer / change-of-possession or removal class (MOTION_CLASSES). Comes before
+     the circumstant rules, so a time object does not stop it (walk me through June). Any other directional
+     PP goes through 3-7 like any other PP.
   3. CIRCUMSTANT -> mod: fronted, discourse, FIXED PP (a Wiktionary prepositional-phrase entry that is the
      whole PP: `in the end`, `on a whim`), time, place, occasion, manner, reason (as relabel_vnobj.py).
      Exception, LOCATION SELECTION: a place PP (a place object under a locative preposition, or under a
@@ -210,7 +214,25 @@ def circumstant(t, ocls, lex):
     return None
 
 
-RULINGS = ("occexist", "origin", "fixedpp", "objclass", "nodir", "dirlocsel")
+RULINGS = ("occexist", "origin", "fixedpp", "objclass", "nodir", "dirlocsel", "narrowdir")
+# Narrow directional rule (ruling of 2026-10-26): a goal / source / path preposition is comp:obl when the verb
+# is a member of a motion, caused-motion, transfer / change-of-possession or removal class (or a subclass).
+GOAL_SOURCE_P = {"to", "into", "onto", "out", "off", "from", "toward", "towards"}
+PATH_P = {"through", "across", "along", "past", "via", "up", "down", "over"}   # not around/round: around noon
+MOTION_CLASSES = ("put-9.1", "put_spatial-9.2", "funnel-9.3", "put_direction-9.4", "pour-9.5", "pocket-9.10",
+                  "remove-10.1", "banish-10.2", "clear-10.3", "wipe_manner-10.4.1", "wipe_instr-10.4.2", "steal-10.5",
+                  "cheat-10.6.1", "deprive-10.6.2", "free-10.6.3", "rob-10.6.4", "pit-10.7", "debone-10.8", "mine-10.9",
+                  "fire-10.10", "resign-10.11",
+                  "send-11.1", "slide-11.2", "bring-11.3", "carry-11.4", "drive-11.5", "push-12",
+                  "give-13.1", "contribute-13.2", "future_having-13.3", "fulfilling-13.4.1", "equip-13.4.2",
+                  "get-13.5.1", "obtain-13.5.2", "hire-13.5.3", "invest-13.5.4", "exchange-13.6.1", "substitute-13.6.2",
+                  "berry-13.7", "throw-17.1",
+                  "escape-51.1", "leave-51.2", "roll-51.3.1", "run-51.3.2", "vehicle-51.4.1", "nonvehicle-51.4.2",
+                  "vehicle_path-51.4.3", "waltz-51.5", "chase-51.6", "accompany-51.7", "reach-51.8")
+
+
+def motion_class(cid):
+    return any(cid == c or cid.startswith(c + "-") for c in MOTION_CLASSES)
 OPTIONAL = ("timesel", "timesel-any")            # off by default; switched on with --with
 
 
@@ -272,6 +294,9 @@ def decide(t, ctx, members, frames, oc, lex, rulings=RULINGS):
         return "circ:origin", "mod"
     if "nodir" not in rulings and prep in V.DIRECTIONAL and ocls != "time":
         return "dir", "comp:obl"
+    if "narrowdir" in rulings and (prep in GOAL_SOURCE_P or prep in PATH_P) \
+            and any(motion_class(cid) for cid, _ in classes):
+        return "dir:motion", "comp:obl"            # before the time rule: walk me through June
     roles = class_roles(frames.get(key) or [], ctx, ctx["tid"])
     ct = circumstant(t, ocls, lex if "fixedpp" in rulings else None)
     placepp = ct == "place" or ("dirlocsel" in rulings and ct is None and ocls == "place" and prep in V.DIRECTIONAL)
