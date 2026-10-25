@@ -237,6 +237,12 @@ def targets(lang, toks, by):
         if t["upos"] == "VERB" and head["upos"] == "VERB":   # participial complex preposition
             yield t, head, "participial"
             continue
+        if lang == "en" and t["upos"] == "ADP" and t["lemma"].lower() == "of" \
+                and head["upos"] in ("NOUN", "PROPN"):
+            # Noun-level `of` keeps the treebank's own `udep` (user decision, 2026-10-25). Asked
+            # token by token with this verb-oriented prompt, the same head noun split almost evenly
+            # (part of 56 comp:obl / 43 mod) -- see scripts/restore_noun_of.py for the evidence.
+            continue
         if t["upos"] == "ADP" and head["upos"] in ADP_HEADS:
             # VERB heads: unfiltered — include clausal PPs (same selection question). Noun /
             # propn / adj heads stay nominal-only (clausal noun complements are the harder set).
