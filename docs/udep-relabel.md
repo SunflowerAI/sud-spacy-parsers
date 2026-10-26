@@ -420,7 +420,8 @@ same tokens with the lexicons in `assets/en_vnrulings_lexicon.json`. Per token, 
   5. existential `be` -> `mod`;
   6. VerbNet majority over frames matched to the token's shape (objects, passive, one PP per slot);
   7. gap filling: a strict Wiktionary idiom (verb+P, verb+object noun+P) or corpus G2 >= 10.83
-     (count >= 5, PMI > 0, SUD 2.18 English) -> `comp:obl`; otherwise `mod`.
+     (count >= 5, PMI > 0) -> `comp:obl`; otherwise `mod`. The lexicons were later rebuilt from files
+     in this repo's reach, see the extensions section below.
 
 Object class repairs: WordNet and the vector table only for nominal objects (`from all over X` took
 the cricket sense of `over`), and a WordNet noun.time first sense only when at least half of the
@@ -433,6 +434,80 @@ EWT+GUM moves against the labels above: train 907 comp:obl -> mod and 1,417 mod 
 `build_en_ewt_gum.sh verify` passes; only DEPREL changed. `build_cxsud_corpus.sh` output is
 md5-identical to the cxSUD gold installed on 2026-10-26. **Every model trained on these files
 predates the change.**
+
+### Extensions to the 2026-10-26 rulings, and rebuilt lexicons (branch fix/verbnet-rulings)
+
+Two rounds of hand spot-checks of `relabel_vnrulings.py` (about 110 tokens each, stratified by rule, judged
+from the PP alone by one judge) found roughly two thirds of the *changed* labels right, and drove seven more
+rulings, all framed in VerbNet classes where a class can carry the decision. `--without NAME` switches any off.
+
+| ruling | decides | classes / data |
+|---|---|---|
+| `recipient` | `to` under a verb of communication is a selected goal: `comp:obl` | say-37.7, transfer_mesg-37.1.1, talk-37.5, lecture-37.11, manner_speaking-37.3, chitchat-37.6, advise-37.9, tell-37.2, speak-37.5, act-114 |
+| `particlefb` | a particle verb VerbNet does not list (`go_off`) takes the motion test from its bare verb | motion classes; used for the directional rule only |
+| `gapadjunct` | the gap-filling steps do not promote `for` / `with` when at least half of the verb's classes give the PP a Beneficiary / Instrument ... role | NONLIC roles |
+| `goalprep` | `to`, `toward(s)`, `into`, `onto` is a selected goal for any verb, unless a circumstant rule fires first or the object is an extent (degree, point, avail ...) | VerbNet's destination prepositions |
+| `srcselect` | origin `from` stays `mod` under motion, appearance and existence verbs; under a source-taking class it is `comp:obl` | remove-10.1, banish-10.2, clear-10.3, steal-10.5, cheat-10.6.1, deprive-10.6.2, free-10.6.3, rob-10.6.4, separate-23.1, disassemble-23.3, get-13.5.1, obtain-13.5.2, exchange-13.6.1, substitute-13.6.2 |
+| `comitative` | `with` after a verb of a path-motion or posture class is accompaniment: not promoted by the Wiktionary step | 51.x motion classes, spatial_configuration-47.6 |
+| `purposefor` | `for` after the same classes (without reach-51.8) with an event- or time-class object is a purpose adjunct | `go for a visit`, `come for Xmas` |
+
+**Tested and rejected** (`NEGATIVE-RESULTS.md` style): licensing a PP when ANY class of the verb has a matching
+frame, for `for` / `with` / `as` (8 of 30 flips right); dropping the frame-shape requirement (about 10 right, 12
+wrong in 22); backing particle verbs off to their bare verb for the whole licence (flips `narrow_down to`,
+`wake_up to`, `hold_on to`); blocking G2 for `in` / `on` / `at` (250 flips, 57 % right: it loses `put in`,
+`engage in`, `believe in`, `focus on`); P(preposition | verb) as a selectivity cut for G2 (right pairs 0.15-0.89,
+wrong pairs 0.22-0.73, no separation). The remaining errors are verb-specific lexical facts VerbNet does not hold.
+
+**The lexicons are now rebuilt, not inherited.** `assets/en_vnrulings_lexicon.json` used to carry a G2 table
+counted over treebanks that are not on this machine, so nothing could regenerate it.
+`scripts/build_en_vnrulings_lexicon.py` now derives all four tables: `idioms_vp` (233) and `idioms_vnp` (479)
+and `fixed_pps` (2,291) from the kaikki.org verb and prep_phrase dumps in `../lexicons` (spaCy
+`en_core_web_lg` parses the examples), and `g2_pairs` (193, was 425) from the EWT+GUM TRAIN targets alone,
+G2 >= 10.83, PMI > 0, count >= 5, or 3-4 for `for` / `with` / `as`. Overlap with the old tables: `fixed_pps`
+2,159 of 2,166, `idioms_vp` 214 of 248, `g2_pairs` 178 of 425 (the old one also held junk entries such as
+`___|_`). One entry is hand-curated and says so in the script: `use|for` is excluded from G2 (36 train tokens,
+all judged purpose adjuncts in two spot-checks; not separable from `work for`, also use-105.1, by class).
+Effect of the rebuild on train: 367 labels (3 %) moved; `comp:obl` -> `mod` was about 80 % right in a sample,
+`mod` -> `comp:obl` about 50 % (`have in`, `find in` and `kill in` are place adjuncts G2 still promotes).
+
+**Reproducing.** `bash scripts/build_en_vnrulings.sh [TAG]` rebuilds the lexicon, relabels copies of the
+`assets/` files, regenerates the `udep_resolved` files, converts, trains the base arm and scores it; it writes
+only `assets_en_<TAG>/`, `corpus_en_gum_<TAG>/`, `training_en_gum_<TAG>/` and
+`metrics/en_gum/metrics_en_gum_<TAG>.json`. Its output is byte-identical to the installed assets (checked).
+The `.udep_ruled` inputs are generated by the earlier pipeline and are not tracked in git.
+
+**Installed** in place, the same 21 English files `2a6d4bb` touched (EWT, EWT+GUM and the merged `en_sud-*`;
+`relabeled_ext`, `.reported`, `.udep_ruled`), with the six `.udep_resolved` files regenerated by the command
+above. Against the first rulings, EWT+GUM train moved 367 `comp:obl` -> `mod` and 408 `mod` -> `comp:obl` (dev
+41 / 48, test 47 / 55); EWT train 236 / 208. Originals in `backup_en_prerulings2/`.
+`build_en_ewt_gum.sh verify` passes (EWT half of the merged file identical in 12,544 / 2,001 / 2,077 blocks).
+
+**Base arm** (`configs/config.cfg`, seed 0, `corpus_en_gum_<TAG>/`), each scored on ITS OWN test split, so the
+columns are not on the same gold:
+
+| | previous (`udep_resolved`) | rulings v1 | + 2 fixes | + goal, source | + comitative, G2 addendum | rebuilt lexicons, `purposefor` | + `use|for` exclusion (installed) |
+|---|---|---|---|---|---|---|---|
+| LAS | 81.27 | 81.66 | 81.68 | 81.95 | 82.05 | 82.10 | **81.71** |
+| UAS | 86.09 | 85.69 | 85.72 | 85.97 | 85.80 | 86.00 | 85.79 |
+| tag | 94.37 | 94.39 | 94.42 | 94.48 | 94.35 | 94.39 | 94.49 |
+| sentence F | 79.05 | 78.49 | 78.22 | 77.62 | 78.22 | 77.89 | 76.47 |
+| `comp:obl` F | 70.2 | 69.6 | 69.6 | 71.7 | 71.1 | 71.9 | 71.1 |
+| `mod` F | 75.5 | 75.5 | 75.4 | 76.0 | 76.2 | 76.7 | 76.5 |
+
+Read it as a trend, not a ranking: ONE seed per column, and the last step changed 36 train tokens yet moved LAS
+by 0.4 and sentence F by 1.4, which is the size of the seed noise this repo has measured elsewhere. Sentence F
+has fallen in most columns since the first rulings and is unexplained.
+
+**Final spot-check** (121 tokens of the test split, stratified): about 78 % right unweighted, about 86 %
+weighted by rule size. Rules driven by VerbNet classes were clean (`dir:goal`, `dir:motion`, `dir:recipient`,
+`vn`, `idiom`: 33 / 33; circumstants 20 / 20). The leaks are `vn-unlic` (11 / 15: `expand on`, `check with`,
+`correct for`, `build on` are selected PPs left as `mod`), `gap:g2` (7 / 12) and `gap:wiktionary` (5 / 7), and
+the origin ruling on extent verbs (`extend from`, `range from`).
+
+**What is stale.** Every model trained on the files above predates this change, including the released
+`en_sud_ewt_gum` and `en_sud_ewt` wheels. Only the BASE arm was retrained here; no morphologiser, lemmatiser,
+XPOS tagger or SUD-layer arm was rebuilt and no wheel was packaged. `assets_sud/en_*` (gitignored) and the cxSUD
+gold are stale until `build_cxsud_corpus.sh` is rerun.
 
 ### Korean eojeol relabel (committed 2026-08-04)
 

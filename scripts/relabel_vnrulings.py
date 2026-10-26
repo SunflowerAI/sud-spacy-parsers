@@ -34,7 +34,10 @@ Per token, first match of:
      (verb+P, or verb + its object noun + P), or the verb key and P are associated in a corpus (G2 >= 10.83,
      count >= 5, PMI > 0); otherwise mod.
 
-The lexicons for 3, 4 and 7 are in assets/en_vnrulings_lexicon.json (provenance inside the file).
+Later extensions (recipient, particlefb, gapadjunct, goalprep, srcselect, comitative, purposefor) are described
+beside RULINGS below and in docs/udep-relabel.md.
+
+The lexicons for 3, 4 and 7 are in assets/en_vnrulings_lexicon.json, rebuilt by scripts/build_en_vnrulings_lexicon.py (provenance inside the file).
 
     relabel_vnrulings.py FILE...                 # dry run: counts only
     relabel_vnrulings.py --inplace FILE...       # rewrite DEPREL of the targets (never MISC)
@@ -218,7 +221,8 @@ def circumstant(t, ocls, lex):
     return None
 
 
-RULINGS = ("occexist", "origin", "fixedpp", "objclass", "nodir", "dirlocsel", "narrowdir", "throughtime", "takeplace")
+RULINGS = ("occexist", "origin", "fixedpp", "objclass", "nodir", "dirlocsel", "narrowdir", "throughtime", "takeplace",
+           "recipient", "particlefb", "gapadjunct", "goalprep", "srcselect", "comitative", "purposefor")
 # Narrow directional rule (ruling of 2026-10-26): a goal / source / path preposition is comp:obl when the verb
 # is a member of a motion, caused-motion, transfer / change-of-possession or removal class (or a subclass).
 GOAL_SOURCE_P = {"to", "into", "onto", "out", "off", "from", "toward", "towards"}
@@ -232,9 +236,38 @@ MOTION_CLASSES = ("put-9.1", "put_spatial-9.2", "funnel-9.3", "put_direction-9.4
                   "get-13.5.1", "obtain-13.5.2", "hire-13.5.3", "invest-13.5.4", "exchange-13.6.1", "substitute-13.6.2",
                   "berry-13.7", "throw-17.1",
                   "escape-51.1", "leave-51.2", "roll-51.3.1", "run-51.3.2", "vehicle-51.4.1", "nonvehicle-51.4.2",
-                  "vehicle_path-51.4.3", "waltz-51.5", "chase-51.6", "accompany-51.7", "reach-51.8")
+                  "vehicle_path-51.4.3", "waltz-51.5", "chase-51.6", "accompany-51.7", "reach-51.8",
+                  "body_internal_motion-49.1")
 
 
+# Spot-check fixes of 2026-10-26 (hand check of 44 changed tokens, ~2/3 right):
+#   recipient   -- `to` under a verb of communication is the addressee, a selected goal (say to, talk to, tell ...).
+#                  `act-114` is `do`'s only class (do something to X).
+#   particlefb  -- a particle verb absent from VerbNet (go_off) takes the motion test from its bare verb (go).
+#   gapadjunct  -- the gap-filling steps (Wiktionary, G2) do not promote a PP that VerbNet gives a NONLIC role
+#                  (Beneficiary, Instrument ...) in at least half of the verb's classes (design / pay / make `for`).
+#   goalprep    -- a goal preposition (VerbNet's dest hierarchy minus the locative for / at: to, toward(s), into,
+#                  onto) is a selected Goal / Destination / Recipient / Result unless a circumstant rule fires
+#                  first (time, fronted, fixed PP ...). VerbNet's own frames omit it for many verbs (expand to,
+#                  reduce to, spread to, agree to, promote to), so no class membership is required.
+#   srcselect   -- origin `from` (ruling 2) is a modifier only under motion, appearance and existence verbs; under a
+#                  verb of a source-taking class (removal, deprivation, separation, obtaining: SOURCE_CLASSES) the
+#                  `from` PP is the verb's Source and is comp:obl (separate from, obtain from, withdraw from).
+SOURCE_CLASSES = ("remove-10.1", "banish-10.2", "clear-10.3", "steal-10.5", "cheat-10.6.1", "deprive-10.6.2",
+                  "free-10.6.3", "rob-10.6.4", "separate-23.1", "disassemble-23.3", "get-13.5.1", "obtain-13.5.2",
+                  "exchange-13.6.1", "substitute-13.6.2")
+#   comitative  -- `with` after a verb of a path-motion (VerbNet 51.x) or posture class (COMITATIVE_CLASSES) is accompaniment, an
+#                  adjunct: the gap-filling Wiktionary step does not promote it (go / come / get / sit with X).
+COMITATIVE_CLASSES = ("escape-51.1", "leave-51.2", "roll-51.3.1", "run-51.3.2", "vehicle-51.4.1", "nonvehicle-51.4.2",
+                      "vehicle_path-51.4.3", "waltz-51.5", "chase-51.6", "accompany-51.7", "reach-51.8",
+                      "spatial_configuration-47.6")      # not exchange / put / equip / get: there `with` is an argument
+#   purposefor  -- `for` after a verb of a path-motion or posture class (PURPOSE_CLASSES) with an event- or time-class
+#                  object is a purpose adjunct (go for dinner, come for a visit), not the choice sense (go for Paul).
+PURPOSE_CLASSES = tuple(c for c in COMITATIVE_CLASSES if c != "reach-51.8")        # reach-51.8 holds make / get / hit
+GOAL_P = (R.PREP_CLASSES["dest"] - {"for", "at"})
+EXTENT_O = {"degree", "extent", "point", "length", "avail", "effect", "end", "time"}   # VerbNet's Extent role: not a Goal
+COMM_CLASSES = ("say-37.7", "transfer_mesg-37.1.1", "talk-37.5", "lecture-37.11", "manner_speaking-37.3", "chitchat-37.6",
+                "advise-37.9", "tell-37.2", "speak-37.5", "act-114")
 WEEKDAYS = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
 
 
@@ -247,8 +280,8 @@ def is_date(obj):
         or bool(re.fullmatch(r"\d{1,2}[-/]\d{1,2}[-/]\d{2,4}", f)) or any(k in V.MONTHS for k, _ in obj["kids"])
 
 
-def motion_class(cid):
-    return any(cid == c or cid.startswith(c + "-") for c in MOTION_CLASSES)
+def motion_class(cid, classes=MOTION_CLASSES):
+    return any(cid == c or cid.startswith(c + "-") for c in classes)
 OPTIONAL = ("timesel", "timesel-any")            # off by default; switched on with --with
 
 
@@ -283,9 +316,10 @@ class ObjectClassifier(V.ObjectClassifier):
             self.vec, self._skip = saved, None
 
 
-def licence(t, ctx, classes, roles, nlic, lex):
+def licence(t, ctx, classes, roles, nlic, lex, rulings=()):
     """The non-circumstant tail: VerbNet majority over matched frames, then the idiom / G2 gap filling."""
     prep, key = t["prep"], t["key"]
+    gapadjunct = "gapadjunct" in rulings
     if not classes:
         return ("idiom", "comp:obl") if ikey(t) in lex.vp else ("novn", None)
     if t["lemma"] == "be" and t["expl"]:
@@ -293,6 +327,11 @@ def licence(t, ctx, classes, roles, nlic, lex):
     n = sum(1 for _, r in roles if r and r not in NONLIC)
     if 2 * n >= len(classes):
         return "vn", "comp:obl"
+    adjunct = gapadjunct and prep in ("for", "with") and 2 * sum(1 for _, r in roles if r in NONLIC) >= len(classes)
+    if adjunct:
+        return "gap-adjunct", "mod"
+    if "comitative" in rulings and prep == "with" and any(motion_class(cid, COMITATIVE_CLASSES) for cid, _ in classes):
+        return "gap-comitative", "mod"
     if ikey(t) in lex.vp or any((t["lemma"], o, prep) in lex.vnp for o in ctx["vobjs"]):
         return "gap:wiktionary", "comp:obl"
     if f"{key}|{prep}" in lex.g2:
@@ -306,15 +345,22 @@ def decide(t, ctx, members, frames, oc, lex, rulings=RULINGS):
     ocls = oc.classify(t["obj"], t["sent"])
     classes = members.get(key) or []
     nlic = sum(1 for _, lic in classes if prep in lic)
-    if prep == "from" and ocls == "place" and ("origin" in rulings or (classes and nlic == 0)):
+    srcverb = "srcselect" in rulings and prep == "from" and any(motion_class(cid, SOURCE_CLASSES) for cid, _ in classes)
+    if prep == "from" and ocls == "place" and not srcverb and ("origin" in rulings or (classes and nlic == 0)):
         return "circ:origin", "mod"
     if "nodir" not in rulings and prep in V.DIRECTIONAL and ocls != "time":
         return "dir", "comp:obl"
     takeplace = "takeplace" in rulings and ctx["takeplace"]
     if takeplace:
         classes = []          # light verb `take place`: no class membership licenses anything (not removal)
+    mclasses = classes
+    if "particlefb" in rulings and not classes and t["prt"]:
+        mclasses = members.get(t["lemma"]) or []      # go_off -> go
+    recip = "recipient" in rulings and prep == "to" and any(motion_class(cid, COMM_CLASSES) for cid, _ in classes)
+    if recip and ocls != "time":
+        return "dir:recipient", "comp:obl"
     if "narrowdir" in rulings and (prep in GOAL_SOURCE_P or prep in PATH_P) \
-            and any(motion_class(cid) for cid, _ in classes) \
+            and (any(motion_class(cid) for cid, _ in mclasses) or srcverb) \
             and (ocls != "time" or "throughtime" not in rulings
                  or (prep == "through" and not (t["lemma"] == "run" and is_date(t["obj"])))):
         return "dir:motion", "comp:obl"            # before the time rule: walk me through June
@@ -323,7 +369,13 @@ def decide(t, ctx, members, frames, oc, lex, rulings=RULINGS):
     placepp = ct == "place" or ("dirlocsel" in rulings and ct is None and ocls == "place" and prep in V.DIRECTIONAL)
     if placepp and any(r in LOCROLES for cid, r in roles if not ("occexist" in rulings and occ_exist(cid))):
         return "vn:locsel", "comp:obl"
-    lic = ("takeplace-unlic", "mod") if takeplace else licence(t, ctx, classes, roles, nlic, lex)
+    if "goalprep" in rulings and prep in GOAL_P and ct is None and ocls != "time" and t["lemma"] != "be" \
+            and not (t["obj"] is not None and t["obj"]["lemma"] in EXTENT_O):
+        return "dir:goal", "comp:obl"
+    if "purposefor" in rulings and prep == "for" and ocls in ("event", "time") and ct is None \
+            and any(motion_class(cid, PURPOSE_CLASSES) for cid, _ in classes):
+        return "circ:purpose", "mod"
+    lic = ("takeplace-unlic", "mod") if takeplace else licence(t, ctx, classes, roles, nlic, lex, rulings)
     if ct == "time" and prep not in R.TEMP_PREPS_ALWAYS and lic[1] == "comp:obl" and (
             "timesel" in rulings and lic[0] in ("idiom", "gap:wiktionary") or "timesel-any" in rulings):
         return lic[0] + ":timesel", "comp:obl"     # an idiom whose object denotes a period or date (wait for)
