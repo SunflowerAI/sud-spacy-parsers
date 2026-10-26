@@ -54,8 +54,7 @@ the corpus its own config names): LAS 82.90, UAS 87.13, tag 94.45, sentence F 90
 `metrics_release_en_gum_raw.json` (LAS 81.71, UAS 85.79, POS 94.57, lemma 95.50, sentence F 76.47,
 `comp:obl` F 71.1, `mod` F 76.5) and is the figure for running text, since gold pre-segmentation hides
 how well the parser starts sentences (standing hazard 11). The previous file (LAS 81.86, UAS 86.83,
-sentence F 91.99) was almost certainly `--gold-preproc` too, though its setup was not recorded; it was
-the only English release file not labelled. Neither wheel's training config sets `gold_preproc = true`
+sentence F 91.99) was most likely `--gold-preproc` too, though its setup was not recorded. Neither wheel's training config sets `gold_preproc = true`
 (a reader option with no effect at inference). Rollback copy of the previous asset: `release_backup_en_gum_v0.2.0/`
 (untracked).
 
