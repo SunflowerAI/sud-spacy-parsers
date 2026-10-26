@@ -32,6 +32,26 @@ repo — sa shipped 0.3.0 within a day of it last being written.
 
 ## Change log
 
+### 2026-10-26, 08:40 UTC — `en_gum` re-clobbered at 0.2.0 (extended `comp:obl`/`mod` rulings)
+
+Trained on the corpus relabelled by the extended VerbNet-class rulings (`docs/udep-relabel.md`,
+"Extensions to the 2026-10-26 rulings"). Rebuilt with `scripts/build_en_gum_chain.sh vnrulings6`.
+Only `tok2vec`, `parser`, `sud_shared` and `sud_subject` (plus config, metadata and strings) differ
+from the previous asset; morphologiser, lemmatiser, tagger, tokeniser and vocab weights are
+byte-identical, and tag, POS and lemma scores are identical. Verified on the DOWNLOADED wheel
+(sha256 `e3a104fb…1ed6`, 22 945 697 bytes), loaded in a clean venv from a directory unrelated to the repo.
+
+Base arm, three seeds per corpus (`scripts/seed_check_en_gum.sh`; the test gold differs between the
+two corpora, so these are trends): LAS 81.11 → **81.79** (higher on every seed), UAS 85.92 → 85.79,
+sentence F 77.79 → 76.98, `comp:obl` F 70.1 → 70.5, `mod` F 75.3 → 76.1. The sentence F and UAS
+differences are inside the seed spread (sd about 0.8 and 0.3). A single-seed comparison had shown
+−2.6 sentence F; the old corpus's seed 0 was a lucky draw.
+
+Known leaks left in the labels: selected PPs kept as `mod` (`rely on`), locative adjuncts promoted
+by G2/Wiktionary, and `from` on extent verbs. `metrics/release/metrics_release_en_gum.json` has NOT
+been re-measured on this wheel. Rollback copy of the previous asset: `release_backup_en_gum_v0.2.0/`
+(untracked).
+
 ### 2026-08-23 — `sa` re-clobbered at 0.3.0
 
 The `Reported` rule, re-tuned against the base it actually ships on: test F 48.76 → **53.05** as the

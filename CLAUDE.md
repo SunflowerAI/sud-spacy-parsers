@@ -285,7 +285,7 @@ v0.3.4 asset, verified against the downloaded wheel; only `sent_join`'s config a
   ordinary parser error on hard text, not the decoding.
 
 The 0.2.0 set is re-clobbered in place as layers land, so `pip install -U` will NOT pull those —
-which is why the four above took a version bump instead. Most recently clobbered: **sa at 0.3.0 on 2026-08-23** — the
+which is why the four above took a version bump instead. Most recently clobbered: **en_sud_ewt_gum at 0.2.0 on 2026-10-26 08:40 UTC** (extended `comp:obl`/`mod` rulings; `tok2vec`/`parser`/`sud_*` only, LAS +0.7 over three seeds; `docs/release-notes.md`). Before that, **sa at 0.3.0 on 2026-08-23** — the
 re-tuned `Reported` rule (test F 48.76 → 53.05 as the wheel runs), a CODE-ONLY change in which
 all six weight files are byte-identical to the previous asset, verified out of the DOWNLOADED
 wheel (`docs/sud-misc-layer.md`). Before that, **zh, id and lzh
