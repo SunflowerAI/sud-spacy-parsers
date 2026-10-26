@@ -13,7 +13,7 @@ Per token, first match of:
      goal / source preposition (GOAL_SOURCE_P) or path preposition (PATH_P) under a verb that is a member of
      a motion, caused-motion, transfer / change-of-possession or removal class (MOTION_CLASSES). Comes before
      the circumstant rules; a time object stops it except under `through` (walk me through June;
-     `throughtime`). The light verb `take place` has no class membership (`takeplace`): its PPs are
+     `throughtime`), and not even there for `run` with a date (the festival runs through March 11). The light verb `take place` has no class membership (`takeplace`): its PPs are
      circumstants or mod. Any other directional
      PP goes through 3-7 like any other PP.
   3. CIRCUMSTANT -> mod: fronted, discourse, FIXED PP (a Wiktionary prepositional-phrase entry that is the
@@ -235,6 +235,18 @@ MOTION_CLASSES = ("put-9.1", "put_spatial-9.2", "funnel-9.3", "put_direction-9.4
                   "vehicle_path-51.4.3", "waltz-51.5", "chase-51.6", "accompany-51.7", "reach-51.8")
 
 
+WEEKDAYS = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+
+
+def is_date(obj):
+    """A calendar date: a month or weekday name, a year, a numeric date, or a noun with a month dependent."""
+    if obj is None:
+        return False
+    f = obj["form"]
+    return obj["lemma"] in V.MONTHS | WEEKDAYS or bool(re.fullmatch(r"(1[0-9]|20)\d\d", f)) \
+        or bool(re.fullmatch(r"\d{1,2}[-/]\d{1,2}[-/]\d{2,4}", f)) or any(k in V.MONTHS for k, _ in obj["kids"])
+
+
 def motion_class(cid):
     return any(cid == c or cid.startswith(c + "-") for c in MOTION_CLASSES)
 OPTIONAL = ("timesel", "timesel-any")            # off by default; switched on with --with
@@ -303,7 +315,8 @@ def decide(t, ctx, members, frames, oc, lex, rulings=RULINGS):
         classes = []          # light verb `take place`: no class membership licenses anything (not removal)
     if "narrowdir" in rulings and (prep in GOAL_SOURCE_P or prep in PATH_P) \
             and any(motion_class(cid) for cid, _ in classes) \
-            and (ocls != "time" or prep == "through" or "throughtime" not in rulings):
+            and (ocls != "time" or "throughtime" not in rulings
+                 or (prep == "through" and not (t["lemma"] == "run" and is_date(t["obj"])))):
         return "dir:motion", "comp:obl"            # before the time rule: walk me through June
     roles = [] if takeplace else class_roles(frames.get(key) or [], ctx, ctx["tid"])
     ct = circumstant(t, ocls, lex if "fixedpp" in rulings else None)
