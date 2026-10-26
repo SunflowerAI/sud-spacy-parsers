@@ -48,8 +48,11 @@ differences are inside the seed spread (sd about 0.8 and 0.3). A single-seed com
 −2.6 sentence F; the old corpus's seed 0 was a lucky draw.
 
 Known leaks left in the labels: selected PPs kept as `mod` (`rely on`), locative adjuncts promoted
-by G2/Wiktionary, and `from` on extent verbs. `metrics/release/metrics_release_en_gum.json` has NOT
-been re-measured on this wheel. Rollback copy of the previous asset: `release_backup_en_gum_v0.2.0/`
+by G2/Wiktionary, and `from` on extent verbs. `metrics/release/metrics_release_en_gum.json` was
+re-measured on the DOWNLOADED wheel (test split of `corpus_en_gum_sud_vnrulings6`, the corpus its own
+config names): LAS 81.71, UAS 85.79, tag 94.45, POS 94.57, lemma 95.50, sentence F 76.47, `comp:obl` F
+71.1, `mod` F 76.5. The previous file (LAS 81.86, sentence F 91.99) was scored on a different test gold
+and a pipeline with a sentence boundary the base arm no longer shows, so the two are not comparable. Rollback copy of the previous asset: `release_backup_en_gum_v0.2.0/`
 (untracked).
 
 ### 2026-08-23 — `sa` re-clobbered at 0.3.0
