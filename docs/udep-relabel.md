@@ -393,6 +393,47 @@ command above; `build_en_ewt_gum.sh verify` passes. cxSUD corpus rebuilt with
 `build_cxsud_corpus.sh`: against the previous install only DEPREL comp:obl <-> mod on these ADP rows
 differs. **Every model trained on these files predates the change.**
 
+### Verb-level `comp:obl` vs `mod`: the 2026-10-26 rulings (branch fix/verbnet-rulings)
+
+**SUPERSEDES the VerbNet + object class labels above.** `scripts/relabel_vnrulings.py` decides the
+same tokens with the lexicons in `assets/en_vnrulings_lexicon.json`. Per token, first match of:
+
+  1. origin `from` (a place-class object) -> `mod`, whatever VerbNet says about the verb;
+  2. NARROW DIRECTIONAL -> `comp:obl` (the blanket directional rule is gone): a goal/source preposition
+     (to, into, onto, out, off, from, toward(s)) or a path preposition (through, across, along, past,
+     via, up, down, over; not around/round) under a verb in a VerbNet motion (escape-51.1, leave-51.2,
+     roll-51.3.1, run-51.3.2, vehicle-51.4.1, nonvehicle-51.4.2, vehicle_path-51.4.3, waltz-51.5,
+     chase-51.6, accompany-51.7, reach-51.8), caused-motion (put-9.1, put_spatial-9.2, funnel-9.3,
+     put_direction-9.4, pour-9.5, pocket-9.10, send-11.1, slide-11.2, bring-11.3, carry-11.4,
+     drive-11.5, push-12, throw-17.1), change-of-possession (all 13.x) or removal (all 10.x) class or
+     subclass. A time object stops it except under `through` (walk me through June), and not even
+     there for `run` with a date (the festival runs through March 11). The light verb `take place`
+     has no class membership for this rule, for location selection or for the licence;
+  3. circumstant -> `mod`: fronted, discourse, a FIXED PP (a whole PP listed in the Wiktionary
+     prep_phrase dump, `on a whim`; pronoun-only entries such as `for it` left out), time, place,
+     occasion, manner, reason. Exception, location selection: a place PP (locative preposition, or a
+     place object under a directional one) is `comp:obl` when a frame of one of the verb's classes
+     takes it in a Location/Destination/Source/Path slot, except occurrence and existence classes
+     (lodge-46; Levin 47 except spatial_configuration-47.6; Levin 48): `happen in`, `exist in`,
+     `reside in` are `mod`;
+  4. verb not in VerbNet: a strict Wiktionary verb+preposition idiom -> `comp:obl`, else kept;
+  5. existential `be` -> `mod`;
+  6. VerbNet majority over frames matched to the token's shape (objects, passive, one PP per slot);
+  7. gap filling: a strict Wiktionary idiom (verb+P, verb+object noun+P) or corpus G2 >= 10.83
+     (count >= 5, PMI > 0, SUD 2.18 English) -> `comp:obl`; otherwise `mod`.
+
+Object class repairs: WordNet and the vector table only for nominal objects (`from all over X` took
+the cricket sense of `over`), and a WordNet noun.time first sense only when at least half of the
+noun senses are noun.time (grave, history, cycle are not times).
+
+Agreement with 460 hand-judged tokens: 76.7% (frame-shape method before the rulings) -> 79.3%.
+EWT+GUM moves against the labels above: train 907 comp:obl -> mod and 1,417 mod -> comp:obl, dev
+102 / 152, test 115 / 153. Applied in place to the same 30 English files (originals in
+`backup_en_prerulings/`), the six `.udep_resolved` files regenerated with the command above;
+`build_en_ewt_gum.sh verify` passes; only DEPREL changed. `build_cxsud_corpus.sh` output is
+md5-identical to the cxSUD gold installed on 2026-10-26. **Every model trained on these files
+predates the change.**
+
 ### Korean eojeol relabel (committed 2026-08-04)
 
 424 DEPREL cells across `assets_ko/SUD_Korean-GSD/ko_gsd-sud-{train,dev,test}.relabeled_ext.conllu`
