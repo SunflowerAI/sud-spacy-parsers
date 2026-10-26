@@ -304,6 +304,211 @@ replacing the prior `en_sud_ewt_gum-0.2.0-py3-none-any.whl` asset in place (same
 other "re-clobbered at 0.2.0" entries in `CLAUDE.md`'s wheel table -- `en_gum` was not previously
 listed there, so this is its first clobber). `pip install -U` picks it up automatically.
 
+### Verb-level `comp:obl` vs `mod` decided by VerbNet (2026-10-25)
+
+**SUPERSEDES the LLM labels above for verb-level ADP.** The per-token qwen3:8b labels were only
+86.3% pure per (verb lemma, preposition) on EWT+GUM train, and 78.1% among pairs seen 20-99 times
+(go to 128/37, look for 39/28, live in 42/25, do with 24/23). By user decision the distinction now
+follows a published valency lexicon. `scripts/relabel_verbnet.py` decides every token that the SUD
+treebank marks `udep` and that is an ADP headed by a VERB, in this order:
+
+  b. rule -> `mod`: temporal PPs (during/throughout/amid always; in/on/at/by/over/within/since/until/
+     before/after/for with a temporal noun, year, decade, clock time or numeric date as object) and
+     fixed discourse/adverbial PPs (for example, in fact, at least, by mistake, in a ... way, in search
+     of ...). Overrides (a).
+  a. VerbNet 3.3 -> `comp:obl`: the preposition is licensed by a frame in at least half of the
+     VerbNet classes the lemma belongs to (`--polysemy majority`), counting subclasses with inherited
+     frames. A frame names its preposition literally, or by a role class (`dest_conf`, `src`,
+     `spatial` ...) expanded from the VerbNet preposition hierarchy. Particle verbs (`compound@prt`)
+     are looked up as `lemma_particle` (VerbNet lists 236, e.g. take_on).
+  c. residue -> the LLM label stays,
+  d. ... smoothed to the train majority of the residue labels per (verb key, preposition); ties keep
+     their own label.
+
+Noun-level `of` is not touched (it keeps `udep`, above).
+
+Train (11,590 tokens): (a) 3,496, (b) 1,342, (c) 6,028 kept, (d) 724 smoothed; 1,499 `mod` ->
+`comp:obl` and 402 `comp:obl` -> `mod`; comp:obl 5,508 -> 6,605. `--polysemy union` licenses 5,642
+tokens by VerbNet and gives 7,446 comp:obl; it was rejected because it over-generates (purity 95.2%
+against 96.0%).
+
+Purity per (verb, preposition), train, bands n = 2-4 / 5-19 / 20-99 / 100+ / all: before 85.7 / 82.0
+/ 78.1 / 80.9 / 86.3%, after 91.7 / 95.0 / 97.2 / 99.6 / 96.0%; dev 91.6% -> 98.9%. Agreement with
+`gold/gold_udep.jsonl` (NOT independent: that gold is also frame lexicon plus temporal rules, and the
+prompt was tuned on it): complement 87.0% -> 98.2%, modifier 96.8% -> 99.4%. A hand check of 50
+changed train tokens found about 32 right; the errors are VerbNet-licensed locative/manner adjuncts
+("happening in Sudan", "working with every budget") and smoothing that pushed a complement to `mod`
+(go through, start with, take part in). The rule list grew after that check (discourse PPs, decades,
+clock times, dates).
+
+VerbNet is NOT in this repo: NLTK data package `verbnet3` (VerbNet 3.3, 482,025-byte zip, sha256
+fa0136a7699c52f0bd532dc5adc0914745aa4369a52ae1465cb11841060ec1de, from
+`https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/verbnet3.zip`), unpacked
+at `../lexicons/verbnet3/verbnet3/` beside this repo; `--verbnet` or `$VERBNET_DIR` overrides. Applied
+in place, with one smoothing table computed from train before any file changed, to the 30 English
+files that `restore_noun_of.py` touched; the six `.udep_resolved` files were then regenerated with the
+command above. `build_en_ewt_gum.sh verify` still passes, and the hoist still reproduces
+`assets_sud/en_gum-*`. Originals in `backup_en_preverbnet/`. **Every model trained on these files
+predates the change.**
+
+### Verb-level `comp:obl` vs `mod` by VerbNet + object class (2026-10-25, branch fix/verbnet-objclass)
+
+**SUPERSEDES the VerbNet + smoothing labels above.** By user decision a complement is a preposition
+the verb selects that does NOT denote a circumstant. `scripts/relabel_vnobj.py` decides the same
+tokens (treebank `udep`, ADP under a VERB, labelled mod/comp:obl), per token, no smoothing:
+
+  1. directional preposition (to, into, from, through, across, out, off, ...) and the object is not a
+     time -> `comp:obl` (standing ruling);
+  2. circumstant -> `mod`: fronted PP set off by a comma; fixed discourse PP; time (the temporal rule
+     above, repaired, or a time-class object under a temporal preposition); place-class object under a
+     locative preposition; event-class object under at/during/after/before/following/upon; manner
+     (in/with a way/manner/fashion/style); reason (for/on/out of a reason/sake/purpose/grounds,
+     because, due, owing, despite);
+  3. VerbNet licenses the preposition in at least half of the lemma's classes -> `comp:obl`, else
+     `mod`; existential `be` -> `mod`;
+  4. verb key not in VerbNet -> the current label is kept (no fallback).
+
+Object class (place/time/event/other): closed lists and repairs, numerals and dates, spaCy
+`en_core_web_lg` NER for proper nouns, WordNet 3.0 first noun sense, else
+`assets/en_objclass_vectors.json` (4,317 lemmas, a logistic regression on the cxSUD parser's nucleus
+vectors trained on the WordNet labels, CV 89.9%). Hand check of objects: 84/100, then 92/100 after
+the repairs (on the sample the repairs were made from).
+
+EWT+GUM (14,489 tokens): dir 3,759; circumstant 3,586 (time 1,554, place 1,152, fronted 616,
+discourse 145, reason 79, occasion 29, manner 11); VerbNet 2,096 licensed / 4,481 unlicensed;
+existential 59; not in VerbNet 508 (kept: 288 comp:obl, 220 mod). Moves against the VerbNet labels:
+train 2,162 comp:obl -> mod and 468 mod -> comp:obl, dev 266 / 48, test 274 / 54; train comp:obl
+5,508 -> 4,911. Train purity per (verb, preposition), n = 2-4 / 5-19 / 20-99 / 100+: 96.1 / 95.2 /
+97.8 / 94.6% (the 100+ band falls because `live in` now splits on the object: place `mod`, else
+`comp:obl`).
+
+**Caveat, measured.** A fresh hand check of 100 tokens this definition CHANGED found 47 right by the
+definition's own intent, against 53 for the labels it replaced and 57 for `--polysemy union`. The
+errors are VerbNet licensing gaps for polysemous verbs (`put in`, `ask for`, `think of`, `work with`
+all go to `mod`: 44 of the 67 unlicensed-VerbNet changes were wrong). Agreement with the earlier
+hand judgments (260 tokens, stratum-weighted): majority 79.7%, union 82.2%.
+
+Applied in place to the same 30 English files; the six `.udep_resolved` files regenerated with the
+command above; `build_en_ewt_gum.sh verify` passes. cxSUD corpus rebuilt with
+`build_cxsud_corpus.sh`: against the previous install only DEPREL comp:obl <-> mod on these ADP rows
+differs. **Every model trained on these files predates the change.**
+
+### Verb-level `comp:obl` vs `mod`: the 2026-10-26 rulings (branch fix/verbnet-rulings)
+
+**SUPERSEDES the VerbNet + object class labels above.** `scripts/relabel_vnrulings.py` decides the
+same tokens with the lexicons in `assets/en_vnrulings_lexicon.json`. Per token, first match of:
+
+  1. origin `from` (a place-class object) -> `mod`, whatever VerbNet says about the verb;
+  2. NARROW DIRECTIONAL -> `comp:obl` (the blanket directional rule is gone): a goal/source preposition
+     (to, into, onto, out, off, from, toward(s)) or a path preposition (through, across, along, past,
+     via, up, down, over; not around/round) under a verb in a VerbNet motion (escape-51.1, leave-51.2,
+     roll-51.3.1, run-51.3.2, vehicle-51.4.1, nonvehicle-51.4.2, vehicle_path-51.4.3, waltz-51.5,
+     chase-51.6, accompany-51.7, reach-51.8), caused-motion (put-9.1, put_spatial-9.2, funnel-9.3,
+     put_direction-9.4, pour-9.5, pocket-9.10, send-11.1, slide-11.2, bring-11.3, carry-11.4,
+     drive-11.5, push-12, throw-17.1), change-of-possession (all 13.x) or removal (all 10.x) class or
+     subclass. A time object stops it except under `through` (walk me through June), and not even
+     there for `run` with a date (the festival runs through March 11). The light verb `take place`
+     has no class membership for this rule, for location selection or for the licence;
+  3. circumstant -> `mod`: fronted, discourse, a FIXED PP (a whole PP listed in the Wiktionary
+     prep_phrase dump, `on a whim`; pronoun-only entries such as `for it` left out), time, place,
+     occasion, manner, reason. Exception, location selection: a place PP (locative preposition, or a
+     place object under a directional one) is `comp:obl` when a frame of one of the verb's classes
+     takes it in a Location/Destination/Source/Path slot, except occurrence and existence classes
+     (lodge-46; Levin 47 except spatial_configuration-47.6; Levin 48): `happen in`, `exist in`,
+     `reside in` are `mod`;
+  4. verb not in VerbNet: a strict Wiktionary verb+preposition idiom -> `comp:obl`, else kept;
+  5. existential `be` -> `mod`;
+  6. VerbNet majority over frames matched to the token's shape (objects, passive, one PP per slot);
+  7. gap filling: a strict Wiktionary idiom (verb+P, verb+object noun+P) or corpus G2 >= 10.83
+     (count >= 5, PMI > 0) -> `comp:obl`; otherwise `mod`. The lexicons were later rebuilt from files
+     in this repo's reach, see the extensions section below.
+
+Object class repairs: WordNet and the vector table only for nominal objects (`from all over X` took
+the cricket sense of `over`), and a WordNet noun.time first sense only when at least half of the
+noun senses are noun.time (grave, history, cycle are not times).
+
+Agreement with 460 hand-judged tokens: 76.7% (frame-shape method before the rulings) -> 79.3%.
+EWT+GUM moves against the labels above: train 907 comp:obl -> mod and 1,417 mod -> comp:obl, dev
+102 / 152, test 115 / 153. Applied in place to the same 30 English files (originals in
+`backup_en_prerulings/`), the six `.udep_resolved` files regenerated with the command above;
+`build_en_ewt_gum.sh verify` passes; only DEPREL changed. `build_cxsud_corpus.sh` output is
+md5-identical to the cxSUD gold installed on 2026-10-26. **Every model trained on these files
+predates the change.**
+
+### Extensions to the 2026-10-26 rulings, and rebuilt lexicons (branch fix/verbnet-rulings)
+
+Two rounds of hand spot-checks of `relabel_vnrulings.py` (about 110 tokens each, stratified by rule, judged
+from the PP alone by one judge) found roughly two thirds of the *changed* labels right, and drove seven more
+rulings, all framed in VerbNet classes where a class can carry the decision. `--without NAME` switches any off.
+
+| ruling | decides | classes / data |
+|---|---|---|
+| `recipient` | `to` under a verb of communication is a selected goal: `comp:obl` | say-37.7, transfer_mesg-37.1.1, talk-37.5, lecture-37.11, manner_speaking-37.3, chitchat-37.6, advise-37.9, tell-37.2, speak-37.5, act-114 |
+| `particlefb` | a particle verb VerbNet does not list (`go_off`) takes the motion test from its bare verb | motion classes; used for the directional rule only |
+| `gapadjunct` | the gap-filling steps do not promote `for` / `with` when at least half of the verb's classes give the PP a Beneficiary / Instrument ... role | NONLIC roles |
+| `goalprep` | `to`, `toward(s)`, `into`, `onto` is a selected goal for any verb, unless a circumstant rule fires first or the object is an extent (degree, point, avail ...) | VerbNet's destination prepositions |
+| `srcselect` | origin `from` stays `mod` under motion, appearance and existence verbs; under a source-taking class it is `comp:obl` | remove-10.1, banish-10.2, clear-10.3, steal-10.5, cheat-10.6.1, deprive-10.6.2, free-10.6.3, rob-10.6.4, separate-23.1, disassemble-23.3, get-13.5.1, obtain-13.5.2, exchange-13.6.1, substitute-13.6.2 |
+| `comitative` | `with` after a verb of a path-motion or posture class is accompaniment: not promoted by the Wiktionary step | 51.x motion classes, spatial_configuration-47.6 |
+| `purposefor` | `for` after the same classes (without reach-51.8) with an event- or time-class object is a purpose adjunct | `go for a visit`, `come for Xmas` |
+
+**Tested and rejected** (`NEGATIVE-RESULTS.md` style): licensing a PP when ANY class of the verb has a matching
+frame, for `for` / `with` / `as` (8 of 30 flips right); dropping the frame-shape requirement (about 10 right, 12
+wrong in 22); backing particle verbs off to their bare verb for the whole licence (flips `narrow_down to`,
+`wake_up to`, `hold_on to`); blocking G2 for `in` / `on` / `at` (250 flips, 57 % right: it loses `put in`,
+`engage in`, `believe in`, `focus on`); P(preposition | verb) as a selectivity cut for G2 (right pairs 0.15-0.89,
+wrong pairs 0.22-0.73, no separation). The remaining errors are verb-specific lexical facts VerbNet does not hold.
+
+**The lexicons are now rebuilt, not inherited.** `assets/en_vnrulings_lexicon.json` used to carry a G2 table
+counted over treebanks that are not on this machine, so nothing could regenerate it.
+`scripts/build_en_vnrulings_lexicon.py` now derives all four tables: `idioms_vp` (233) and `idioms_vnp` (479)
+and `fixed_pps` (2,291) from the kaikki.org verb and prep_phrase dumps in `../lexicons` (spaCy
+`en_core_web_lg` parses the examples), and `g2_pairs` (193, was 425) from the EWT+GUM TRAIN targets alone,
+G2 >= 10.83, PMI > 0, count >= 5, or 3-4 for `for` / `with` / `as`. Overlap with the old tables: `fixed_pps`
+2,159 of 2,166, `idioms_vp` 214 of 248, `g2_pairs` 178 of 425 (the old one also held junk entries such as
+`___|_`). One entry is hand-curated and says so in the script: `use|for` is excluded from G2 (36 train tokens,
+all judged purpose adjuncts in two spot-checks; not separable from `work for`, also use-105.1, by class).
+Effect of the rebuild on train: 367 labels (3 %) moved; `comp:obl` -> `mod` was about 80 % right in a sample,
+`mod` -> `comp:obl` about 50 % (`have in`, `find in` and `kill in` are place adjuncts G2 still promotes).
+
+**Reproducing.** `bash scripts/build_en_vnrulings.sh [TAG]` rebuilds the lexicon, relabels copies of the
+`assets/` files, regenerates the `udep_resolved` files, converts, trains the base arm and scores it; it writes
+only `assets_en_<TAG>/`, `corpus_en_gum_<TAG>/`, `training_en_gum_<TAG>/` and
+`metrics/en_gum/metrics_en_gum_<TAG>.json`. Its output is byte-identical to the installed assets (checked).
+The `.udep_ruled` inputs are generated by the earlier pipeline and are not tracked in git.
+
+**Installed** in place, the same 21 English files `2a6d4bb` touched (EWT, EWT+GUM and the merged `en_sud-*`;
+`relabeled_ext`, `.reported`, `.udep_ruled`), with the six `.udep_resolved` files regenerated by the command
+above. Against the first rulings, EWT+GUM train moved 367 `comp:obl` -> `mod` and 408 `mod` -> `comp:obl` (dev
+41 / 48, test 47 / 55); EWT train 236 / 208. Originals in `backup_en_prerulings2/`.
+`build_en_ewt_gum.sh verify` passes (EWT half of the merged file identical in 12,544 / 2,001 / 2,077 blocks).
+
+**Base arm** (`configs/config.cfg`, seed 0, `corpus_en_gum_<TAG>/`), each scored on ITS OWN test split, so the
+columns are not on the same gold:
+
+| | previous (`udep_resolved`) | rulings v1 | + 2 fixes | + goal, source | + comitative, G2 addendum | rebuilt lexicons, `purposefor` | + `use|for` exclusion (installed) |
+|---|---|---|---|---|---|---|---|
+| LAS | 81.27 | 81.66 | 81.68 | 81.95 | 82.05 | 82.10 | **81.71** |
+| UAS | 86.09 | 85.69 | 85.72 | 85.97 | 85.80 | 86.00 | 85.79 |
+| tag | 94.37 | 94.39 | 94.42 | 94.48 | 94.35 | 94.39 | 94.49 |
+| sentence F | 79.05 | 78.49 | 78.22 | 77.62 | 78.22 | 77.89 | 76.47 |
+| `comp:obl` F | 70.2 | 69.6 | 69.6 | 71.7 | 71.1 | 71.9 | 71.1 |
+| `mod` F | 75.5 | 75.5 | 75.4 | 76.0 | 76.2 | 76.7 | 76.5 |
+
+Read it as a trend, not a ranking: ONE seed per column, and the last step changed 36 train tokens yet moved LAS
+by 0.4 and sentence F by 1.4, which is the size of the seed noise this repo has measured elsewhere. Sentence F
+has fallen in most columns since the first rulings and is unexplained.
+
+**Final spot-check** (121 tokens of the test split, stratified): about 78 % right unweighted, about 86 %
+weighted by rule size. Rules driven by VerbNet classes were clean (`dir:goal`, `dir:motion`, `dir:recipient`,
+`vn`, `idiom`: 33 / 33; circumstants 20 / 20). The leaks are `vn-unlic` (11 / 15: `expand on`, `check with`,
+`correct for`, `build on` are selected PPs left as `mod`), `gap:g2` (7 / 12) and `gap:wiktionary` (5 / 7), and
+the origin ruling on extent verbs (`extend from`, `range from`).
+
+**What is stale.** Every model trained on the files above predates this change, including the released
+`en_sud_ewt_gum` and `en_sud_ewt` wheels. Only the BASE arm was retrained here; no morphologiser, lemmatiser,
+XPOS tagger or SUD-layer arm was rebuilt and no wheel was packaged. `assets_sud/en_*` (gitignored) and the cxSUD
+gold are stale until `build_cxsud_corpus.sh` is rerun.
+
 ### Korean eojeol relabel (committed 2026-08-04)
 
 424 DEPREL cells across `assets_ko/SUD_Korean-GSD/ko_gsd-sud-{train,dev,test}.relabeled_ext.conllu`
