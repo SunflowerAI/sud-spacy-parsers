@@ -12,7 +12,9 @@ Per token, first match of:
   2. NARROW DIRECTIONAL -> comp:obl (`narrowdir`; the old blanket directional rule is gone, `nodir`): a
      goal / source preposition (GOAL_SOURCE_P) or path preposition (PATH_P) under a verb that is a member of
      a motion, caused-motion, transfer / change-of-possession or removal class (MOTION_CLASSES). Comes before
-     the circumstant rules, so a time object does not stop it (walk me through June). Any other directional
+     the circumstant rules; a time object stops it except under `through` (walk me through June;
+     `throughtime`). The light verb `take place` has no class membership (`takeplace`): its PPs are
+     circumstants or mod. Any other directional
      PP goes through 3-7 like any other PP.
   3. CIRCUMSTANT -> mod: fronted, discourse, FIXED PP (a Wiktionary prepositional-phrase entry that is the
      whole PP: `in the end`, `on a whim`), time, place, occasion, manner, reason (as relabel_vnobj.py).
@@ -175,7 +177,9 @@ def shape_context(lines, f):
         vobjs.append(rows[v[6]][2].lower())
     if passive:
         vobjs += [k[2].lower() for k in rows.values() if k[7] == "subj@pass" and k[6] in (v[6], v[0])]
-    return dict(nobj=nobj + int(passive), deps=deps, vobjs=vobjs, tid=int(f[0]))
+    takeplace = v[2].lower() == "take" and any(
+        k[2].lower() == "place" and k[7].split("@")[0] in ("comp:obj", "compound") for k in kids[v[0]])
+    return dict(nobj=nobj + int(passive), deps=deps, vobjs=vobjs, tid=int(f[0]), takeplace=takeplace)
 
 
 class Lexicon:
@@ -214,7 +218,7 @@ def circumstant(t, ocls, lex):
     return None
 
 
-RULINGS = ("occexist", "origin", "fixedpp", "objclass", "nodir", "dirlocsel", "narrowdir")
+RULINGS = ("occexist", "origin", "fixedpp", "objclass", "nodir", "dirlocsel", "narrowdir", "throughtime", "takeplace")
 # Narrow directional rule (ruling of 2026-10-26): a goal / source / path preposition is comp:obl when the verb
 # is a member of a motion, caused-motion, transfer / change-of-possession or removal class (or a subclass).
 GOAL_SOURCE_P = {"to", "into", "onto", "out", "off", "from", "toward", "towards"}
@@ -294,15 +298,19 @@ def decide(t, ctx, members, frames, oc, lex, rulings=RULINGS):
         return "circ:origin", "mod"
     if "nodir" not in rulings and prep in V.DIRECTIONAL and ocls != "time":
         return "dir", "comp:obl"
+    takeplace = "takeplace" in rulings and ctx["takeplace"]
+    if takeplace:
+        classes = []          # light verb `take place`: no class membership licenses anything (not removal)
     if "narrowdir" in rulings and (prep in GOAL_SOURCE_P or prep in PATH_P) \
-            and any(motion_class(cid) for cid, _ in classes):
+            and any(motion_class(cid) for cid, _ in classes) \
+            and (ocls != "time" or prep == "through" or "throughtime" not in rulings):
         return "dir:motion", "comp:obl"            # before the time rule: walk me through June
-    roles = class_roles(frames.get(key) or [], ctx, ctx["tid"])
+    roles = [] if takeplace else class_roles(frames.get(key) or [], ctx, ctx["tid"])
     ct = circumstant(t, ocls, lex if "fixedpp" in rulings else None)
     placepp = ct == "place" or ("dirlocsel" in rulings and ct is None and ocls == "place" and prep in V.DIRECTIONAL)
     if placepp and any(r in LOCROLES for cid, r in roles if not ("occexist" in rulings and occ_exist(cid))):
         return "vn:locsel", "comp:obl"
-    lic = licence(t, ctx, classes, roles, nlic, lex)
+    lic = ("takeplace-unlic", "mod") if takeplace else licence(t, ctx, classes, roles, nlic, lex)
     if ct == "time" and prep not in R.TEMP_PREPS_ALWAYS and lic[1] == "comp:obl" and (
             "timesel" in rulings and lic[0] in ("idiom", "gap:wiktionary") or "timesel-any" in rulings):
         return lic[0] + ":timesel", "comp:obl"     # an idiom whose object denotes a period or date (wait for)
