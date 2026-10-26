@@ -52,7 +52,11 @@ by G2/Wiktionary, and `from` on extent verbs. `metrics/release/metrics_release_e
 re-measured on the DOWNLOADED wheel (test split of `corpus_en_gum_sud_vnrulings6`, the corpus its own
 config names): LAS 81.71, UAS 85.79, tag 94.45, POS 94.57, lemma 95.50, sentence F 76.47, `comp:obl` F
 71.1, `mod` F 76.5. The previous file (LAS 81.86, sentence F 91.99) came from an earlier generation and its
-evaluation setup was not recorded, so the 15-point sentence F gap is UNEXPLAINED; do not compare the two. Rollback copy of the previous asset: `release_backup_en_gum_v0.2.0/`
+evaluation setup was not recorded. It is most likely a `--gold-preproc` score: the same wheel scored
+with `--gold-preproc` (`metrics_release_en_gum_gp.json`) reads LAS 82.90, UAS 87.13, sentence F 90.87,
+sentence F within about a point of the old 91.99. Gold pre-segmentation hides how well the parser
+starts sentences (standing hazard 11), so the raw file above, not the `_gp` one, is the figure for
+running text. Do not compare a raw figure with a `_gp` one. Rollback copy of the previous asset: `release_backup_en_gum_v0.2.0/`
 (untracked).
 
 ### 2026-08-23 — `sa` re-clobbered at 0.3.0
