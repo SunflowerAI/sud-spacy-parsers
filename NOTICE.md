@@ -25,6 +25,18 @@ the underlying treebanks. You must give attribution and share derivatives alike.
 
 Each source treebank's own `LICENSE.txt` is retained alongside its data.
 
+## TinyBERT encoder — Apache-2.0 (`en_sud_ewt_gum` 0.3.0 and later)
+
+The `en_sud_ewt_gum` wheel contains, inside `tok2vec/model`, the pretrained weights and the 30 522-entry WordPiece
+vocabulary of **TinyBERT_General_4L_312D** (`huawei-noah/TinyBERT_General_4L_312D`; Jiao et al., "TinyBERT:
+Distilling BERT for Natural Language Understanding", Findings of EMNLP 2020), used **unmodified** and frozen. The
+vocabulary is the one from BERT-base-uncased (Devlin et al.).
+
+Licence: **Apache License 2.0**. The licence text and a notice are in `third_party/tinybert/` and inside the wheel
+(`NOTICE/`); Apache-2.0 is compatible with the wheel's CC BY-SA 4.0. ⚠ The only licence statement found is the
+`LICENSE` in the upstream project directory (huawei-noah/Pretrained-Language-Model, `TinyBERT/`) — the Hugging
+Face model card carries no licence field. If that matters for your use, confirm with the authors.
+
 ## Kanseki Repository 漢籍リポジトリ — CC BY-SA 4.0
 
 `lzh_sud_kyoto` is trained on a punctuated form of SUD_Classical_Chinese-Kyoto. The Kyoto treebank

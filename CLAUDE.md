@@ -125,6 +125,14 @@ all: use `scripts/eval_ja_infl.py --reader infltag`, or read LAS 72.06 for a mod
 
 ## The fourteen wheels
 
+**en_sud_ewt_gum is at v0.3.0** (on the shared `v0.3.0` tag, uploaded 2026-10-28; 0.2.0 stays on `v0.2.0` as the
+rollback). Its `tok2vec` is a frozen TinyBERT-4L-312D with a learned layer mix, concatenated with the previous
+hash-embed CNN, and `parser` is retrained on it; the morphologiser, lemmatiser and XPOS tagger are byte-identical to
+0.2.0 (own encoders). The encoder is numpy at inference and torch only at training time
+(`scripts/sud_tinybert_embed.py` trains, `scripts/seal_tinybert_tok2vec.py` converts and refuses unless the twin
+matches). Fine-tuning the same encoder LOST to the old base, so the encoder is frozen — see `NEGATIVE-RESULTS.md`.
+Only the base arm is single-seed. `en_sud_ewt` (EWT only) is NOT updated. `docs/release-notes.md` has the table.
+
 **sa is at v0.4.2**, **lzh is at v0.3.5**, **ja, ko and la are at v0.3.0**, and **ta and te are new
 at 0.1.0**; sa's releases are each on their own tag (`v0.4.0`, `v0.4.1`, `v0.4.2`), lzh's six releases are each on their own
 tag (`v0.3.0`, `v0.3.1`, `v0.3.2`, `v0.3.3`, `v0.3.4`, `v0.3.5`), the other five of the seven on `v0.3.0`; the other seven
@@ -306,7 +314,7 @@ gh release view v0.3.0 --json assets -q '.assets[] | "\(.name)  \(.updatedAt)"'
 | lang | wheel | licence | tokeniser | note |
 |---|---|---|---|---|
 | en | `en_sud_ewt` | CC BY-SA 4.0 | rule | EWT only — the narrower attribution surface |
-| en | `en_sud_ewt_gum` | CC BY-SA 4.0 | rule | + the ten non-NC GUM genres, +66 % train tokens; owes GUM's CC BY attribution |
+| en | `en_sud_ewt_gum` | CC BY-SA 4.0 | rule | + the ten non-NC GUM genres, +66 % train tokens; owes GUM's CC BY attribution. **0.3.0**: `tok2vec` is a FROZEN TinyBERT-4L-312D (Apache-2.0; owes its notice) with a learned mix of all five hidden states, beside the old hash-embed CNN; numpy forward pass sealed in `tok2vec/model`, **no torch** (raw LAS 81.71 → **83.28**, gold-preproc 82.90 → **84.98**, SINGLE seed; wheel 23 → 76 MB, peak RSS 155 → 331 MB) |
 | ar | `ar_sud_padt` | CC BY-NC-SA 4.0 | rule + `ar_tokenizer` | vocalisation-augmented; ships the `Vform` table and a trained Idiom pipe |
 | fa | `fa_sud_perdt` | CC BY-SA 4.0 | rule + `sud.FaNormTokenizer.v1` | normalises Arabic letterforms **in**; ships ezāfe rules without the GPL lexicon |
 | la | `la_sud_ittb_proiel_perseus` | CC BY-NC-SA 4.0 | rule + `-que` split | orthography-augmented; parser reads predicted lemma vectors + per-feature morphology (LAS 71.72 → 73.23), table **sealed** into the bytes; `la_macronise` ships without its data |
@@ -449,7 +457,10 @@ value**, not as missing — writing `_` for tokens with no gold taught the sandh
    a raw end-to-end eval, or by typing two sentences at the model.
 5. **Re-measure the MISC layer after any base retrain.** Every pipe there reads the base's own
    predictions, and the Idiom rule is a CONJUNCTION of two of them, so upstream errors multiply
-   rather than add. Ship decisions have reversed on a base change in both directions.
+   rather than add. Ship decisions have reversed on a base change in both directions. (en_gum 0.3.0, 2026-10-28: on a
+   new base the morphologiser, lemmatiser and XPOS tagger retrain byte-identical — own encoders — so only the pipes
+   that read the PARSE of the base, `sud_subject`/`sud_shared` and the two rules, need re-measuring; no decision
+   reversed.)
 6. **Rare labels pay first.** Headline `morph_acc`/`TAG` are dominated by common labels, so a change
    can raise them while a rare label (`ExtPos`) falls 10 points and takes a downstream layer with
    it. Any decision resting on a rare label must be re-measured, never inferred from the headline.

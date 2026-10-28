@@ -19,9 +19,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 TAG=${1:-vnrulings6}
+# CORPUS_TAG: which corpus_en_gum_<tag>/ to read when the BASE arm's TAG names an architecture rather than a
+# corpus (e.g. TAG=tinybert on corpus vnrulings6: `CORPUS_TAG=vnrulings6 bash scripts/build_en_gum_chain.sh tinybert`,
+# with training_en_gum_tinybert pointing at the base arm). Default: same as TAG, i.e. unchanged behaviour.
+CORPUS_TAG=${CORPUS_TAG:-$TAG}
 PY=.venv/bin/python
+# seg_code registers the TinyBERT tok2vec (when torch is present) so a sourced base with that encoder opens
 CODE="--code scripts/seg_code.py"
-CE=corpus_en_gum_$TAG/en_ewtgum-sud
+CE=corpus_en_gum_$CORPUS_TAG/en_ewtgum-sud
 TR=$CE-train.relabeled_ext.udep_resolved.spacy; DV=$CE-dev.relabeled_ext.udep_resolved.spacy; TE=$CE-test.relabeled_ext.udep_resolved.spacy
 [ -d training_en_gum_$TAG/model-best ] || { echo "base arm training_en_gum_$TAG/model-best missing: run scripts/build_en_vnrulings.sh $TAG"; exit 1; }
 stage() { echo "=== $(date +%H:%M:%S) $*"; }

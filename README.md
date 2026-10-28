@@ -31,7 +31,7 @@ does not.
 | Model | Language | Version | Treebank | Licence | Extra dependency |
 |-------|----------|:-------:|----------|---------|------------------|
 | `en_sud_ewt` | English | 0.2.0 | SUD_English-EWT | CC BY-SA 4.0 | — |
-| `en_sud_ewt_gum` | English | 0.2.0 | + GUM's ten non-NC genres | CC BY-SA 4.0 | — |
+| `en_sud_ewt_gum` | English | **0.3.0** | + GUM's ten non-NC genres | CC BY-SA 4.0 | — |
 | `zh_sud_gsd` | Chinese | 0.2.0 | SUD_Chinese-GSD | CC BY-SA 4.0 | `opencc` |
 | `ja_sud_gsd` | Japanese | **0.3.0** | SUD_Japanese-GSD | CC BY-SA 4.0 | `sudachipy` + `sudachidict-core` |
 | `ko_sud_gsd` | Korean | **0.3.0** | SUD_Korean-GSD | CC BY-SA 4.0 | `python-mecab-ko` § |
@@ -58,6 +58,11 @@ an **attribution obligation**: cite GUM, link <https://gucorpling.org/gum/>, and
 annotators and the text sources ([`NOTICE.md`](NOTICE.md)). Prefer it unless you want an EWT-only
 provenance and the narrower attribution that comes with it.
 
+As of 0.3.0 the `en_sud_ewt_gum` encoder is a **frozen TinyBERT-4L-312D** (Apache-2.0) with a learned mix of its
+layers, beside the earlier hash-embed CNN. It runs as plain numpy — the wheel needs no `torch` — and lifts raw
+end-to-end LAS from 81.7 to 83.3 (one training seed). The cost is size: the wheel grows from 23 to 76 MB and one
+sentence peaks at about 330 MB of memory, so budget a 512 MB function. `en_sud_ewt` is unchanged.
+
 ## Results (test split)
 
 Measured on the arm each wheel ships, identified by hashing `parser/model` out of the **downloaded**
@@ -69,7 +74,7 @@ the tokeniser is measured instead.
 |-------|----------|----:|----:|-------------:|----------:|
 | `ja_sud_gsd` | Japanese | 92.0 | 90.0 | 72.9 | 99.4 |
 | `fa_sud_perdt` | Persian | 91.0 | 86.3 | 79.8 | 99.1 |
-| `en_sud_ewt_gum` | English (EWT+GUM) | 86.8 | 81.9 | 70.7 | 99.7 |
+| `en_sud_ewt_gum` | English (EWT+GUM) | 88.7 | 85.0 | 74.0 | 99.7 |
 | `en_sud_ewt` | English | 86.3 | 81.3 | 70.9 | 99.6 |
 | `te_sud_mtg` | Telugu | 85.3 | 69.1 | 14.3 | — ◊◊ |
 | `id_sud_gsd` | Indonesian | 83.6 | 74.2 | 68.2 | 99.9 |
@@ -246,6 +251,7 @@ Source code (`scripts/`, `webapp/`, `configs/`) is MIT (see `LICENSE`). The rele
 committed treebank-derived data inherit their treebanks' terms — **CC BY-SA 4.0** for most, and
 **CC BY-NC-SA** for Latin, Arabic, Tamil and Telugu, whose treebanks are NonCommercial at source.
 SUD_English-GUM's five NonCommercial genres are excluded from `en_sud_ewt_gum` so that wheel stays
-commercially usable; its annotations are CC BY and require attribution.
+commercially usable; its annotations are CC BY and require attribution. `en_sud_ewt_gum` 0.3.0 also bundles the
+pretrained TinyBERT-4L-312D weights and vocabulary (Apache-2.0); the licence text and notice ship inside the wheel.
 
 Full attribution and the per-treebank breakdown are in [`NOTICE.md`](NOTICE.md).

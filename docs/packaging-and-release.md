@@ -208,6 +208,29 @@ Subject rule reads, are byte-identical). Check the table, don't trust the filena
 and `--clobber` makes the winner whichever `find` yields last. Removed. **Count the wheels before
 uploading**: one per language, or the release is a coin toss.
 
+## A sealed numpy encoder in place of torch (en_gum 0.3.0, 2026-10-28)
+
+The pattern for putting a pretrained transformer into a wheel without `torch`: train with the torch module
+(`sud_tinybert_embed.py`), then **convert** it (`seal_tinybert_tok2vec.py`) into a numpy twin
+(`sud_tinybert_infer.py`) whose weights, vocab, hyper-parameters and learned mix live in the component's own
+`tok2vec/model` bytes — no path in the config (hazard 4). Three rules held it together:
+
+- **The converter refuses unless the twin matches.** `check_tinybert_equiv.py` compares tok2vec outputs (max
+  diff 8.3e-6) and the whole analysis (head, deprel, tag, POS, lemma, morph, sentence start) over the test set
+  plus stress documents: longer than the 256-piece chunk, the empty doc, whitespace-only tokens, a literal
+  `[SEP]`. The WordPiece port was fuzzed against `BertTokenizerFast`; it found two real differences from the
+  textbook rules.
+- **Verify in a venv where `import torch` FAILS**, run from `/tmp`. The empty-document crash (`nO` unset on the
+  concatenated model) appeared only there; every check from the repo root had passed.
+- **Count what the new base touches.** Stages with their own encoder retrain byte-identical on a new base;
+  only pipes that read the parse (`sud_subject`, `sud_shared`) were retrained, and the rules re-measured.
+
+Cost, for serverless sizing: wheel 23 → 76 MB, site-packages 160 → 215 MB, peak RSS for one sentence 155 → 331 MB
+(594 MB on a 5 200-token document), p50 about 5–10 ms a sentence. float32 weights; fp16 would halve the 63 MB
+but breaks the 1e-6 equivalence. The release was a version bump on the shared `v0.3.0` tag, uploaded WITHOUT
+`--clobber` under a new asset name; the auto-mode classifier blocks `gh release upload` as a public action, so
+run it yourself (`! gh release upload …`).
+
 ## Metrics files: which is which, and which are stale
 
 **`metrics/release/*.json` is the RELEASED arm; every other `metrics/<lang>/*.json` is a development one.**

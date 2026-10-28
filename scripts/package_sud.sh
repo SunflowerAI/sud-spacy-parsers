@@ -75,6 +75,7 @@ PY=.venv/bin/python
 # long after all twelve went to 0.2.0, so a bare call built a wheel named a whole generation behind
 # and said nothing -- the same shape as a default that names a pre-graft arm, and the same fix: make
 # the default right rather than write a note asking the next person to remember.
+VERSION_USER="${VERSION:-}"   # empty unless the caller set VERSION: lets a per-arm default (en_gum 0.3.0) apply
 VERSION="${VERSION:-0.2.0}"
 CODE_BASE="scripts/sud_misc.py,scripts/sud_idiom.py"
 # arms that also ship the Reported rule (en/ar/sa -- see the table below)
@@ -330,7 +331,14 @@ for lang in "$@"; do
     #     training_en_gum_sud_xw --corpus corpus_en_gum_ext/en_ewtgum-sud-test.relabeled_ext.spacy
     # All three of that script's checks pass, and the wheel it packages is byte-identical to the
     # released v0.2.0 asset in every weight file -- only the licence metadata differs.
-    en_gum)       base=training_en_gum_sud_xw ;;
+    # ⚠ 2026-10-28: en_gum SHIPS THE TINYBERT ARM (wheel 0.3.0, docs/release-notes.md): tok2vec is the
+    # frozen TinyBERT-4L-312D + hash-embed CNN, parser/tagger-listeners 408 wide. The default names
+    # `training_en_gum_sud_xw_tinybert`, built by
+    #   CORPUS_TAG=vnrulings6 bash scripts/build_en_gum_chain.sh tinybert     (base: training_en_gum_tinybert ->
+    #   training_en_gum_tinybert_hash_frozen_mix_s0, seed 0) and sealed by the en_gum branch below.
+    # EN_GUM_BASE=training_en_gum_sud_xw_vnrulings6 gets back the 0.2.0 (hash-CNN) arm -- and its 0.2.0
+    # version, so pass VERSION=0.2.0 with it.
+    en_gum)       base="${EN_GUM_BASE:-training_en_gum_sud_xw_tinybert}" ;;
     # la ships the ORTHOGRAPHICALLY AUGMENTED chain, not the plain-plus-macron union: one copy of
     # the macronised treebank resampled into a fresh edition style every epoch (macrons, breves,
     # u/v, i/j, æ/œ, sentence-initial capitals). It costs ~0.5 LAS and 2.7 TAG on ordinary input
@@ -495,9 +503,24 @@ case $lang in
        # ⚠ Which Reported arm ships here is NOT inherited from en: the MISC layer reads the base
        # arm's own predictions, so the rule-vs-trained comparison must be re-run on this arm
        # (eval_sud_reported.py) before this line is trusted.
-  en_gum) $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang en >/dev/null 2>&1
+  en_gum) # the TinyBERT arm packages as 0.3.0 unless the caller names a version; the 0.2.0 arm via EN_GUM_BASE keeps 0.2.0
+       tb_code=""
+       if grep -q 'sud.TinyBertPlusHash.v1' "$base/config.cfg"; then
+         # SEAL: torch tok2vec -> numpy twin with weights+vocab inside tok2vec/model (needs torch HERE only; the
+         # wheel needs none). Done BEFORE the sud_* surgery so every later step loads the torch-free model.
+         $PY scripts/seal_tinybert_tok2vec.py "$base" "$work.seal" >build_sud/en_gum_seal.log 2>&1 \
+           || { echo "  en_gum: SEAL FAILED (build_sud/en_gum_seal.log)"; continue; }
+         base="$work.seal"; tb_code=",scripts/sud_tinybert_infer.py"
+         [ -z "$VERSION_USER" ] && VERSION=0.3.0
+         # Apache-2.0 attribution for the encoder weights + vocab travels INSIDE the model directory
+         mkdir -p "$base/NOTICE" && cp third_party/tinybert/LICENSE "$base/NOTICE/TinyBERT-LICENSE-Apache-2.0.txt" \
+           && cp third_party/tinybert/NOTICE.txt "$base/NOTICE/TinyBERT-NOTICE.txt" \
+           || { echo "  en_gum: TinyBERT NOTICE files missing"; continue; }
+       fi
+       $PY scripts/add_sud_reported_rule.py "$base" "$work.rep" --lang en >/dev/null 2>&1
        add_idiom "$work.rep" "$work"
-       pkg en_gum "$work" sud_ewt_gum "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py" en ;;
+       if [ -n "$tb_code" ] && [ -d "$work" ]; then cp -R "$base/NOTICE" "$work/NOTICE"; fi
+       pkg en_gum "$work" sud_ewt_gum "$CODE_REP,$CODE_SHARED,scripts/sud_tagger.py$tb_code" en ;;
        # fa/la ship NO Reported layer. fa's structural arm does beat its rule (F 40.0 vs 23.5,
        # because fa's gold is 87% LLM-decided and the rule can only reach recall 0.13) -- but at
        # P 0.50 half of what it emits is wrong, which is not worth shipping. la is worse still:

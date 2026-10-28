@@ -26,11 +26,91 @@ repo — sa shipped 0.3.0 within a day of it last being written.
 
 | release | wheels |
 |---|---|
-| [`v0.3.0`](https://github.com/SunflowerAI/sud-spacy-parsers/releases/tag/v0.3.0) | `ja` `ko` `la` `sa` at 0.3.0; `ta` `te` new at 0.1.0 |
+| [`v0.3.0`](https://github.com/SunflowerAI/sud-spacy-parsers/releases/tag/v0.3.0) | `ja` `ko` `la` `sa` at 0.3.0; `ta` `te` new at 0.1.0; `en_gum` 0.3.0 uploaded 2026-10-28 01:26 UTC, sha256 `b9bf07c9…4b6b8`, re-verified by downloading the asset (entry below) |
 | [`v0.2.0`](https://github.com/SunflowerAI/sud-spacy-parsers/releases/tag/v0.2.0) | `en` `en_gum` `ar` `fa` `id` `zh` `yue` `lzh` at 0.2.0 |
 | [`vectors-v0.1.0`](https://github.com/SunflowerAI/sud-spacy-parsers/releases/tag/vectors-v0.1.0) | 13 aligned cross-lingual 128d vector assets — see [`aligned-vectors.md`](aligned-vectors.md) |
 
 ## Change log
+
+### 2026-10-28 — `en_gum` 0.3.0 (TinyBERT-frozen base arm) — UPLOADED 2026-10-28 (hash re-verified on the downloaded asset)
+
+A new architecture and new weights, so this takes a **version bump rather than a clobber** (the ja/ko/la/sa
+convention above): the 0.2.0 asset stays on `v0.2.0` and is the rollback. Uploaded to the existing
+[`v0.3.0`](https://github.com/SunflowerAI/sud-spacy-parsers/releases/tag/v0.3.0) release (new asset name, so no
+`--clobber`); `pip install -U` cannot pull it either way, since wheels are installed from release URLs.
+
+**What changed.** `tok2vec` is now a **frozen TinyBERT-4L-312D** (`huawei-noah/TinyBERT_General_4L_312D`, uncased)
+with a learned softmax mix over all five hidden states and one learned scalar, first word-piece per word,
+concatenated with the previous 96-wide hash-embed CNN (listener width 408). `parser` is retrained on it. Everything
+else in the pipeline keeps its place: `[tokenizer, tok2vec, parser, morphologizer, lemmatizer, tagger, sud_subject,
+sud_shared, sud_reported_rule, sud_idiom]`.
+
+**No torch at inference.** The wheel's encoder is `sud.TinyBertPlusHashNumpy.v1` (`scripts/sud_tinybert_infer.py`):
+a numpy forward pass of the 4 BERT layers and a pure-python WordPiece tokenizer. Weights, the 30 522-entry vocab,
+the BERT hyper-parameters, the mix logits and gamma are **sealed in `tok2vec/model`** (63 MB); the config names no
+path (standing hazard 4). The training module `sud_tinybert_embed.py` (torch) is untouched and is not in the wheel.
+`scripts/seal_tinybert_tok2vec.py` converts a trained arm and refuses to write unless the twin matches torch.
+
+**Equivalence, measured** (`scripts/check_tinybert_equiv.py`, torch arm against sealed arm, 302 test documents plus
+ten stress documents: 900- and 2500-word documents that must chunk at 256 pieces, the empty document, whitespace-only
+tokens, a literal `[SEP]`, CJK, accents, 255/256/257-token runs):
+max |torch − numpy| on the tok2vec output **8.3e-6**; full-pipeline analysis (head, deprel, tag, POS, lemma, morph,
+sentence start, `sud_misc`) identical on **47 682 / 47 682 tokens**. The WordPiece port was fuzzed against
+`BertTokenizerFast` on all 29 419 word types in train+test plus 30 000 random Unicode strings: **0 mismatches**
+(the fuzz found two places where the fast tokenizer differs from the textbook BERT rules: unassigned code points
+are kept rather than dropped, and a literal `[SEP]` inside a word is id 102).
+
+**What was rebuilt, and why** (`CORPUS_TAG=vnrulings6 bash scripts/build_en_gum_chain.sh tinybert`, ~47 min).
+The morphologiser, lemmatiser and XPOS tagger each have their own encoder and train on gold, so they do not read the
+base: re-trained, they come out **byte-identical** to the 0.2.0 asset (`cmp`), which is why tag, POS, morph and lemma
+scores are *identical* to 0.2.0 (tag 94.45) — the base arm's own 94.74 tagger is not what ships (the conditioned
+XPOS tagger replaces it, as before). What does read the base is `sud_subject`/`sud_shared` (they annotate from its
+parse, standing hazard 5), so those were re-trained against it; `sud_reported`/`sud_idiom` are rules and were
+re-measured. Wheel versus 0.2.0, file by file: `config.cfg`, `meta.json`, `README.md`, `tok2vec/model`,
+`parser/model`, `sud_subject/model`, `sud_shared/model` differ; `tagger`, `morphologizer`, `lemmatizer`, tokenizer,
+vocab are byte-identical; `NOTICE/` added.
+
+**Full deployed pipeline, both wheels measured in clean venvs from `/tmp`** (0.2.0 downloaded from the release;
+it reproduces `metrics_release_en_gum*.json` exactly). Test split of `corpus_en_gum_sud_vnrulings6` for
+`--gold-preproc`, of `corpus_en_gum_vnrulings6` (udep-resolved) for raw:
+
+| | 0.2.0 gp | 0.3.0 gp | 0.2.0 raw | 0.3.0 raw |
+|---|---|---|---|---|
+| LAS | 82.90 | **84.98** | 81.71 | **83.28** |
+| UAS | 87.13 | 88.66 | 85.79 | 86.93 |
+| sentence F | 90.87 | 89.26 | 76.47 | 79.10 |
+| TAG / POS / lemma | 94.45 / 94.66 / 96.24 | identical | 94.45 / 94.57 / 95.50 | identical |
+| `comp:obl` F / `mod` F | 70.7 / 76.6 | 74.0 / 78.5 | 71.1 / 76.5 | 74.4 / 77.6 |
+
+The one cost is gold-preproc sentence F (−1.6); raw sentence F rises 2.6. Files: `metrics/en_gum/metrics_en_gum_{020dl,030}_{gp,raw}.json`.
+
+**MISC layer re-measured** (`scripts/eval_misc_en_gum.py`, gold tokens, test; 0.2.0 base → 0.3.0 base). No ship
+decision reverses. Subject (trained) F 78.43 → 78.13 (rule 63.71); Shared (trained) 61.12 → 63.06 (rule 53.75);
+Reported (rule) 63.01 → 66.67 on n = 42 (trained 31.01); Idiom 80.19 → 80.38 and InIdiom 80.00 → 79.82 (rule).
+The Subject and Idiom changes are inside noise; the Reported figure rests on 42 tokens.
+
+**Serverless sizing** (clean venvs, NumpyOps, laptop under other load, so latency is a range): wheel 22.9 → **76.3 MB**;
+site-packages 160 → **215 MB**; cold load 0.15–0.4 s for both; peak RSS 155 → **331 MB** (5 200-token document:
+355 → 594 MB); p50 per single sentence 2.9–5.6 ms → 4.7–10 ms; batched gold-preproc throughput 12.1k → 4.2k words/s.
+Fits a 512 MB function; the 63 MB tok2vec is float32 (fp16 would halve it; not done, since it breaks the 1e-6 equivalence).
+
+**Caveats, stated plainly.**
+- **SINGLE SEED.** The TinyBERT arm is seed 0 only. The 0.2.0 recipe has three seeds (raw LAS 81.71 / 81.76 / 81.91,
+  sd ≈ 0.1), so +1.6 LAS is about 15 of its standard deviations, but the TinyBERT arm's own seed spread is unmeasured.
+  Sentence F has a seed sd of about 0.8, so the 2.6-point raw gain is only ~3 sd of the old arm and uncertain.
+- The `sud_subject`/`sud_shared` retraining is also single-seed.
+- `en_sud_ewt` (EWT only) is NOT updated; it stays on the hash-CNN base.
+- **Licence.** The encoder and vocab are Apache-2.0 (`NOTICE/` in the model directory carries the licence text and
+  notice; `meta.json` lists the source). The only licence statement found is the Apache-2.0 `LICENSE` in the
+  upstream TinyBERT project directory; the Hugging Face model card carries no licence field. The vocabulary is BERT-base-uncased's.
+
+**Commands run** (all from the repo root, `.venv/bin/python`): `ln -s training_en_gum_tinybert_hash_frozen_mix_s0 training_en_gum_tinybert`;
+`CORPUS_TAG=vnrulings6 bash scripts/build_en_gum_chain.sh tinybert` (train morph, lemma, xpos, sud_xpos, xposwarm, then
+`graft_pipe.py`/`graft_xpos_tagger.py`: parse unchanged 8585/8585, donor tags reproduced 8585/8585);
+`bash scripts/package_sud.sh en_gum` (seals, adds the Reported rule and Idiom, packages as 0.3.0);
+`.venv/bin/python scripts/check_tinybert_equiv.py training_en_gum_sud_xw_tinybert build_sud/work_en_gum.seal corpus_en_gum_sud_tinybert/test.spacy`;
+`scripts/eval_misc_en_gum.py <arm> --rules` for both arms; and in clean venvs, from `/tmp`,
+`python -I -m spacy evaluate en_sud_ewt_gum <test.spacy> [--gold-preproc] --output ...` for both wheels.
 
 ### 2026-10-26, 08:40 UTC — `en_gum` re-clobbered at 0.2.0 (extended `comp:obl`/`mod` rulings)
 

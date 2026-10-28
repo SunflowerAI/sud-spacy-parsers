@@ -145,5 +145,11 @@ for _f in ("vocal_augment.py", "ar_vocalise.py", "fa_vocalise.py", "fa_align.py"
            # `import sud_joint_biaffine` / `import train_arcfactored` resolve normally through
            # `sys.path` (already includes this directory, line 15), so neither needs its own entry
            # here -- only the factory registration itself does.
-           "sud_arcfactored_parser.py"):
+           "sud_arcfactored_parser.py",
+           # registers sud.TinyBertTok2Vec.v1 / sud.TinyBertPlusHash.v1 (TRAINING; needs torch +
+           # transformers, so an environment without them skips it with a message) and
+           # sud.TinyBertNumpy.v1 / sud.TinyBertPlusHashNumpy.v1 (the numpy INFERENCE encoder the
+           # en_sud_ewt_gum 0.4.0 wheel ships -- no torch). Any arm whose tok2vec is the TinyBERT one
+           # cannot be opened without the matching registration.
+           "sud_tinybert_embed.py", "sud_tinybert_infer.py"):
     _load(_f)

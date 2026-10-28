@@ -1666,3 +1666,32 @@ Also learned on the way, each cheap to miss:
   one, a three-way tie without.
 * **`classifier_join`'s training set is 70 % unpunctuated** (3 158 of 4 507 pairs have no mark between
   the two clause roots), not comma-split as it was described for weeks.
+
+## Fine-tuning a small pretrained encoder as the tok2vec LOSES; freezing it wins (en EWT+GUM, 2026-10-27/28)
+
+Zeldes suggested a small pretrained transformer (DistilBERT/TinyBERT) with several layers fed to the parser. The
+first four arms all fine-tuned TinyBERT-4L-312D (`sud.TinyBertTok2Vec.v1`, torch inside thinc; NOT
+`spacy-transformers`, which needs torch at inference) and ALL lost to the hash-embed CNN base on the same corpus
+(`corpus_en_gum_vnrulings6`). Test, seed 0, against the three seeds of the base recipe (LAS 81.71 / 81.76 / 81.91):
+
+    arm                                      LAS     UAS     TAG
+    fine-tuned + CNN, lr 1e-4                81.11   85.39   94.45
+    fine-tuned + CNN, lr 3e-4                81.48   85.71   94.35
+    FROZEN + last layer + CNN, lr 1e-3       82.71   86.49   94.67
+    FROZEN + learned layer mix + CNN, 1e-3   83.28   86.93   94.74   <- shipped (en_gum 0.3.0)
+
+(TinyBERT alone, fine-tuned, uncased: dev LAS plateaued ~81.1 with tag accuracy 1.5 below that of the CNN — the capital
+letters are gone. The layer mix was ~1 LAS WORSE than the last layer while fine-tuning, ~0.6 LAS BETTER once frozen:
+a layer mix is a frozen-feature device; a fine-tuned encoder adapts each layer itself.)
+
+* **Why fine-tuning lost is a hypothesis, not a finding.** Dev LAS peaked early (step 4 000 at lr 3e-4) and then
+  drifted DOWN while tag accuracy fell, which looks like damage to the pretrained weights at a rate the parser heads
+  need. Early stopping (patience 5 000) cut the runs before the learning-rate decay tail, which was not tested.
+* **The learning rate was a trap in both directions.** 1e-4 starved the from-scratch CNN and heads (−4.6 LAS at step
+  1 000 against 3e-4); 6e-4 and 1e-3 fine-tuning runs were killed at step 400 once the frozen design replaced them.
+  Freezing removed the conflict: only the mix, one scalar, the CNN and the heads train, so the 1e-3 of the base recipe is safe.
+* **A confident prediction was wrong.** At step 9 000 the frozen mix looked flat and I predicted early stopping within
+  the hour; it kept improving under the decay and reached its best dev LAS (83.79) at step 18 600. A flat window
+  inside a decaying schedule is not a plateau.
+* **Single seed per arm.** The 1.5-LAS gap over the base is ~15 of its seed sd, but the spread across seeds of the frozen arm is
+  unmeasured, and the mix-over-last gap (0.6) is small enough that one seed each cannot establish it.

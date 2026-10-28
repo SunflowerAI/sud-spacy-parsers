@@ -1,0 +1,23 @@
+TinyBERT_General_4L_312D (encoder weights and WordPiece vocabulary)
+===================================================================
+
+The `en_sud_ewt_gum` wheel (version 0.3.0 and later) contains, inside `tok2vec/model`, the pretrained
+weights and the 30 522-entry vocabulary of
+
+    huawei-noah/TinyBERT_General_4L_312D
+    https://huggingface.co/huawei-noah/TinyBERT_General_4L_312D
+    Jiao, Yin, Shang, Jiang, Chen, Li, Wang, Liu. "TinyBERT: Distilling BERT for Natural Language
+    Understanding." Findings of EMNLP 2020. https://arxiv.org/abs/1909.10351
+
+The weights are used UNMODIFIED (frozen during training): the encoder is the original 4-layer, 312-d
+network, re-implemented for inference in numpy. Only a learned mix of its five hidden states and one scalar
+were trained, and they are stored beside it.
+
+Licence: Apache License, Version 2.0, as published for the TinyBERT project at
+https://github.com/huawei-noah/Pretrained-Language-Model/tree/master/TinyBERT (its LICENSE file is copied
+beside this notice as TinyBERT-LICENSE-Apache-2.0.txt). The vocabulary is that of Google's BERT-base-uncased
+(also Apache-2.0), from which TinyBERT is distilled.
+
+This notice is retained as Apache-2.0 section 4 requires. The rest of the wheel (the parser, tagger,
+morphologiser, lemmatiser and MISC-layer weights, and the code) is licensed CC BY-SA 4.0, as stated in the
+wheel's metadata; Apache-2.0 material may be combined with it.

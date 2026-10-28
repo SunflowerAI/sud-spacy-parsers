@@ -143,6 +143,13 @@ SOURCES = {
                  "please cite the corpus and that site. Text sources include Wikinews, "
                  "Wikivoyage, OpenStax, the Santa Barbara Corpus (John Du Bois, UCSB), "
                  "Creative-Commons YouTube and public-domain political speeches."},
+        # 0.3.0 and later: the frozen encoder inside tok2vec. Apache-2.0 requires the licence text and
+        # notice to travel with the weights; both are in the wheel under NOTICE/ (package_sud.sh).
+        {"name": "TinyBERT_General_4L_312D (frozen encoder weights and vocabulary, in tok2vec/model)",
+         "license": "Apache-2.0",
+         "url": "https://huggingface.co/huawei-noah/TinyBERT_General_4L_312D",
+         "note": "Jiao et al., TinyBERT: Distilling BERT for Natural Language Understanding (Findings of "
+                 "EMNLP 2020). Used unmodified; licence text and notice in NOTICE/ inside the model."},
     ],
     "lzh": [
         {"name": "SUD_Classical_Chinese-Kyoto", "license": "CC BY-SA 4.0",

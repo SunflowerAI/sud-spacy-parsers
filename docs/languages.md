@@ -53,6 +53,14 @@ trained 35.64), Idiom/InIdiom 79.81/79.11 — every ship decision the same as en
 this arm rather than inherited, as `package_sud.sh` warns. This arm never had the `reparandum` gap:
 no such label in its parser's inventory.
 
+**0.3.0 (2026-10-28): a frozen TinyBERT base.** Those released figures are the 0.2.0 ones. 0.3.0 replaces the
+`tok2vec` with a frozen TinyBERT-4L-312D (uncased; learned softmax mix of its five hidden states) concatenated with
+the old 96-wide hash-embed CNN — the CNN has to stay, because an uncased encoder drops the capitalisation that
+tagging needs (TinyBERT alone tagged 1.5 points worse). Raw end-to-end LAS 81.71 → 83.28 (the three seeds of the
+base recipe were 81.71 / 81.76 / 81.91; the new arm has ONE), gold-preproc 82.90 → 84.98, gold-preproc sentence F
+−1.6, raw +2.6. Fine-tuning the encoder lost (81.1–81.5) — `NEGATIVE-RESULTS.md`. Tag/POS/lemma/morph are
+unchanged to the byte. `docs/release-notes.md` has the full table, the equivalence checks and the sizing.
+
 ## Indonesian
 
 **FEATS bug (fixed).** `coarsen_id.py` hardcoded the merged token's FEATS to `_` (the same bug the

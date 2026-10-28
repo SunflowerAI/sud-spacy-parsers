@@ -1,0 +1,10 @@
+model=training_en_gum_sud_xw_tinybert  test: 3014 sentences, gold tokens, everything else predicted
+pipeline: ['tok2vec', 'parser', 'morphologizer', 'lemmatizer', 'tagger', 'sud_subject', 'sud_reported', 'sud_shared']
+  Idiom    (rule   ) gold=  120  P= 94.38 R= 70.00 F= 80.38
+  InIdiom  (rule   ) gold=  131  P= 93.81 R= 69.47 F= 79.82
+  Subject  (trained) gold=  412  P= 81.53 R= 75.00 F= 78.13
+  Reported (rule   ) gold=   42  P= 80.00 R= 57.14 F= 66.67
+  Shared   (trained) gold= 1918  P= 65.82 R= 60.53 F= 63.06
+  Subject  (rule   ) gold=  412  P= 52.17 R= 81.80 F= 63.71
+  Shared   (rule   ) gold= 1918  P= 57.84 R= 50.21 F= 53.75
+  Reported (trained) gold=   42  P= 22.99 R= 47.62 F= 31.01
