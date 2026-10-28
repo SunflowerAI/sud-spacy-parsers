@@ -280,6 +280,12 @@ follows the standard: accuracy on the affected punctuation goes **72.5 % → 83.
 headline TAG flat (94.19 → 94.20 — this is 0.3 % of the corpus). `en_sud_ewt` is unaffected: on its
 own, EWT's convention is internally consistent.
 
+**0.3.0 (2026-10-28)** swaps the encoder for a frozen TinyBERT-4L-312D beside the old CNN. The figures in the
+README table for this wheel (UAS 88.7, LAS 85.0, `comp:obl` F 74.0, all gold-preproc) are those of 0.3.0, and the
+release metrics files hold its gold-preproc and raw scores. They come from the wheel as built, whose SHA-256 matches the asset
+downloaded from the release; they were not re-scored on the downloaded file itself. The base arm is a single seed;
+`languages.md` and `docs/release-notes.md` have the comparison with 0.2.0.
+
 ## Both Han scripts, one script inside
 
 *Full detail: [`chinese-family.md`](chinese-family.md).*
